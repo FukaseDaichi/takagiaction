@@ -4,11 +4,17 @@
 
 見下ろし型（トップダウン）のアクションシューティング。プレイヤーは施設に送り込まれた端末となり、オフラインになった各フロアのシステムを再起動して回ります。WebGL 製で、オリジナルはゲーム本体・グラフィック・BGM をすべて含めて **13KB 以下**という制約の中で作られています。
 
-オリジナル版はこちらでプレイできます: https://phoboslab.org/underrun/
+## ▶ ブラウザで遊ぶ
+
+**https://fukasedaichi.github.io/takagiaction/**
+
+GitHub Pages で公開しています。`main` ブランチに push すると自動で反映されます。
+
+オリジナル版はこちら: https://phoboslab.org/underrun/
 
 ---
 
-## 遊び方（ローカルでの起動）
+## ローカルでの起動
 
 PNG 画像をテクスチャとして読み込むため、`file://` で直接開くと動きません。簡易 HTTP サーバー経由で開いてください。
 
@@ -16,11 +22,7 @@ PNG 画像をテクスチャとして読み込むため、`file://` で直接開
 python3 -m http.server 8000
 ```
 
-サーバーを起動したら、ブラウザで下記を開きます（開発用のビルド不要版）。
-
-```
-http://localhost:8000/index-debug.html
-```
+サーバーを起動したら、ブラウザで `http://localhost:8000/` を開きます。ビルドは不要で、`source/` 以下のファイルをそのまま読み込みます（編集したらリロードするだけで反映されます）。
 
 起動するとターミナル風のイントロが流れます。**画面をクリックするとゲーム開始**です（音声再生のためにクリックが必要です）。
 
@@ -113,7 +115,8 @@ http://localhost:8000/index-debug.html
 
 | パス | 内容 |
 | --- | --- |
-| `index-debug.html` | 開発用。各ソースを個別に読み込むので、ビルドなしで動作確認できます |
+| `index.html` | エントリーポイント。各ソースを個別に読み込むので、ビルドなしで動作します（GitHub Pages もこれを配信） |
+| `.nojekyll` | GitHub Pages で Jekyll の処理を無効化するためのマーカー |
 | `source/` | ゲーム本体のソース一式 |
 | `source/game.js` | 入力処理、レベル読み込み、メインループ |
 | `source/renderer.js` | WebGL レンダラー（320×180 のピクセルアート描画、ライティング） |
@@ -149,7 +152,7 @@ npm install
 
 - **テキストの日本語化**: 画面に出る文言は `source/terminal.js`（イントロ / ストーリー / エンディング）、`source/game.js`（`SCANNING FOR OFFLINE SYSTEMS...`）、`source/entity-cpu.js`（`REBOOTING...` など）、`source/entity-player.js`（`DEPLOYMENT FAILED`）に散らばっています
 - **表示スタイルの調整**: ターミナル表示（`#a`）は `white-space: nowrap` の 1 行表示・等幅前提のため、日本語を入れる場合は折り返しやフォントサイズの調整が必要です
-- **タイトルまわり**: `source/html-template.html` と `index-debug.html` の `<title>`
+- **タイトルまわり**: `index.html` と `source/html-template.html` の `<title>`
 - **レベルの追加・難易度調整**: 上記「レベルデータの仕組み」を参照
 - **ファイルサイズの制約について**: 13KB は js13k のルールなので、このリポジトリでは必ずしも守る必要はありません。日本語テキストはバイト数が増えるため、サイズを気にせず自由にアレンジできます
 
