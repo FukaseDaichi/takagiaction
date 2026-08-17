@@ -4,10 +4,9 @@ var udef, // global undefined
 	_document = document,
 	_temp,
 
-	keys = {37: 0, 38: 0, 39: 0, 40: 0},
-	key_up = 38, key_down = 40, key_left = 37, key_right = 39, key_shoot = 512,
+	keys = {32: 0, 37: 0, 38: 0, 39: 0, 40: 0},
+	key_up = 38, key_down = 40, key_left = 37, key_right = 39, key_shoot = 32,
 	key_convert = {65: 37, 87: 38, 68: 39, 83: 40}, // convert AWDS to left up down right
-	mouse_x = 0, mouse_y = 0,
 
 	time_elapsed,
 	time_last = performance.now(),
@@ -20,6 +19,7 @@ var udef, // global undefined
 	cpus_rebooted = 0,
 
 	current_level = 0,
+	game_running = 0,
 	entity_player,
 	entities = [],
 	entities_to_kill = [];
@@ -144,6 +144,12 @@ function preventDefault(ev) {
 }
 
 _document.onkeydown = function(ev){
+	if (ev.keyCode === 77) { // M: 音声トグル
+		if (!ev.repeat) {
+			audio_toggle();
+		}
+		return;
+	}
 	_temp = ev.keyCode;
 	_temp = key_convert[_temp] || _temp;
 	if (keys[_temp] !== udef) {
@@ -159,21 +165,6 @@ _document.onkeyup = function(ev) {
 		keys[_temp] = 0;
 		preventDefault(ev);
 	}
-}
-
-_document.onmousemove = function(ev) {
-	mouse_x = (ev.clientX / c.clientWidth) * c.width;
-	mouse_y = (ev.clientY / c.clientHeight) * c.height;
-}
-
-_document.onmousedown = function(ev) {
-	keys[key_shoot] = 1;
-	preventDefault(ev);
-}
-
-_document.onmouseup = function(ev) {
-	keys[key_shoot] = 0;
-	preventDefault(ev);
 }
 
 function game_tick() {

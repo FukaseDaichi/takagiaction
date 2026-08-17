@@ -10,6 +10,7 @@ audio_init(function(){
 			renderer_init();
 				
 			load_image('q2', function() {
+				game_running = 1;
 				terminal_hide();
 				renderer_bind_image(this);
 				next_level(game_tick);

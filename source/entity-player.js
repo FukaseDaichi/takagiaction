@@ -2,6 +2,7 @@
 class entity_player_t extends entity_t {
 	_init() {
 		this._bob = this._last_shot = this._last_damage = this._frame = 0;
+		this._angle = _math.PI / 2; // face towards the viewer
 	}
 
 	_update() {
@@ -12,12 +13,11 @@ class entity_player_t extends entity_t {
 		t.ax = keys[key_left] ? -speed : keys[key_right] ? speed : 0;
 		t.az = keys[key_up] ? -speed : keys[key_down] ? speed : 0;
 
-		// rotation - select appropriate sprite
-		var angle = _math.atan2(
-			mouse_y - (-34 + c.height * 0.8),
-			mouse_x - (t.x + 6 + camera_x + c.width * 0.5)
-		);
-		t.s = 18 + ((angle / _math.PI * 4 + 10.5) % 8)|0;
+		// rotation - face the direction of movement, hold still while shooting
+		if (!keys[key_shoot] && (t.ax || t.az)) {
+			t._angle = _math.atan2(t.az, t.ax);
+		}
+		t.s = 18 + ((t._angle / _math.PI * 4 + 10.5) % 8)|0;
 
 		// bobbing
 		t._bob += time_elapsed * 1.75 * (_math.abs(t.vx) + _math.abs(t.vz));
@@ -28,7 +28,7 @@ class entity_player_t extends entity_t {
 
 		if (keys[key_shoot] && t._last_shot < 0) {
 			audio_play(audio_sfx_shoot);
-			new entity_plasma_t(t.x, 0, t.z, 0, 26, angle + _math.random() * 0.2 - 0.11);
+			new entity_plasma_t(t.x, 0, t.z, 0, 26, t._angle + _math.random() * 0.2 - 0.11);
 			t._last_shot = 0.1;
 		}
 

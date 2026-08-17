@@ -40,7 +40,8 @@ var terminal_text_story =
 	'_ \n \n' +
 	'全システムの手動再起動が必要\n' +
 	'_ \n' +
-	'移動: WASD または矢印キー / 射撃: マウス\n' +
+	'移動: WASD または矢印キー / 射撃: スペース\n' +
+	'音声切替: M\n' +
 	'クリックで現地へ展開開始\n ';
 
 var terminal_text_outro =
@@ -166,6 +167,7 @@ function terminal_run_story(callback) {
 }
 
 function terminal_run_outro(callback) {
+	game_running = 0;
 	c.style.opacity = 0.3;
 	a.innerHTML = '';
 	terminal_text_buffer = [];
