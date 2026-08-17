@@ -19,7 +19,7 @@ GitHub Pages で公開しています。`main` ブランチに push すると自
 PNG 画像をテクスチャとして読み込むため、`file://` で直接開くと動きません。簡易 HTTP サーバー経由で開いてください。
 
 ```bash
-python3 -m http.server 8000
+uv run python -m http.server 8000
 ```
 
 サーバーを起動したら、ブラウザで `http://localhost:8000/` を開きます。ビルドは不要で、`source/` 以下のファイルをそのまま読み込みます（編集したらリロードするだけで反映されます）。
