@@ -1,71 +1,70 @@
 
 var terminal_text_ident = '&gt; ';
 var terminal_text_title = '' +
-	'UNDERRUN\n' +
+	'TAKAGI ACTION\n' +
 	'__ \n' +
-	'CONCEPT, GRAPHICS &AMP; PROGRAMMING:\n' +
+	'原作: UNDERRUN\n' +
+	'コンセプト・グラフィック・プログラム:\n' +
 	'DOMINIC SZABLEWSKI // PHOBOSLAB.ORG\n' +
 	'__ \n' +
-	'MUSIC:\n' +
+	'音楽:\n' +
 	'ANDREAS LÖSCH // NO-FATE.NET\n' +
 	'___ \n' +
-	'SYSTEM VERSION: 13.20.18\n' +
+	'システムバージョン: 13.20.18\n' +
 	'CPU: PL(R) Q-COATL 7240 @ 12.6 THZ\n' +
-	'MEMORY: 108086391056891900 BYTES\n' +
+	'メモリ: 108086391056891900 バイト\n' +
 	' \n' +
-	'CONNECTING...';
+	'接続中...';
 
 var terminal_text_garbage = 
 	'´A1e{∏éI9·NQ≥ÀΩ¸94CîyîR›kÈ¡˙ßT-;ûÅf^˛,¬›A∫Sã€«ÕÕ' +
 	'1f@çX8ÎRjßf•ò√ã0êÃcÄ]Î≤moDÇ’ñ‰\\ˇ≠n=(s7É;';
 
-var terminal_text_story = 
-	'DATE: SEP. 13, 2718 - 13:32\n' +
-	'CRITICAL SOFTWARE FAILURE DETECTED\n' +
-	'ANALYZING...\n' +
+var terminal_text_story =
+	'日時: 2718年9月13日 13:32\n' +
+	'重大なソフトウェア障害を検出\n' +
+	'解析中...\n' +
 	'____\n \n' +
-	'ERROR CODE: JS13K2018\n' +
-	'STATUS: SYSTEMS OFFLINE\n' +
-	'DESCRIPTION: BUFFER UNDERRUN DUE TO SATCOM R.U.D.\n' +
-	'AFFECTED SYSTEM: FACILITY AUTOMATION\n' +
-	'AFFECTED SUBSYSTEMS: AI, RADIATION SHIELDS, POWER MANAGEMENT\n' +
+	'エラーコード: JS13K2018\n' +
+	'状態: システム停止\n' +
+	'詳細: 通信衛星の急速な非計画的分解によるバッファアンダーラン\n' +
+	'影響システム: 施設オートメーション\n' +
+	'影響サブシステム: AI、放射線シールド、電源管理\n' +
 	' \n' +
-	'INITIATING RESCUE SYSTEM...\n' +
+	'救援システムを起動中...\n' +
 	'___' +
-	'FAILED\n \n' +
-	'ATTEMPTING AUTOMATED REBOOT...\n' +
+	'失敗\n \n' +
+	'自動再起動を試行中...\n' +
 	'___' +
-	'FAILED\n' +
+	'失敗\n' +
 	'_ \n \n' +
-	'MANUAL REBOOT OF ALL SYSTEMS REQUIRED\n' +
+	'全システムの手動再起動が必要\n' +
 	'_ \n' +
-	'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT\n' +
-	'CLICK TO INITIATE YOUR DEPLOYMENT\n ';
+	'移動: WASD または矢印キー / 射撃: マウス\n' +
+	'クリックで現地へ展開開始\n ';
 
-var terminal_text_outro = 
-	'ALL SATELLITE LINKS ONLINE\n' +
-	'CONNECTING...___' +
-	'CONNECTION ESTABLISHED\n' +
-	'RECEIVING TRANSMISSION...___ \n' +
-	
-	'SENT: SEP. 13, 2018\n' +
-	'RCVD: SEP. 13, 2718\n \n' +
-	
-	'THANKS FOR PLAYING ❤_ \n' +
-	'I HAVE PREVIOUSLY BEEN A PROUD SPONSOR OF THE JS13K\n' +
-	'COMPETITION SINCE THE VERY FIRST ONE BACK IN 2012.\n' +
-	'HOWEVER, THIS YEAR\'S COMPETITION WAS MY FIRST ONE\n' +
-	'AS A PARTICIPANT AND IT HAS BEEN TREMENDOUS FUN!\n \n' +
-	
-	'I WANT TO THANK MY DEAR FRIEND ANDREAS LÖSCH OF\n' +
-	'NO-FATE.NET FOR COMPOSING SOME AWESOME MUSIC ON\n' + 
-	'SUCH SHORT NOTICE.\n \n' +
+var terminal_text_outro =
+	'全衛星リンク オンライン\n' +
+	'接続中...___' +
+	'接続を確立\n' +
+	'通信を受信中...___ \n' +
 
-	'FURTHER THANKS GO OUT TO THE JS13K STAFF, THE\n' +
-	'SONANT-X DEVELOPERS AND ALL OTHER PARTICIPANTS\n' +
-	'IN THIS YEAR\'S JS13K. SEE YOU NEXT YEAR!\n \n' +
+	'送信: 2018年9月13日\n' +
+	'受信: 2718年9月13日\n \n' +
+
+	'プレイしてくれてありがとう ❤_ \n' +
+	'私は 2012 年の第 1 回から JS13K コンペティションの\n' +
+	'スポンサーを続けてきました。でも今年の大会は\n' +
+	'参加者としては初めてで、最高に楽しかった！\n \n' +
+
+	'無茶な短納期で素晴らしい音楽を書いてくれた親友、\n' +
+	'NO-FATE.NET の ANDREAS LÖSCH に感謝します。\n \n' +
+
+	'さらに JS13K のスタッフ、SONANT-X の開発者、\n' +
+	'そして今年の JS13K の参加者全員に感謝を。\n' +
+	'また来年！\n \n' +
 	'DOMINIC__' +
-	'END OF TRANSMISSION';
+	'通信終了';
 
 var terminal_text_buffer = [],
 	terminal_state = 0,

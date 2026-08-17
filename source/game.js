@@ -128,8 +128,8 @@ function load_level(id, callback) {
 		level_num_verts = num_verts;
 
 		terminal_show_notice(
-			'SCANNING FOR OFFLINE SYSTEMS...___' +
-			(cpus_total)+' SYSTEMS FOUND'
+			'停止中のシステムを走査中...___' +
+			(cpus_total)+' 件のシステムを検出'
 		);
 		callback && callback();
 	});

@@ -48,8 +48,8 @@ class entity_player_t extends entity_t {
 		this.y = 10;
 		this.z += 5;
 		terminal_show_notice(
-			'DEPLOYMENT FAILED\n' +
-			'RESTORING BACKUP...'
+			'展開失敗\n' +
+			'バックアップから復元中...'
 		);
 		setTimeout(reload_level, 3000);
 	}

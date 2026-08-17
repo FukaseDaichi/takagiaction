@@ -20,31 +20,31 @@ class entity_cpu_t extends entity_t {
 			this.h = 10;
 			cpus_rebooted++;
 
-			var reboot_message = 
-				'\n\n\nREBOOTING..._' +
-				'SUCCESS\n';
+			var reboot_message =
+				'\n\n\n再起動中..._' +
+				'成功\n';
 
 			if (cpus_total-cpus_rebooted > 0) {
 				terminal_show_notice(
-					reboot_message + 
-					(cpus_total-cpus_rebooted)+' SYSTEM(S) STILL OFFLINE'
+					reboot_message +
+					'残り '+(cpus_total-cpus_rebooted)+' 件のシステムが停止中'
 				);
 			}
 			else {
 				if (current_level != 3) {
 					terminal_show_notice(
 						reboot_message +
-						'ALL SYSTEMS ONLINE\n' +
-						'TRIANGULATING POSITION FOR NEXT HOP...___' +
-						'TARGET ACQUIRED\n' +
-						'JUMPING...',
+						'全システム オンライン\n' +
+						'次の転送先を三角測量中...___' +
+						'座標を捕捉\n' +
+						'転送中...',
 						next_level
 					);
 				}
 				else {
 					terminal_show_notice(
 						reboot_message +
-						'ALL SYSTEMS ONLINE',
+						'全システム オンライン',
 						next_level
 					);
 				}
