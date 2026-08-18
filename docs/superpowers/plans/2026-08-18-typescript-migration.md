@@ -906,7 +906,45 @@ override _check(other: entity_t): void {
 
 `entity-sentry.ts` は `entity_sentry_t` と `entity_sentry_plasma_t` の 2 クラスを持つ（元の `entity-sentry.js` と同じ）。両方 `export` する。
 
-未宣言のフィールドはすべて明示宣言する。例（`entity-player.ts`）:
+### フィールド宣言と `_init()` の関係（必読 — 間違えると静かに壊れる）
+
+`tsconfig.json` は `target: es2022` なので `useDefineForClassFields` が既定で `true` になる。この設定では**サブクラスのフィールド宣言が基底 constructor の完了後に define される**。基底の `entity_t` は constructor 本体で `this._init(init_param)` を呼ぶので、実行順序はこうなる。
+
+1. 基底のフィールド初期化子（`x = 0` … `h = 5`）
+2. 基底 constructor 本体（`this.x = x` … `this._init(init_param)` … `state.entities.push(this)`）
+3. **サブクラスのフィールド宣言／初期化子**
+4. サブクラス constructor 本体（明示的な constructor がなければ何もしない）
+
+つまり **`_init()` の中で自クラスのフィールドに代入しても、直後の 3 で潰される。** 実測結果:
+
+| 書き方 | `_init()` が 112 を代入した後の最終値 |
+| --- | --- |
+| `private _target_x = 0`（初期化子付き） | **`0`**（初期化子が上書き） |
+| `private _target_x!: number`（定義アサーション） | **`undefined`**（`undefined` で define される） |
+
+**`!` では回避できない。** 宣言があるだけで define されるため。
+
+そのままやると `entity_spider_t` / `entity_sentry_t` が自分の位置ではなく `(0, 0)` を狙い、`entity_particle_t` / `entity_explosion_t` の `_lifetime` が `undefined` になって粒子が消えず、`entity_player_t` の `_last_shot` が `undefined` で射撃判定が壊れる。型チェックは通り、テストもないので**静かに壊れる**。
+
+### 対策: 自クラスのフィールドは初期化子にし、`_init()` は基底フィールドのみ触る
+
+サブクラスのフィールド初期化子は手順 3 で走り、これは基底 constructor 本体（手順 2）の後なので **`this.x` / `this.z` を読める**。したがって元の `_init()` が `this.x` を参照していた箇所も初期化子で表現できる。
+
+クラスごとの割り当て:
+
+| クラス | 自クラスのフィールド（初期化子で書く） | `_init()` |
+| --- | --- | --- |
+| `entity_player_t` | `_angle = Math.PI / 2`（public）、`private _bob = 0`、`private _frame = 0`、`private _last_shot = 0`、`private _last_damage = 0` | **削除**（元の `_init` はこれらの代入のみ） |
+| `entity_cpu_t` | `private _animation_time = 0` | **削除** |
+| `entity_particle_t` | `private _lifetime = 3` | **削除** |
+| `entity_explosion_t` | `private _lifetime = 1` | **削除** |
+| `entity_spider_t` | `private _animation_time = 0`、`private _select_target_counter = 0`、`private _target_x = this.x`、`private _target_z = this.z` | **削除** |
+| `entity_sentry_t` | `private _select_target_counter = 0`、`private _target_x = this.x`、`private _target_z = this.z` | **残す。`this.h = 20` のみ**（`h` は基底フィールドなので手順 3 で潰されない） |
+| `entity_plasma_t` | なし | **残す。`_init(angle?: number)` で基底フィールド `vx` / `vz` を設定** |
+| `entity_sentry_plasma_t` | なし | 同上 |
+| `entity_health_t` | なし | なし（元から `_init` を持たない） |
+
+例（`entity-player.ts`）:
 
 ```ts
 export class entity_player_t extends entity_t {
@@ -918,12 +956,27 @@ export class entity_player_t extends entity_t {
   private _last_shot = 0
   private _last_damage = 0
 
-  protected override _init(): void {}
+  // _init() は持たない。元の実装は上記フィールドの初期化だけをしていた
   // ...
 }
 ```
 
-`_init()` が `this._bob = this._last_shot = ... = 0` で初期化していた分は field 初期化子に移す。`_angle` の初期値 `Math.PI / 2` も同様。
+例（`entity-sentry.ts` の `entity_sentry_t`）:
+
+```ts
+export class entity_sentry_t extends entity_t {
+  private _select_target_counter = 0
+  private _target_x = this.x  // 基底 constructor が this.x を設定した後に走る
+  private _target_z = this.z
+
+  protected override _init(): void {
+    this.h = 20  // h は基底フィールドなので初期化子に潰されない
+  }
+  // ...
+}
+```
+
+**検証方法**: 実装後に `entity_sentry_t` を 1 体作って `h === 20` かつ `_target_x` が生成座標と一致することを確認する。型チェックだけでは検出できない。
 
 - [ ] **Step 3: state.ts の entity_player の型を狭める**
 
