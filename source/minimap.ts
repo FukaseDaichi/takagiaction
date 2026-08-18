@@ -57,8 +57,9 @@ function minimap_cast(x0: number, z0: number, x1: number, z1: number): void {
 }
 
 function minimap_reveal(): void {
-  const center_x = state.entity_player!.x >> 3
-  const center_z = state.entity_player!.z >> 3
+  const player = state.entity_player!
+  const center_x = player.x >> 3
+  const center_z = player.z >> 3
   const r = minimap_view_radius
 
   for (let dz = -r; dz <= r; dz++) {
@@ -99,12 +100,13 @@ function minimap_draw(): void {
   }
 
   // player position, plus one pixel for the direction it faces
-  const player_index = (state.entity_player!.x >> 3) + (state.entity_player!.z >> 3) * level_width
+  const player = state.entity_player!
+  const player_index = (player.x >> 3) + (player.z >> 3) * level_width
   minimap_set_pixel(player_index, 255, 255, 255)
   minimap_set_pixel(
     player_index +
-      Math.round(Math.cos(state.entity_player!._angle)) +
-      Math.round(Math.sin(state.entity_player!._angle)) * level_width,
+      Math.round(Math.cos(player._angle)) +
+      Math.round(Math.sin(player._angle)) * level_width,
     238, 153, 0,
   )
 
