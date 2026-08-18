@@ -155,13 +155,26 @@ export const state = {
 
 これは設計上の誤り（基底クラスが特定のサブクラスを知っている）が ESM で顕在化したもの。**`_spawn_particles` を `entity-particle.ts` の自由関数 `spawn_particles(source, amount)` に出す**ことで断つ。呼び出し元は `entity-sentry.ts:51` と `entity-spider.ts:40` の 2 箇所のみ。
 
-### 許容する循環: game.ts ⇄ entity-player.ts
+### 許容する循環: 11 モジュールの単一クラスタ
 
-`entity-player.js:52` の `_kill()` が `game.js` の `reload_level` を呼び、`game.js` は `new entity_player_t()` する。ただし双方とも参照はメソッド本体の**実行時**であり、`extends` のようなモジュール初期化時の評価ではない。`entity-player.ts` の `extends entity_t` は `entity.ts`（後ろ向きの辺を持たない）を解決するため TDZ にはならない。
+実行時 import のグラフで強連結成分を計算すると、`audio, entity-cpu, entity-health, entity-plasma, entity-player, entity-sentry, entity-spider, game, input, minimap, terminal` の **11 モジュールが 1 つの循環クラスタ**を形成する（対で捉えられる循環が複数あるのではなく、これら全体が互いに到達し合う単一の強連結成分）。非循環のコアは `state, dom, random, renderer, entity, entity-particle, entity-explosion, sound-effects, music-dark-meat-beat`。
+
+クラスタ内の循環はいずれもメソッド本体・関数呼び出しという**実行時**参照が起点で、`extends` のようなモジュール初期化時の評価を経由しない。代表例:
+
+- `game.ts ⇄ entity-player.ts` — `entity-player.js:52` の `_kill()` が `game.js` の `reload_level` を呼び、`game.js` は `new entity_player_t()` する
+- `audio ⇄ terminal`
+- `terminal → minimap → entity-cpu → terminal`
+- `entity-cpu ⇄ game`
+- `entity-plasma → entity-sentry → entity-player → entity-plasma`
+- `entity-health → entity-player → game → entity-health`
 
 同様に `entity-sentry.ts` → `entity-player.ts`（`instanceof` 判定）、`entity-sentry.ts` → `entity-explosion.ts`（`new`）も実行時参照のみで安全。
 
-設計としては綺麗ではない。プレイヤー死亡をゲームループ側が検知する形に反転すれば消えるが、それは死亡通知の経路を新設する話でスコープが広がるため今回は行わない。
+**この安全性の根拠は「`state.ts` に実行時 import がない」ことではない。** それは必要条件に過ぎない（`state.ts` が葉であることは循環の起点にならないという別の性質を保証するだけ）。実際に TDZ を防いでいる性質は「**`entity.ts` が、`entity_t` のサブクラスを宣言するモジュールに（推移的にでも）到達しない**」こと。9 個の `extends` 節はすべて `entity_t` を指し、`entity.ts` は非循環コアに属するため、どんな評価順でも `entity.ts` の初期化完了前にサブクラス側の `extends entity_t` が評価されることはない。
+
+この不変条件は破りやすい。たとえば `entity.ts` に `import { terminal_show_notice } from './terminal'` を足すと（基底クラスに死亡メッセージを出したくなれば十分ありえる）、`entity.ts` は `terminal → minimap → entity-cpu` 経由でサブクラス宣言モジュールに到達し、`entity-cpu.ts` の `extends entity_t` が `entity.ts` の初期化中に評価されうる。決定 3 が防ぐために作られたまさにその `ReferenceError` が復活し、しかも**評価順依存なので初回のリロードでは再現しないことがある**。この規則は `entity.ts` 先頭のコメントに明文化してある。
+
+設計としては綺麗ではない。プレイヤー死亡をゲームループ側が検知する形に反転すれば `game.ts ⇄ entity-player.ts` は消えるが、それは死亡通知の経路を新設する話でスコープが広がるため今回は行わない。
 
 ## entity クラスの型付け
 
@@ -240,12 +253,17 @@ AGENTS.md の「現在の要件を完全に満たす、最もシンプルな実�
 `load_image()` はコールバック内の `this` が読み込まれた `Image` であることに依存している（`game.js:60` の `_temp.drawImage(this, 0, 0)`、`main.js:15` の `renderer_bind_image(this)`）。`strict` に含まれる `noImplicitThis` はこれを型付けできないため、画像を引数で渡す形に変える。
 
 ```ts
-function load_image(name: string, callback: (image: HTMLImageElement) => void): void {
+function load_image(
+  url: string,
+  callback: (image: HTMLImageElement) => void,
+): void {
   const image = new Image()
-  image.src = `m/${name}.png`
+  image.src = url
   image.onload = () => callback(image)
 }
 ```
+
+`name: string` ではなく解決済みの `url: string` を受け取る。`'m/' + id + '.png'` のような文字列連結だと Vite が参照を静的に検出できず、本番ビルドで `dist` に画像が出力されず 404 になるため（`game.ts:21-24`）。レベル画像は `import l1_url from '../m/l1.png'` のような静的 import で URL を得て、そのまま `load_image` に渡す。
 
 ### その他 strict で必要になる小変更
 
@@ -263,13 +281,17 @@ function load_image(name: string, callback: (image: HTMLImageElement) => void): 
 {
   "compilerOptions": {
     "target": "es2022",
+    "lib": ["es2022", "dom"],
     "module": "esnext",
     "moduleResolution": "bundler",
+    "types": [],
     "strict": true,
     "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true,
     "noEmit": true,           // 出力は Vite が行う
     "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
   },
   "include": ["source"]
 }
@@ -277,13 +299,19 @@ function load_image(name: string, callback: (image: HTMLImageElement) => void): 
 
 `noUncheckedIndexedAccess` を無効にするのは、`level_data[i]` と `keys[key_left]` の添字アクセスがコード全域にあり、有効にすると全部 `| undefined` になって毎回ガードが必要になるため。実害の割に読みにくさが増す。
 
+`types: []` を指定するのは、`types` 配列がないと TS が `node_modules/@types` の全パッケージを自動 include してしまうため。将来 `@types/node` を引き込む依存が増えると Node 版の `setTimeout` の戻り値型（`NodeJS.Timeout`）が scope に入り、DOM 版を前提にした `terminal.ts` の `ReturnType<typeof setTimeout> = 0` が型エラーになる。`vite-env.d.ts` のトリプルスラッシュ参照はこの設定と無関係に解決される。
+
+`noImplicitOverride`（`11fc10a` で追加）は `override` キーワードの明示を強制する。オーバーライドの意図が宣言に出るほか、基底側のメンバを消したときに `override` の付いた側が確実にエラーになる。
+
+`skipLibCheck` は依存パッケージの `.d.ts` の型検査を飛ばす。自分のコードの型安全とは無関係で、ビルド時間短縮のため。
+
 ## テスト
 
 `random.ts` はシード付き LCG（`random_seed()` → `random_int()`）で完全に決定論的であり、ローグライトの手続き的フロア生成の土台になる。まずここのシード再現性を Vitest で固定する。加えて `entity_t` の壁衝突判定を手組みの `level_data` グリッドに対して検証する。
 
 テストは `source/*.test.ts` に併置する。
 
-今回入れるのはこの 2 本だけで、カバレッジは追わない。テスト基盤の見返りが本格的に出るのはローグライト化のほう（ゲージ減少式、射撃間隔の三段乗算、部屋の重なり判定、非常口の配置規則）であり、今回の目的は「ハーネスが動くことの証明」に留める。
+最終的には `random.test.ts` / `entity.test.ts` に加え、音色データの回帰検出用 `audio-data.test.ts` とフィールド初期化順序の恒久テスト `entity-init.test.ts` も追加され、4 ファイル 23 テストになった。カバレッジ網羅は追わない。テスト基盤の見返りが本格的に出るのはローグライト化のほう（ゲージ減少式、射撃間隔の三段乗算、部屋の重なり判定、非常口の配置規則）であり、今回の目的は「ハーネスが動くことの証明」に留める。
 
 ## ビルドとデプロイ
 
@@ -311,7 +339,7 @@ function load_image(name: string, callback: (image: HTMLImageElement) => void): 
 
 ### 必要な手作業
 
-**GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更する。** これはリポジトリ設定なのでコードからは変更できず、移行後にユーザーが行う必要がある。この変更を忘れると、Actions が成功しても公開内容が古いままになる。
+**GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更する。** これはリポジトリ設定なのでコードからは変更できず、移行後にユーザーが行う必要がある。この変更を忘れると、`actions/deploy-pages@v4` が Pages API から 404 を受け取り **deploy ジョブがはっきり失敗する**（公開内容が古いまま残るのではない）。
 
 ### AGENTS.md / README.md の更新
 
@@ -328,13 +356,56 @@ function load_image(name: string, callback: (image: HTMLImageElement) => void): 
 2. 13KB ハックの削除（`build.sh`、`shrinkit.js`、`_math` / `_document` / `udef` / `_temp`）
 3. `state.ts` / `dom.ts` / `input.ts` の切り出しと `game.ts` の再構成
 4. `renderer.ts` の TS 化（`camera` オブジェクトの公開、頂点カウンタの隠蔽と `renderer_reset_level_geometry()` / `renderer_freeze_level_geometry()`）
-5. entity 群の TS 化（field 宣言、可視性修飾子、ジェネリクス、`spawn_particles` の外出し）
+5. entity 群の TS 化（field 宣言、可視性修飾子、`spawn_particles` の外出し）
 6. audio 系の TS 化（`sonantx-reduced.d.ts` の手書き、`SonantInstrument` 型）
 7. `minimap.ts` / `terminal.ts` / `main.ts` の TS 化と `index.html` の書き換え
-8. Vitest のテスト 2 本
+8. Vitest のテスト追加（最終的に 4 ファイル 23 テスト）
 9. GitHub Actions のワークフロー追加とドキュメント更新
 
 各段の終わりにブラウザで実際にゲームが動くことを確認する。とくに段 3〜5 は循環参照が実行時エラーとして出るため、リロードして起動シーケンスが通ることの確認が検証手段になる。
+
+## 移行前ベースライン
+
+この移行の受け入れ基準は「移行前と移行後でゲームの挙動が変わっていないこと」そのものである。したがって移行前の実測値こそが、その基準を満たしたと言える唯一の証拠になる。実測は Task 1（旧構成、`8e42b59`）と Task 8（ESM 化直後）の 2 回、同じ手順で行った。
+
+### 測定値
+
+移行前（旧構成、`main` ブランチへの分岐点 `8e42b59` を `uv run python -m http.server 8000` で配信して実測）:
+
+| 項目 | 値 |
+| --- | --- |
+| `game_running` | 1 |
+| `state.entities.length` | 63 |
+| `state.cpus_total` | 9（レベル 1） |
+| `current_level` | 1 |
+| 自機の初期座標 | (112, 456) |
+| 自機の HP / 向き | 5 / π/2 (1.5708) |
+| `num_verts`（レベル形状構築後） | 15522 |
+| 手動フレーム送り 60 回後の非黒ピクセル | 5475 個（画面 320×180 の 9.5%） |
+| 最大輝度（R+G+B の和） | 442 |
+| `gl.getError()` | 0 |
+| ミニマップの `display` | `block` |
+
+移行後（ESM 化直後、Task 8。コード変更なしで動的 import により再測定）: 自機座標・エンティティ数・CPU 数・HP・向きは上表と完全一致（`state.entity_player.x === 112`、`.z === 456` まで一致しており、PNG デコードとシード付き乱数によるレベル生成が同一結果を出している直接の証拠になる）。カメラは自機座標の符号反転 `(-112, 0, -456)` に収束する。4 方向の移動は対称（右 +12.78 / 左 -12.75 / 上 -12.78 / 下 +12.75、いずれも 0.5 秒相当・30 tick 分）。
+
+非黒ピクセルは 5757 個（10.0%）、最大輝度 456、`gl.getError()` は 0 のまま。上表の 5475 個 / 442 との差は退行ではない。60 tick 手動送りの間に敵が乱数で動くため、測定時点のフレームで敵の位置が旧構成の測定時と一致するとは限らず、その分の描画面積・輝度が数 % 変動する。`num_verts` はこの段の Task 4 で renderer 内部に隠蔽されており、外から読める公開値ではなくなったため移行後には再測定していない（`renderer_reset_level_geometry()` / `renderer_freeze_level_geometry()` の呼び出しが正しく起きていることは Task 4 のレビューで別途確認済み）。
+
+### 測定方法（再現手順）
+
+**スクリーンショットでは判定できない。** ヘッドレスのブラウザペインは `document.visibilityState` が `'hidden'` に固定され、`requestAnimationFrame` が約 0.2fps まで絞られる。`game_tick` が事実上止まるため画面はほぼ黒のまま撮れる。加えて WebGL コンテキストは `preserveDrawingBuffer: false` で作られているため、rAF の外から `readPixels` すると合成後のバッファは破棄されていて全ゼロが返る。どちらもゲームの不具合ではない。
+
+手順:
+
+1. `window.requestAnimationFrame` を一時的に `() => 0` などの no-op に置き換える
+2. `game_tick()` を手動で 60 回呼ぶ（カメラの初期減衰などを収束させる）
+3. **同一 JS ターン内で** `gl.readPixels(0, 0, 320, 180, gl.RGBA, gl.UNSIGNED_BYTE, buf)` を呼び、`R+G+B > 6` の画素数（非黒）・最大輝度・`gl.getError()` を読む。ターンを跨ぐと `preserveDrawingBuffer: false` によりバッファが破棄され全ゼロになる
+4. `window.requestAnimationFrame` を元に戻し `requestAnimationFrame(game_tick)` でループを再開する
+5. 移動確認は `keys[key_right] = 1` のように `input.ts` の `keys` を直接叩いて 30 tick 進め、`entity_player.x` / `.z` の変化量を見る（合成キーイベントに頼らない）
+
+状態・関数・`gl` へのアクセス方法は移行前後で異なる:
+
+- **移行前**（旧構成、`<script>` タグの並列読み込み）: `game_running` / `entities` / `entity_player` / `gl` はいずれも top-level `var` で、classic script の実行モデル上すでに `window` のプロパティになっている。コンソールから素の識別子でそのまま読み書きできる
+- **移行後**（ESM、Vite dev server）: 各モジュールはスコープを持つため素の識別子では読めないが、コードに手を入れる必要はない。Vite の開発サーバーが動いている状態で、ブラウザコンソールから `const { state } = await import('/source/state.ts')`、`const { game_tick } = await import('/source/game.ts')` のように動的 import すると、ページが実際に読み込んでいるのと同一のモジュールインスタンスが返る（ESM のモジュールキャッシュは URL 単位）。`gl` は `renderer.ts` が export していないため、`const { canvas } = await import('/source/dom.ts')` で `canvas` を取得し `canvas.getContext('webgl')` を呼ぶ（1 つの canvas は同じ型の WebGL コンテキストを 2 つ持てず、既存のコンテキストがそのまま返る）。ミニマップの `display` は `const { minimap_canvas } = await import('/source/dom.ts')` の後 `getComputedStyle(minimap_canvas).display` で読む
 
 ## 非スコープ
 

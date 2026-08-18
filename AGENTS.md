@@ -13,6 +13,7 @@
 - `.github/workflows/deploy.yml` — `main` への push で GitHub Pages にビルド・デプロイする CI
 
 GitHub Actions が `main` への push をビルドし、GitHub Pages にデプロイします。
+デプロイ先で配信するには、リポジトリ設定の Pages → Source を「GitHub Actions」にしておく必要があります（初回のみの手作業）。
 
 ## 開発時の実行
 

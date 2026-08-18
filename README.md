@@ -9,6 +9,7 @@
 **https://fukasedaichi.github.io/takagiaction/**
 
 GitHub Pages で公開しています。`main` ブランチに push すると自動で反映されます。
+リポジトリ設定の Pages → Source を「GitHub Actions」にしておく必要があります（初回のみの手作業）。
 
 オリジナル版はこちら: https://phoboslab.org/underrun/
 
@@ -141,6 +142,7 @@ npm run dev
 | `source/game.ts` | レベル読み込みとメインループ |
 | `source/input.ts` | キー入力 |
 | `source/state.ts` | ゲーム全体で共有する状態 |
+| `source/random.ts` | シード付き疑似乱数（LCG）。レベル生成の再現性を担う |
 | `source/dom.ts` | `index.html` の DOM 要素（WebGL canvas / ミニマップ canvas / ターミナル）の取得 |
 | `source/renderer.ts` | WebGL レンダラー（320×180 のピクセルアート描画、ライティング） |
 | `source/entity*.ts` | プレイヤー・敵・弾・アイテムなど各エンティティ |
@@ -149,6 +151,7 @@ npm run dev
 | `source/audio.ts`, `sound-effects.ts`, `music-*.ts` | 効果音と BGM（Sonant-X で実行時に生成） |
 | `source/sonantx-reduced.js` | サードパーティの Sonant-X 本体（zlib ライセンス）。ここだけ `.js` のまま |
 | `m/` | 画像。`q2.png` がスプライトのアトラス、`l1〜l3.png` がレベルデータ |
+| `package.json` | 依存パッケージと `npm run` スクリプトの定義 |
 | `vite.config.ts` | Vite のビルド設定（`outDir`、`base` など） |
 | `tsconfig.json` | TypeScript の設定 |
 | `.github/workflows/deploy.yml` | `main` への push で GitHub Pages にビルド・デプロイする CI |

@@ -1892,7 +1892,7 @@ Expected: PASS（3 件）
 - [ ] **Step 8: 型チェックとテストが通ることを確認する**
 
 Run: `npm run typecheck && npm test`
-Expected: 型エラー 0 件、テスト PASS（21 件 = random 6 + entity 7 + entity-init 5 + audio-data 3）
+Expected: 型エラー 0 件、テスト PASS（23 件 = random 6 + entity 7 + entity-init 7 + audio-data 3）
 
 `resolve.extensions` を消した状態でテストが通ることが、Step 5 の削除が安全だった証明になる。
 
@@ -2154,7 +2154,7 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 
 **このステップはエージェントが実行できない。** リポジトリ設定の変更が必要なことをユーザーに伝える。
 
-> GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更してください。この変更をしないと、ワークフローが成功しても公開内容が古いままになります。
+> GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更してください。この変更をしないと、`actions/deploy-pages@v4` が Pages API から 404 を受け取り deploy ジョブがはっきり失敗します（公開内容が古いまま残るのではありません）。
 
 変更後、`main` に push してワークフローが緑になり、公開 URL でゲームが動くことを確認する。
 
@@ -2163,7 +2163,7 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 ## 完了条件
 
 - `npm run typecheck` が型エラー 0 件で通る
-- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件 + `entity-init.test.ts` 5 件 + `audio-data.test.ts` 3 件 = 21 件）
+- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件 + `entity-init.test.ts` 7 件 + `audio-data.test.ts` 3 件 = 23 件）
 - `npm run dev` でゲームが動き、コンソールにエラーが出ない
 - `npm run build` → `npm run preview` でも同様に動く
 - `source/` に `.js` が 1 つだけ残っている（`sonantx-reduced.js`）
