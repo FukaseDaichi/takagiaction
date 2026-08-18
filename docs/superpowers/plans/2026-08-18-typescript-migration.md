@@ -262,13 +262,42 @@ describe('random', () => {
       expect(source).toContain(array_rand(source))
     }
   })
+
+  // 上の 5 件はどれも自己整合性しか見ていないため、LCG の定数やシフト量を
+  // 別の「それらしい」値に変えても通ってしまう。レベル生成の再現性が壊れるので、
+  // 旧 source/random.js から抽出した実際の出力列そのものを固定する。
+  it('旧実装と同一の列を返す（レベル生成の再現性）', () => {
+    // load_level が使うシード
+    random_seed(0xbadc0de1)
+    expect(Array.from({ length: 10 }, () => random_int(0, 99)))
+      .toEqual([0, 7, 55, 68, 94, 70, 15, 30, 28, 59])
+
+    random_seed(1)
+    expect(Array.from({ length: 5 }, () => random_int(0, 999)))
+      .toEqual([286, 4, 725, 316, 367])
+
+    // 引数なし = 既定シード 0xBADC0FFE。seed が undefined のときの
+    // `seed || 0xbadc0ffe` と `seed ?? 0` の両方の経路を固定する
+    random_seed()
+    expect(Array.from({ length: 5 }, () => random_int(0, 99)))
+      .toEqual([34, 79, 37, 13, 16])
+  })
 })
+```
+
+ゴールデン値の出どころは旧実装である。新実装から取ると循環するため、以下で抽出した実測値を使っている（`random.js` は素の `var` 宣言なので `node -e` にそのまま流せる）。
+
+```bash
+node -e "$(cat source/random.js); random_seed(0xBADC0DE1); console.log(JSON.stringify(Array.from({length:10},()=>random_int(0,99))))"
 ```
 
 - [ ] **Step 3: テストが失敗することを確認する**
 
 Run: `npx vitest run source/random.test.ts`
-Expected: FAIL。`Failed to resolve import "./random"` になる（`random.ts` が未作成のため）
+
+Expected: FAIL。ただし**失敗の理由に注意**。`.js` と `.ts` が並存する構成のため、`./random` は既存の `source/random.js` に解決される。旧 `.js` は素のグローバル `var` 宣言で ES export を持たないため、import 自体は成功して名前が `undefined` になり、`TypeError: random_seed is not a function` で落ちる。
+
+`Failed to resolve import` にはならない（解決先のファイルは存在するため）。どちらの形であれ「実装がまだ有効な ESM として存在しない」ことを示していれば RED として正しい。
 
 - [ ] **Step 4: source/random.ts を作成する**
 
@@ -300,7 +329,7 @@ export function array_rand<T>(array: T[]): T {
 - [ ] **Step 5: テストが通ることを確認する**
 
 Run: `npx vitest run source/random.test.ts`
-Expected: PASS（5 件）
+Expected: PASS（6 件）
 
 - [ ] **Step 6: 型チェック**
 
@@ -925,7 +954,7 @@ Expected: エラー行が残らない
 - [ ] **Step 5: entity のテストが通り続けることを確認する**
 
 Run: `npx vitest run source/entity.test.ts source/random.test.ts`
-Expected: PASS（12 件）
+Expected: PASS（13 件）
 
 - [ ] **Step 6: コミット**
 
@@ -1302,7 +1331,7 @@ Expected: エラー行が残らない（この時点で `input.ts` は作成済�
 - [ ] **Step 5: 既存のテストが通り続けることを確認する**
 
 Run: `npm test`
-Expected: PASS（12 件）
+Expected: PASS（13 件）
 
 - [ ] **Step 6: コミット**
 
@@ -1630,7 +1659,7 @@ export default defineConfig({
 - [ ] **Step 6: 型チェックとテストが通ることを確認する**
 
 Run: `npm run typecheck && npm test`
-Expected: 型エラー 0 件、テスト PASS（12 件）
+Expected: 型エラー 0 件、テスト PASS（13 件）
 
 `resolve.extensions` を消した状態でテストが通ることが、Step 5 の削除が安全だった証明になる。
 
@@ -1848,7 +1877,7 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 ## 完了条件
 
 - `npm run typecheck` が型エラー 0 件で通る
-- `npm test` が通る（`random.test.ts` 5 件 + `entity.test.ts` 7 件）
+- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件）
 - `npm run dev` でゲームが動き、コンソールにエラーが出ない
 - `npm run build` → `npm run preview` でも同様に動く
 - `source/` に `.js` が 1 つだけ残っている（`sonantx-reduced.js`）
