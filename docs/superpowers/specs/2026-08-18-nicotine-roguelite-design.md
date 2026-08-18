@@ -154,7 +154,7 @@ PNG読み込みが消えるとレベル生成が同期処理になるため、`l
 | --- | --- |
 | `game.ts` | `current_level`→`depth`、ニコチン状態の追加、`game_tick` にゲージ減少と描画 |
 | `entity-player.ts` | 速度と射撃間隔をニコチン段階＋火力強化から算出 |
-| `minimap.ts` | 色の意味の差し替え。`entity_cpu_t` の import（2 行目）と `instanceof entity_cpu_t` 判定（91 行目、CPU 端末の見た目分岐）も `entity-cpu.ts` の削除に合わせて削除 |
+| `minimap.ts` | 色の意味の差し替え。`entity_cpu_t` の import（2 行目）と `minimap_draw()` 内の `instanceof entity_cpu_t` 判定（CPU 端末の見た目分岐）も `entity-cpu.ts` の削除に合わせて削除 |
 | `terminal.ts` | ストーリー文面の書き換えとメニューUI |
 | `index.html` | 変更不要（エントリは `source/main.ts` 1 本で、依存は import が表す） |
 
