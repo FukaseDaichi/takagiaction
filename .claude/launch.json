@@ -3,9 +3,9 @@
 	"configurations": [
 		{
 			"name": "takagiaction",
-			"runtimeExecutable": "uv",
-			"runtimeArgs": ["run", "python", "-m", "http.server", "8000"],
-			"port": 8000
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "dev"],
+			"port": 5173
 		}
 	]
 }
