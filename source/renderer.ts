@@ -104,7 +104,7 @@ export function renderer_init(): void {
 }
 
 export function renderer_bind_image(image: HTMLImageElement): void {
-  var texture_2d = gl.TEXTURE_2D
+  const texture_2d = gl.TEXTURE_2D
   gl.bindTexture(texture_2d, gl.createTexture())
   gl.texImage2D(texture_2d, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
   gl.texParameteri(texture_2d, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -133,7 +133,7 @@ export function renderer_end_frame(): void {
 }
 
 function push_quad(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, x4: number, y4: number, z4: number, nx: number, ny: number, nz: number, tile: number): void {
-  var u = tile * tile_fraction + px_nudge
+  const u = tile * tile_fraction + px_nudge
   buffer_data.set([
     x1, y1, z1, u, 0, nx, ny, nz,
     x2, y2, z2, u + tile_fraction - px_nudge, 0, nx, ny, nz,
@@ -151,7 +151,7 @@ export function push_sprite(x: number, y: number, z: number, tile: number): void
     Math.abs(-x - camera.x) < 128 &&
     Math.abs(-z - camera.z) < 128
   ) {
-    var tilt = 3+(camera.z + z)/12 // tilt sprite when closer to camera
+    const tilt = 3+(camera.z + z)/12 // tilt sprite when closer to camera
     push_quad(x, y + 6, z, x + 6, y + 6, z, x, y, z + tilt, x + 6, y, z + tilt, 0, 0, 1, tile)
   }
 }
@@ -162,7 +162,7 @@ export function push_floor(x: number, z: number, tile: number): void {
 
 export function push_block(x: number, z: number, tile_top: number, tile_sites: number): void {
   // tall blocks for certain tiles
-  var y = ~[8, 9, 17].indexOf(tile_sites) ? 16 : 8
+  const y = ~[8, 9, 17].indexOf(tile_sites) ? 16 : 8
 
   push_quad(x, y, z, x + 8, y, z, x, y, z + 8, x + 8, y, z + 8, 0, 1, 0, tile_top) // top
   push_quad(x + 8, y, z, x + 8, y, z + 8, x + 8, 0, z, x + 8, 0, z + 8, 1, 0, 0, tile_sites) // right
@@ -172,7 +172,7 @@ export function push_block(x: number, z: number, tile_top: number, tile_sites: n
 
 export function push_light(x: number, y: number, z: number, r: number, g: number, b: number, falloff: number): void {
   // Only push lights near to the camera
-  var max_light_distance = (128 + 1/falloff) // cheap ass approximation
+  const max_light_distance = (128 + 1/falloff) // cheap ass approximation
   if (
     num_lights < max_lights &&
     Math.abs(-x - camera.x) < max_light_distance &&
@@ -184,7 +184,7 @@ export function push_light(x: number, y: number, z: number, r: number, g: number
 }
 
 function compile_shader(shader_type: number, shader_source: string): WebGLShader {
-  var shader = gl.createShader(shader_type)!
+  const shader = gl.createShader(shader_type)!
   gl.shaderSource(shader, shader_source)
   gl.compileShader(shader)
   // console.log(gl.getShaderInfoLog(shader));
@@ -192,7 +192,7 @@ function compile_shader(shader_type: number, shader_source: string): WebGLShader
 }
 
 function enable_vertex_attrib(attrib_name: string, count: number, vertex_size: number, offset: number): void {
-  var location = gl.getAttribLocation(shader_program, attrib_name)
+  const location = gl.getAttribLocation(shader_program, attrib_name)
   gl.enableVertexAttribArray(location)
   gl.vertexAttribPointer(location, count, gl.FLOAT, false, vertex_size * 4, offset * 4)
 }
