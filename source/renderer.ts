@@ -19,7 +19,7 @@ const buffer_data = new Float32Array(max_verts * 8) // allow 64k verts, 8 proper
 let light_uniform: WebGLUniformLocation
 const max_lights = 16
 let num_lights = 0
-const light_data = new Float32Array(max_lights * 7) // 32 lights, 7 properties per light
+const light_data = new Float32Array(max_lights * 7) // 16 lights, 7 properties per light
 
 // camera はゲームロジック（game.ts の追従計算、entity のシェイク加算）から
 // 書き換えられるため、オブジェクトのプロパティとして公開する。

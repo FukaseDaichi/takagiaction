@@ -20,7 +20,7 @@ let time_last = performance.now()
 
 // レベル画像は静的 import で URL を得る。'm/' + id + '.png' の文字列連結だと
 // Vite が参照を検出できず、本番ビルドで dist に出力されないため 404 になる。
-// depth は 1 起点なので id - 1 で引く。
+// id は 1 起点なので id - 1 で引く。
 const level_image_urls = [l1_url, l2_url, l3_url]
 
 // コールバック内の this に依存していた形（noImplicitThis が通らない）を

@@ -39,6 +39,9 @@ export function audio_init(callback: () => void): void {
 }
 
 export function audio_play(buffer: AudioBuffer | undefined, loop = false): void {
+  // このガードは AudioBuffer | undefined という型を満たすためのもの。
+  // 効果音 7 つは sonantxr_generate_sound が同期的にコールバックを呼ぶため
+  // audio_init が返る時点で埋まっており、実行時に undefined で呼ばれる経路はない。
   if (!buffer) { return }
   const source = audio_ctx.createBufferSource()
   source.buffer = buffer

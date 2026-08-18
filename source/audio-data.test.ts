@@ -31,6 +31,9 @@ describe('音色データ', () => {
     }
   })
 
+  // JSON.stringify の出力をハッシュしているため、値が同じでもキーの順序が
+  // 変わるだけでも落ちる。落ちたときは音自体が変わったのか、フィールドの
+  // 順序が変わっただけなのかを diff（git diff や実際の値の比較）で確認すること。
   it('効果音の値が変わっていない', async () => {
     expect(await digest(sound_terminal)).toBe('e6106576030ff855')
     expect(await digest(sound_shoot)).toBe('64dc2fceb503978d')

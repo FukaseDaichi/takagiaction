@@ -73,7 +73,6 @@ const terminal_text_outro =
   '通信終了'
 
 let terminal_text_buffer: string[] = []
-let terminal_state = 0
 let terminal_line_wait = 100
 let terminal_print_ident = true
 let terminal_timeout_id: ReturnType<typeof setTimeout> = 0
