@@ -1602,20 +1602,72 @@ Expected: 型エラー 0 件、テスト PASS（12 件）
 
 Run: `npm run dev`
 
-`http://localhost:5173/` を開き、以下を順に確認する。
+#### スクリーンショットでは検証できない
 
-1. イントロのターミナルテキストが日本語で流れる
-2. クリックするとゲームが始まり、canvas に 3D のレベルが描画される
-3. 矢印キー（および WASD）で自機が移動する
-4. スペースキーで射撃でき、弾が飛ぶ
-5. 蜘蛛に当たるとダメージを受け、HP バーが減る
-6. 右上のミニマップが移動につれて開けていき、自機が白 1px、向きが橙 1px で出る
-7. 青い CPU 端末に触れると再起動メッセージが出て、ミニマップ上の色が暗くなる
-8. 全 CPU を再起動すると次のレベルに遷移する
-9. M キーで音声 ON/OFF が切り替わり、通知が出る
-10. **ブラウザのコンソールにエラーが 1 件も出ていない**
+**このゲームの動作確認にスクリーンショットを使わないこと。** ヘッドレスのブラウザペインではページが `document.visibilityState === 'hidden'` のままになり、`requestAnimationFrame` が約 0.2fps まで絞られる。`game_tick` が事実上止まるため、カメラの初期減衰（`camera.y` が -300 から約 10 フレームで 0 に収束する）すら終わらず、画面はほぼ黒のまま撮れる。加えて WebGL のコンテキストは `preserveDrawingBuffer: false` なので、rAF の外から `readPixels` しても合成後のバッファは破棄されていて全ゼロが返る。どちらも**ゲームの不具合ではない**ため、黒い画面や 0 ピクセルを故障と誤認しないこと。
 
-とくに 10 は重要で、`ReferenceError: Cannot access '...' before initialization` が出た場合は循環参照が残っている。その場合は該当モジュールの実行時 import を洗い、型のみの参照は `import type` に変える。
+移行前の旧構成でこの挙動を実測済み。手動でフレームを進めれば正しく描画されることが確認できている（下記の手順で非黒ピクセル 5475 個 / 画面の 9.5%、最大輝度 442、GL エラー 0）。
+
+#### 状態アサーションで確認する
+
+ブラウザのコンソール（または `javascript_tool`）から状態を直接読む。クリック待ちがあるので、まず一度クリックしてゲームを開始させる。`audio_init` の楽曲生成に数秒かかり、それが終わるまで `document.onclick` は設定されない。**開始直後のクリックは空振りするので、`typeof document.onclick === 'function'` を確認してからクリックする。**
+
+```js
+JSON.stringify({
+  game_running: state.game_running,          // 1
+  entities: state.entities.length,           // 60 前後
+  cpus_total: state.cpus_total,              // 9（レベル1）
+  player: state.entity_player && {x: state.entity_player.x, h: state.entity_player.h},
+  minimap: getComputedStyle(document.getElementById('m')).display,  // 'block'
+})
+```
+
+#### 描画を確認する
+
+rAF を一時的に潰して手動でフレームを進め、**同一 JS ターン内で** `readPixels` する。
+
+```js
+const rafOrig = window.requestAnimationFrame
+window.requestAnimationFrame = function () { return 0 }
+try {
+  for (let i = 0; i < 60; i++) { game_tick() }   // カメラを収束させる
+  const px = new Uint8Array(320 * 180 * 4)
+  gl.readPixels(0, 0, 320, 180, gl.RGBA, gl.UNSIGNED_BYTE, px)
+  let nonblack = 0
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i] + px[i + 1] + px[i + 2] > 6) { nonblack++ }
+  }
+  console.log({ nonblack, gl_error: gl.getError() })
+} finally {
+  window.requestAnimationFrame = rafOrig
+  requestAnimationFrame(game_tick)              // 本来のループを再開
+}
+```
+
+`game_tick` / `gl` / `state` はモジュールスコープなので、コンソールから触るには一時的に `window` に出す必要がある。検証用に `main.ts` の末尾へ `Object.assign(window, { game_tick, gl, state })` を足し、**確認が済んだら必ず削除してコミットに含めないこと**。
+
+Expected: `nonblack` が 3000 以上、`gl_error` が 0
+
+#### 操作の確認
+
+`input.ts` の `keys` を直接叩いて自機が動くことを見る（合成キーイベントに頼らない）。
+
+```js
+keys[key_right] = 1
+for (let i = 0; i < 30; i++) { game_tick() }
+keys[key_right] = 0
+// state.entity_player.x が増えていること
+```
+
+同様に `keys[key_shoot] = 1` で `state.entities` に `entity_plasma_t` が増えることを確認する。
+
+#### コンソールエラー
+
+**エラーが 1 件も出ていないことを確認する。** `ReferenceError: Cannot access '...' before initialization` が出た場合は循環参照が残っている。該当モジュールの実行時 import を洗い、型のみの参照は `import type` に変える。`ReferenceError: _math is not defined` が出た場合は Task 6 Step 2 の置換が漏れている。
+
+#### 人間による最終確認
+
+上記が通ったら、実際のブラウザ（ヘッドレスでないもの）で `npm run dev` を開いて、イントロ→操作→射撃→CPU 再起動→レベル遷移→M キーの音声トグルを通しで見てもらう。自動検証で担保できるのはここまで。
 
 - [ ] **Step 7: コミット**
 
