@@ -45,4 +45,24 @@ describe('random', () => {
       expect(source).toContain(array_rand(source))
     }
   })
+
+  // 上の 5 件はどれも自己整合性しか見ていないため、LCG の定数やシフト量を
+  // 別の「それらしい」値に変えても通ってしまう。レベル生成の再現性が壊れるので、
+  // 旧 source/random.js から抽出した実際の出力列そのものを固定する。
+  it('旧実装と同一の列を返す（レベル生成の再現性）', () => {
+    // load_level が使うシード
+    random_seed(0xbadc0de1)
+    expect(Array.from({ length: 10 }, () => random_int(0, 99)))
+      .toEqual([0, 7, 55, 68, 94, 70, 15, 30, 28, 59])
+
+    random_seed(1)
+    expect(Array.from({ length: 5 }, () => random_int(0, 999)))
+      .toEqual([286, 4, 725, 316, 367])
+
+    // 引数なし = 既定シード 0xBADC0FFE。seed が undefined のときの
+    // `seed || 0xbadc0ffe` と `seed ?? 0` の両方の経路を固定する
+    random_seed()
+    expect(Array.from({ length: 5 }, () => random_int(0, 99)))
+      .toEqual([34, 79, 37, 13, 16])
+  })
 })
