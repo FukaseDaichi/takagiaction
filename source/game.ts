@@ -44,7 +44,7 @@ export function next_level(callback?: () => void): void {
   }
 }
 
-export function load_level(id: number, callback?: () => void): void {
+function load_level(id: number, callback?: () => void): void {
   random_seed(0xbadc0de1 + id)
   load_image(level_image_urls[id - 1], (image) => {
     state.entities = []

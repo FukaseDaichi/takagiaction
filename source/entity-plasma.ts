@@ -5,10 +5,10 @@ import { entity_spider_t } from './entity-spider'
 import { push_light } from './renderer'
 
 export class entity_plasma_t extends entity_t {
-  protected override _init(angle?: number): void {
+  protected override _init(angle: number): void {
     const speed = 96
-    this.vx = Math.cos(angle!) * speed
-    this.vz = Math.sin(angle!) * speed
+    this.vx = Math.cos(angle) * speed
+    this.vz = Math.sin(angle) * speed
   }
 
   override _render(): void {

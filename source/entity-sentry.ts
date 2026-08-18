@@ -75,10 +75,10 @@ export class entity_sentry_t extends entity_t {
 }
 
 export class entity_sentry_plasma_t extends entity_t {
-  protected override _init(angle?: number): void {
+  protected override _init(angle: number): void {
     const speed = 64
-    this.vx = Math.cos(angle!) * speed
-    this.vz = Math.sin(angle!) * speed
+    this.vx = Math.cos(angle) * speed
+    this.vz = Math.sin(angle) * speed
   }
 
   override _render(): void {

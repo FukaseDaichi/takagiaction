@@ -138,11 +138,11 @@ export function terminal_show_notice(notice: string, callback?: () => void): voi
   })
 }
 
-export function terminal_run_intro(callback?: () => void): void {
+export function terminal_run_intro(): void {
   terminal_text_buffer = []
   terminal_write_text(terminal_prepare_text(terminal_text_title), () => {
     terminal_timeout_id = setTimeout(() => {
-      terminal_run_garbage(callback)
+      terminal_run_garbage()
     }, 4000)
   })
 }
@@ -173,7 +173,7 @@ function terminal_run_story(callback?: () => void): void {
   terminal_write_text(terminal_prepare_text(terminal_text_story), callback)
 }
 
-export function terminal_run_outro(callback?: () => void): void {
+export function terminal_run_outro(): void {
   state.game_running = 0
   canvas.style.opacity = '0.3'
   minimap_hide()
