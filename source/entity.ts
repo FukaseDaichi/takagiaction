@@ -1,7 +1,7 @@
 import { push_sprite } from './renderer'
 import { level_data, level_width, state } from './state'
 
-export class entity_t<TInit = undefined> {
+export class entity_t {
   x: number
   y: number
   z: number
@@ -24,7 +24,7 @@ export class entity_t<TInit = undefined> {
     z: number,
     friction: number,
     sprite: number,
-    init_param?: TInit,
+    init_param?: number,
   ) {
     this.x = x
     this.y = y
@@ -33,14 +33,11 @@ export class entity_t<TInit = undefined> {
     this.s = sprite
 
     this._init(init_param)
-    // TInit は _init の引数位置にしか現れないため、TS の生成クラス分散推論では
-    // entity_t<TInit> は entity_t<undefined>（= entity_t[] の要素型）と構造的に
-    // 不変（invariant）とみなされる。実行時は同一クラスで安全なのでキャストする。
-    state.entities.push(this as entity_t)
+    state.entities.push(this)
   }
 
   // separate _init() method, because "constructor" cannot be uglyfied
-  protected _init(init_param?: TInit): void {}
+  protected _init(init_param?: number): void {}
 
   _update(): void {
     const t = this
@@ -98,8 +95,7 @@ export class entity_t<TInit = undefined> {
   protected _kill(): void {
     if (!this._dead) {
       this._dead = true
-      // 上の constructor と同じ理由でキャストが必要
-      state.entities_to_kill.push(this as entity_t)
+      state.entities_to_kill.push(this)
     }
   }
 
