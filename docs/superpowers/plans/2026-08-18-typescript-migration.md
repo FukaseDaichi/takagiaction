@@ -505,7 +505,7 @@ git commit -m "feat: renderer を TypeScript 化し camera を公開して頂点
 - Consumes: `renderer.ts` の `push_sprite`
 - Produces:
   - `state.ts`: `export const level_width: number`（64）、`export const level_height: number`（64）、`export const level_data: Uint8Array`、`export const state`（プロパティ: `time_elapsed` `game_running` `current_level` `cpus_total` `cpus_rebooted` `entity_player` `entities` `entities_to_kill`）
-  - `entity.ts`: `export class entity_t<TInit = undefined>`
+  - `entity.ts`: `export class entity_t`（型引数なし。`_init(init_param?: number)`）
 
 `state.ts` と `entity.ts` は型のみの相互参照で結ばれるため同一タスクで作る。`state.ts` は `import type` しか持たず**実行時 import を持たない**。これがこの構成全体の循環参照を断つ鍵。
 
@@ -648,7 +648,7 @@ Expected: FAIL。`Failed to resolve import "./entity"`
 import { push_sprite } from './renderer'
 import { level_data, level_width, state } from './state'
 
-export class entity_t<TInit = undefined> {
+export class entity_t {
   x: number
   y: number
   z: number
@@ -671,7 +671,7 @@ export class entity_t<TInit = undefined> {
     z: number,
     friction: number,
     sprite: number,
-    init_param?: TInit,
+    init_param?: number,
   ) {
     this.x = x
     this.y = y
@@ -684,7 +684,7 @@ export class entity_t<TInit = undefined> {
   }
 
   // separate _init() method, because "constructor" cannot be uglyfied
-  protected _init(init_param?: TInit): void {}
+  protected _init(init_param?: number): void {}
 
   _update(): void {
     const t = this
@@ -842,7 +842,7 @@ export function spawn_particles(source: entity_t, amount: number): void {
 
 | 変換 | 内容 |
 | --- | --- |
-| クラス宣言 | `class X extends entity_t {` → `export class X extends entity_t {`（init 引数を取るものは `extends entity_t<number>`） |
+| クラス宣言 | `class X extends entity_t {` → `export class X extends entity_t {`（型引数は付けない） |
 | import 追加 | 参照している識別子に応じて `entity.ts` / `state.ts` / `renderer.ts` / `random.ts` / `audio.ts` / `terminal.ts` / `game.ts` / 他 entity から import |
 | `_math.` | `Math.` に置換 |
 | `time_elapsed` | `state.time_elapsed` |
@@ -895,11 +895,14 @@ override _check(other: entity_t): void {
 
 `entity_sentry_t._init()` は `this.h = 20` で基底の `h = 5` を上書きしている。field 初期化子ではなく `_init()` に残す（`h` は基底で宣言済みなので再宣言しない）。
 
-`_init` の型引数を取るクラス:
+`_init` が引数を取るクラス:
 
-- `entity_plasma_t extends entity_t<number>` — `protected override _init(angle?: number)`
-- `entity_sentry_plasma_t extends entity_t<number>` — 同上
-- 他はすべて `extends entity_t`（`TInit = undefined`）
+- `entity_plasma_t` — `protected override _init(angle?: number): void`
+- `entity_sentry_plasma_t` — 同上
+
+他 7 クラスは `protected override _init(): void`（引数なし）。**型引数は使わない。** 基底の `entity_t` が `_init(init_param?: number)` を持つので、より少ない引数のオーバーライドは TS が許す。
+
+型引数化を試みると `TInit` が `_init` の引数位置にしか現れないため分散推論と衝突し、基底 constructor の `state.entities.push(this)` が TS2345 になる。設計書の「`_init` の引数型」節を参照。
 
 `entity-sentry.ts` は `entity_sentry_t` と `entity_sentry_plasma_t` の 2 クラスを持つ（元の `entity-sentry.js` と同じ）。両方 `export` する。
 

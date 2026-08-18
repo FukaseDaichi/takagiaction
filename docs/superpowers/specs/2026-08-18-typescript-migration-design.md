@@ -193,20 +193,35 @@ export const state = {
 
 基底クラスの `_dead` は現在 `_kill()` が呼ばれるまで `undefined` で、`game.js:182` の `if (e1._dead)` がそれを falsy として扱っている。`public _dead = false` と明示初期化する（挙動は変わらない）。
 
-### `_init` のジェネリクス
+### `_init` の引数型
 
-`_init` の引数型はサブクラスごとに異なる（`entity_plasma_t` と `entity_sentry_plasma_t` は角度 `number`、他は受け取らない）。`any` で逃げず、基底クラスを型引数化する。
+`_init` の引数型はサブクラスごとに異なる（`entity_plasma_t` と `entity_sentry_plasma_t` は角度 `number`、他 7 クラスは受け取らない）。当初は基底クラスを `entity_t<TInit>` と型引数化する案だったが、**実装中に TypeScript の分散(variance)推論と衝突することが判明したため撤回した。**
+
+`TInit` は `_init` の引数位置にしか現れないため、TS は `entity_t<TInit>` を `entity_t<undefined>` に代入可能と見なさない。基底クラスの constructor が `state.entities.push(this)` する箇所で TS2345 になる。
+
+```
+error TS2345: Argument of type 'this' is not assignable to parameter of type 'entity_t<undefined>'.
+  Type 'entity_t<TInit>' is not assignable to type 'entity_t<undefined>'.
+```
+
+回避するには `push(this as entity_t)` のようなキャストが必要になり、分散チェックを潰すことになる。一方で現行の 9 クラスの init 引数はすべて `number | undefined` であり、**型引数は今の要件に対して何も買っていない**。
+
+したがって引数型を `number` 固定にする。
 
 ```ts
-export class entity_t<TInit = undefined> {
-  constructor(x: number, y: number, z: number, friction: number, sprite: number, init_param?: TInit) { ... }
-  protected _init(init_param?: TInit): void {}
+export class entity_t {
+  constructor(x: number, y: number, z: number, friction: number, sprite: number, init_param?: number) { ... }
+  protected _init(init_param?: number): void {}
 }
 
-export class entity_plasma_t extends entity_t<number> {
-  protected _init(angle?: number) { ... }
+export class entity_plasma_t extends entity_t {
+  protected override _init(angle?: number): void { ... }
 }
 ```
+
+これでキャストは不要になり、型チェックが通る。引数を取らないサブクラスは `_init()` とだけ書けばよい（TS はより少ない引数のオーバーライドを許す）。
+
+AGENTS.md の「現在の要件を完全に満たす、最もシンプルな実装を選ぶ」「将来を見越した過剰な抽象化は避ける」に従った判断である。将来 `number` 以外の init 引数が必要になったら、そのときに型を広げる。
 
 ### 暗黙グローバルの置き換え
 
