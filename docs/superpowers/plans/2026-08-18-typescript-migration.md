@@ -28,6 +28,10 @@ Task 1〜7 の間は `index.html` が旧 `.js` を読み続けるため、**ゲ�
 
 `tsconfig.json` は `include: ["source"]` かつ `allowJs` なしなので、並存期間中も旧 `.js` は tsc の対象外になる。
 
+**並存には 1 つ落とし穴がある。** Vite の既定の拡張子解決順は `['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json']` で `.js` が `.ts` より先に来る。そのため `import { random_int } from './random'` は、`random.ts` があっても**旧 `random.js` に解決される**。旧 `.js` は素のグローバル `var` 宣言で ES export を持たないため、import は失敗する。Vitest も Vite の解決を使うのでテストが落ちる。
+
+`vite.config.ts` の `resolve.extensions` で `.ts` 系を先に置くことで解決する（Task 1 の設定に含めてある）。この設定は並存期間専用なので Task 8 で削除する。
+
 ---
 
 ### Task 1: ツールチェーン導入と 13KB パイプラインの削除
@@ -103,11 +107,21 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   // GitHub Pages のプロジェクトページは /takagiaction/ 配下で配信されるため相対パスにする
   base: './',
+  resolve: {
+    // Task 2〜7 は同名の .js（旧実装）と .ts（移行後）が並存する。Vite の既定は
+    // ['.mjs', '.js', '.mts', '.ts', ...] で .js が .ts より先に解決されるため、
+    // 拡張子なし import (`./random` 等) が export を持たない旧 .js に解決されて
+    // しまう。.ts 系を先に置いて新実装を使わせる。Task 8 で旧 .js を削除したら
+    // 不要になるので、そこで削除する。
+    extensions: ['.mjs', '.mts', '.ts', '.js', '.jsx', '.tsx', '.json'],
+  },
   build: {
     outDir: 'dist',
   },
 })
 ```
+
+`resolve.extensions` は並存期間だけのための設定である。Task 8 で削除する（下記 Task 8 のステップに含まれる）。
 
 - [ ] **Step 4: source/vite-env.d.ts を作成する**
 
@@ -1593,12 +1607,34 @@ git rm source/game.js source/random.js source/renderer.js source/entity.js \
   source/minimap.js source/terminal.js source/main.js
 ```
 
-- [ ] **Step 5: 型チェックとテストが通ることを確認する**
+- [ ] **Step 5: vite.config.ts の resolve.extensions を削除する**
+
+旧 `.js` が無くなったので、並存期間のためだけに入れていた `resolve.extensions` は不要になる。`vite.config.ts` から `resolve` ブロックごと削除し、`base` と `build` だけに戻す。
+
+削除後の `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  // GitHub Pages のプロジェクトページは /takagiaction/ 配下で配信されるため相対パスにする
+  base: './',
+  build: {
+    outDir: 'dist',
+  },
+})
+```
+
+残る `.js` は `source/sonantx-reduced.js` の 1 つだけで、これは `./sonantx-reduced` として import される。同名の `.ts` は存在せず `.d.ts` は解決対象の拡張子に含まれないため、既定の解決順でも正しく `.js` に解決される。設定を消して問題ない。
+
+- [ ] **Step 6: 型チェックとテストが通ることを確認する**
 
 Run: `npm run typecheck && npm test`
 Expected: 型エラー 0 件、テスト PASS（12 件）
 
-- [ ] **Step 6: ブラウザで実際に動くことを確認する**
+`resolve.extensions` を消した状態でテストが通ることが、Step 5 の削除が安全だった証明になる。
+
+- [ ] **Step 7: ブラウザで実際に動くことを確認する**
 
 Run: `npm run dev`
 
@@ -1669,10 +1705,10 @@ keys[key_right] = 0
 
 上記が通ったら、実際のブラウザ（ヘッドレスでないもの）で `npm run dev` を開いて、イントロ→操作→射撃→CPU 再起動→レベル遷移→M キーの音声トグルを通しで見てもらう。自動検証で担保できるのはここまで。
 
-- [ ] **Step 7: コミット**
+- [ ] **Step 8: コミット**
 
 ```bash
-git add index.html source/game.ts source/main.ts
+git add index.html source/game.ts source/main.ts vite.config.ts
 git commit -m "feat: game / main を TypeScript 化し index.html を ESM エントリに切り替える"
 ```
 
@@ -1754,7 +1790,7 @@ Expected: 4 件（q2 / l1 / l2 / l3 に対応するハッシュ付きファイ�
 
 Run: `npm run preview`
 
-表示された URL を開き、Task 8 Step 6 の 1〜10 を再確認する。`base: './'` が効いているかはここで分かる（アセットが 404 なら相対パスの設定漏れ）。
+表示された URL を開き、Task 8 Step 7 の検証手順（状態アサーション、手動フレーム送りでの描画確認、`keys` による操作確認、コンソールエラーなし）を再実行する。`base: './'` が効いているかはここで分かる（アセットが 404 なら相対パスの設定漏れ）。
 
 - [ ] **Step 4: AGENTS.md を更新する**
 
