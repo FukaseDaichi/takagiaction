@@ -42,7 +42,7 @@ var audioCtx = null;
 // Oscillators
 function osc_sin(value)
 {
-	return _math.sin(value * 6.283184);
+	return Math.sin(value * 6.283184);
 }
 
 function osc_square(value)
@@ -72,7 +72,7 @@ var oscillators =
 
 function getnotefreq(n)
 {
-	return 0.00390625 * _math.pow(1.059463094, n - 128);
+	return 0.00390625 * Math.pow(1.059463094, n - 128);
 }
 
 function generateBuffer(samples) {
@@ -115,8 +115,8 @@ var SoundGenerator = function(ctx, instr, rowLen) {
 	this.attack = instr.env_attack;
 	this.sustain = instr.env_sustain;
 	this.release = instr.env_release;
-	this.panFreq = _math.pow(2, instr.fx_pan_freq - 8) / this.rowLen;
-	this.lfoFreq = _math.pow(2, instr.lfo_freq - 8) / this.rowLen;
+	this.panFreq = Math.pow(2, instr.fx_pan_freq - 8) / this.rowLen;
+	this.lfoFreq = Math.pow(2, instr.lfo_freq - 8) / this.rowLen;
 };
 
 SoundGenerator.prototype._genSound = function(n, chnBuf, currentpos) {
@@ -171,7 +171,7 @@ SoundGenerator.prototype._genSound = function(n, chnBuf, currentpos) {
 
 		// Noise oscillator
 		if (this.instr.noise_fader) {
-			rsample += (2*_math.random()-1) * this.instr.noise_fader * e;
+			rsample += (2*Math.random()-1) * this.instr.noise_fader * e;
 		}
 
 		rsample *= e / 255;
@@ -181,7 +181,7 @@ SoundGenerator.prototype._genSound = function(n, chnBuf, currentpos) {
 		if (this.instr.lfo_fx_freq) {
 			f *= lfor;
 		}
-		f = 1.5 * _math.sin(f * 3.141592 / WAVE_SPS);
+		f = 1.5 * Math.sin(f * 3.141592 / WAVE_SPS);
 		low += f * band;
 		var high = q * (rsample - band) - low;
 		band += f * high;
@@ -316,3 +316,4 @@ sonantxr_generate_sound = function(audio_ctx, instrument, note, callback) {
 
 })();
 
+export { sonantxr_generate_song, sonantxr_generate_sound };
