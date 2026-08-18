@@ -1820,14 +1820,74 @@ Run: `npx vitest run source/entity-init.test.ts`
 
 Expected: PASS（5 件）。値が `0` や `undefined` になったらフィールド初期化順序の罠を踏んでいる
 
-- [ ] **Step 7: 型チェックとテストが通ることを確認する**
+- [ ] **Step 7: 音色データの恒久テストを追加する**
+
+`sound-effects.ts` と `music-dark-meat-beat.ts` の数値は音そのものであり、変わると気づかないまま音が変わる。移植時は使い捨てスクリプトで旧 `.js` と照合したが、その保証を恒久化するテストがない。純データなので `AudioContext` に依存せず Node で動く。
+
+`source/audio-data.test.ts`:
+
+```ts
+import { createHash } from 'node:crypto'
+import { describe, expect, it } from 'vitest'
+import { music_dark_meat_beat } from './music-dark-meat-beat'
+import {
+  sound_beep, sound_explode, sound_hit, sound_hurt,
+  sound_pickup, sound_shoot, sound_terminal,
+} from './sound-effects'
+
+// 値そのものを固定する。差分が出たら git diff で何が変わったか分かる。
+function digest(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16)
+}
+
+const patches = {
+  sound_terminal, sound_shoot, sound_hit, sound_beep,
+  sound_hurt, sound_pickup, sound_explode,
+}
+
+describe('音色データ', () => {
+  it('各パッチが 29 フィールドを持つ', () => {
+    // sonantx-reduced.js が instr.xxx として読むフィールド数と一致する。
+    // 打ち間違いでフィールドが増減すると無音で失敗するため件数を固定する。
+    for (const [name, patch] of Object.entries(patches)) {
+      expect(Object.keys(patch).length, name).toBe(29)
+    }
+  })
+
+  it('効果音の値が変わっていない', () => {
+    expect(digest(sound_terminal)).toBe('e6106576030ff855')
+    expect(digest(sound_shoot)).toBe('64dc2fceb503978d')
+    expect(digest(sound_hit)).toBe('d0f60664325a8797')
+    expect(digest(sound_beep)).toBe('90ba85f337bce63a')
+    expect(digest(sound_hurt)).toBe('8102f3ff635efb7f')
+    expect(digest(sound_pickup)).toBe('e9ad4184c166d682')
+    expect(digest(sound_explode)).toBe('3559d26edf0180a6')
+  })
+
+  it('楽曲の構造と値が変わっていない', () => {
+    expect(music_dark_meat_beat.rowLen).toBe(5513)
+    expect(music_dark_meat_beat.endPattern).toBe(25)
+    expect(music_dark_meat_beat.songLen).toBe(101)
+    expect(music_dark_meat_beat.songData.length).toBe(6)
+    expect(digest(music_dark_meat_beat)).toBe('020050e12cd39d48')
+  })
+})
+```
+
+ハッシュは移植直後の値から算出したもので、旧 `.js` との一致は移植時に機械的に検証済み。
+
+Run: `npx vitest run source/audio-data.test.ts`
+
+Expected: PASS（3 件）
+
+- [ ] **Step 8: 型チェックとテストが通ることを確認する**
 
 Run: `npm run typecheck && npm test`
-Expected: 型エラー 0 件、テスト PASS（18 件 = random 6 + entity 7 + entity-init 5）
+Expected: 型エラー 0 件、テスト PASS（21 件 = random 6 + entity 7 + entity-init 5 + audio-data 3）
 
 `resolve.extensions` を消した状態でテストが通ることが、Step 5 の削除が安全だった証明になる。
 
-- [ ] **Step 8: ブラウザで実際に動くことを確認する**
+- [ ] **Step 9: ブラウザで実際に動くことを確認する**
 
 Run: `npm run dev`
 
@@ -1898,10 +1958,10 @@ keys[key_right] = 0
 
 上記が通ったら、実際のブラウザ（ヘッドレスでないもの）で `npm run dev` を開いて、イントロ→操作→射撃→CPU 再起動→レベル遷移→M キーの音声トグルを通しで見てもらう。自動検証で担保できるのはここまで。
 
-- [ ] **Step 9: コミット**
+- [ ] **Step 10: コミット**
 
 ```bash
-git add index.html source/game.ts source/main.ts source/entity-init.test.ts vite.config.ts
+git add index.html source/game.ts source/main.ts source/entity-init.test.ts source/audio-data.test.ts vite.config.ts
 git commit -m "feat: game / main を TypeScript 化し index.html を ESM エントリに切り替える"
 ```
 
@@ -2041,7 +2101,7 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 ## 完了条件
 
 - `npm run typecheck` が型エラー 0 件で通る
-- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件 + `entity-init.test.ts` 5 件 = 18 件）
+- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件 + `entity-init.test.ts` 5 件 + `audio-data.test.ts` 3 件 = 21 件）
 - `npm run dev` でゲームが動き、コンソールにエラーが出ない
 - `npm run build` → `npm run preview` でも同様に動く
 - `source/` に `.js` が 1 つだけ残っている（`sonantx-reduced.js`）
