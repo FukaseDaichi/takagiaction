@@ -2113,10 +2113,35 @@ npm test
 
 - [ ] **Step 6: README.md を更新する**
 
-- ファイル構成表から `build.sh` / `shrinkit.js` / `source/html-template.html` の行を削除し、`vite.config.ts` / `tsconfig.json` を追加
+**まず削除済みファイルへの参照を洗い出す。** `source/` の `.js` は `sonantx-reduced.js` の 1 つだけになったので、それ以外の `.js` を名指ししている箇所はすべて陳腐化している。
+
+```bash
+grep -n "\.js\b" README.md | grep -v sonantx
+```
+
+現時点で 8 箇所ある。内容ごとに直す:
+
+| 行 | 現在の記述 | 対応 |
+| --- | --- | --- |
+| 130 | 新しいフロアの作り方で `source/game.js` の `next_level` 判定を増やす旨 | `source/game.ts` に変更 |
+| 141 | `source/game.js` \| 入力処理、レベル読み込み、メインループ | 入力は `input.ts` に分離されたので行を分ける。`source/game.ts`（レベル読み込みとメインループ）と `source/input.ts`（キー入力）と `source/state.ts`（共有状態） |
+| 142 | `source/renderer.js` | `source/renderer.ts` |
+| 143 | `source/entity*.js` | `source/entity*.ts` |
+| 144 | `source/minimap.js` | `source/minimap.ts` |
+| 145 | `source/terminal.js` | `source/terminal.ts` |
+| 146 | `source/audio.js`, `sound-effects.js`, `music-*.js` | `source/audio.ts`, `sound-effects.ts`, `music-*.ts`。`sonantx-reduced.js` はサードパーティのため `.js` のまま残ることを注記 |
+| 150 | `shrinkit.js` \| ソースを縮めるための独自の前処理スクリプト | 行を削除（ファイル自体を削除済み） |
+| 172 | 日本語テキストの所在（`terminal.js` / `game.js` / `entity-cpu.js` / `entity-player.js` / `main.js`） | すべて `.ts` に変更 |
+
+その他:
+
+- ファイル構成表から `build.sh` / `source/html-template.html` の行を削除し、`vite.config.ts` / `tsconfig.json` / `.github/workflows/deploy.yml` を追加
 - 「ビルド」の節（`build.sh` の使い方、`build/` に `underrun.html` と `underrun.zip` が出る説明、`rm` のエラーに関するメモ）を `npm run build` と `npm run preview` の説明に差し替える
 - 13KB 制約に関する記述（178 行目付近）は、もともと「必ずしも守る必要はない」と書いてあるので、js13k 用ビルドが無くなったことを明記する形に更新する
 - 実行手順を `uv run python -m http.server` から `npm run dev` に変更
+- テストの実行方法（`npm test`）と型チェック（`npm run typecheck`）を追記
+
+**確認**: 更新後に `grep -n "\.js\b" README.md | grep -v sonantx` が 0 行になること（`sonantx-reduced.js` への言及だけが残る）
 
 - [ ] **Step 7: コミット**
 
