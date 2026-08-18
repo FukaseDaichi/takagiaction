@@ -4,22 +4,32 @@
 
 ## プロジェクト概要
 
-[phoboslab/underrun](https://github.com/phoboslab/underrun)（js13kgames 2018 出品作）をベースにした、WebGL 製のトップダウン・アクションシューティングを日本語向けにアレンジするプロジェクト。ビルドツールもフレームワークも使わず、素の JavaScript を `<script>` で読み込むだけの構成です。
+[phoboslab/underrun](https://github.com/phoboslab/underrun)（js13kgames 2018 出品作）をベースにした、WebGL 製のトップダウン・アクションシューティングを日本語向けにアレンジするプロジェクト。TypeScript + Vite 構成で、`index.html` が読み込むのは `source/main.ts` の 1 本だけ。他のモジュールへの依存関係は import が表すので、読み込み順を手で管理する必要はありません。
 
-- `source/` — ゲーム本体（1 ファイル 1 モジュール相当の素の JS）。`index.html` が読み込む順序が依存関係そのもの
+- `source/` — ゲーム本体（TypeScript）。`sonantx-reduced.js`（サードパーティ、zlib）だけが `.js` のまま
 - `m/` — テクスチャ（PNG）
-- `build.sh` — 配布用の 13KB ビルド（concat → `shrinkit.js` → uglify-es → zip）。開発時は不要
-- `index.html` — 開発／GitHub Pages 用のエントリポイント
+- `index.html` — エントリポイント。`source/main.ts` を読み込む
+- `vite.config.ts` / `tsconfig.json` — ビルドと型チェックの設定
+- `.github/workflows/deploy.yml` — `main` への push で GitHub Pages にビルド・デプロイする CI
 
-`main` ブランチへの push が GitHub Pages にそのまま公開されます。
+GitHub Actions が `main` への push をビルドし、GitHub Pages にデプロイします。
+デプロイ先で配信するには、リポジトリ設定の Pages → Source を「GitHub Actions」にしておく必要があります（初回のみの手作業）。
 
 ## 開発時の実行
 
 ```bash
-uv run python -m http.server 8000
+npm install
+npm run dev
 ```
 
-`http://localhost:8000/` を開く。ビルド不要で、`source/` を編集してリロードすれば反映されます。
+表示された URL を開く。`source/` を編集すると自動でリロードされます。
+
+型チェックとテスト:
+
+```bash
+npm run typecheck
+npm test
+```
 
 ## 方針
 

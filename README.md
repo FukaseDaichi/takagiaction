@@ -9,6 +9,7 @@
 **https://fukasedaichi.github.io/takagiaction/**
 
 GitHub Pages で公開しています。`main` ブランチに push すると自動で反映されます。
+リポジトリ設定の Pages → Source を「GitHub Actions」にしておく必要があります（初回のみの手作業）。
 
 オリジナル版はこちら: https://phoboslab.org/underrun/
 
@@ -16,13 +17,14 @@ GitHub Pages で公開しています。`main` ブランチに push すると自
 
 ## ローカルでの起動
 
-PNG 画像をテクスチャとして読み込むため、`file://` で直接開くと動きません。簡易 HTTP サーバー経由で開いてください。
+`source/main.ts` は TypeScript で書かれており、ブラウザは素の `.ts` を実行できません。Vite の開発サーバーが変換を行うため、`file://` で `index.html` を直接開いても動きません。Vite の開発サーバーを使ってください。
 
 ```bash
-uv run python -m http.server 8000
+npm install
+npm run dev
 ```
 
-サーバーを起動したら、ブラウザで `http://localhost:8000/` を開きます。ビルドは不要で、`source/` 以下のファイルをそのまま読み込みます（編集したらリロードするだけで反映されます）。
+表示された URL（既定では `http://localhost:5173/`）を開きます。`source/` を編集すると自動でリロードされます。
 
 起動するとターミナル風のイントロが流れます。**画面をクリックするとゲーム開始**です（音声再生のためにクリックが必要です）。
 
@@ -127,7 +129,7 @@ uv run python -m http.server 8000
 | `#FF0000`（赤） | セントリー |
 | 上記以外の色 | 床 |
 
-床タイルの上にスパイダーとヘルスパックが確率でランダム配置されます。**新しいフロアを作りたい場合は、この規則で PNG を描いて `m/` に追加**し、`source/game.js` のフロア数（`next_level` の判定）を増やしてください。
+床タイルの上にスパイダーとヘルスパックが確率でランダム配置されます。**新しいフロアを作りたい場合は、この規則で PNG を描いて `m/` に追加**し、`source/game.ts` のフロア数（`next_level` の判定）を増やしてください。
 
 ---
 
@@ -135,19 +137,24 @@ uv run python -m http.server 8000
 
 | パス | 内容 |
 | --- | --- |
-| `index.html` | エントリーポイント。各ソースを個別に読み込むので、ビルドなしで動作します（GitHub Pages もこれを配信） |
-| `.nojekyll` | GitHub Pages で Jekyll の処理を無効化するためのマーカー |
-| `source/` | ゲーム本体のソース一式 |
-| `source/game.js` | 入力処理、レベル読み込み、メインループ |
-| `source/renderer.js` | WebGL レンダラー（320×180 のピクセルアート描画、ライティング） |
-| `source/entity*.js` | プレイヤー・敵・弾・アイテムなど各エンティティ |
-| `source/minimap.js` | 画面右上のマップ（視線判定によるフォグオブウォー、2D canvas で描画） |
-| `source/terminal.js` | ターミナル風の演出とテキスト（イントロ / ストーリー / エンディング） |
-| `source/audio.js`, `sound-effects.js`, `music-*.js` | 効果音と BGM（Sonant-X で実行時に生成） |
-| `source/html-template.html` | 配布用 HTML のテンプレート |
+| `index.html` | エントリーポイント。`source/main.ts` を読み込む（GitHub Pages もこれを配信） |
+| `source/` | ゲーム本体のソース一式（TypeScript） |
+| `source/game.ts` | レベル読み込みとメインループ |
+| `source/input.ts` | キー入力 |
+| `source/state.ts` | ゲーム全体で共有する状態 |
+| `source/random.ts` | シード付き疑似乱数（LCG）。レベル生成の再現性を担う |
+| `source/dom.ts` | `index.html` の DOM 要素（WebGL canvas / ミニマップ canvas / ターミナル）の取得 |
+| `source/renderer.ts` | WebGL レンダラー（320×180 のピクセルアート描画、ライティング） |
+| `source/entity*.ts` | プレイヤー・敵・弾・アイテムなど各エンティティ |
+| `source/minimap.ts` | 画面右上のマップ（視線判定によるフォグオブウォー、2D canvas で描画） |
+| `source/terminal.ts` | ターミナル風の演出とテキスト（イントロ / ストーリー / エンディング） |
+| `source/audio.ts`, `sound-effects.ts`, `music-*.ts` | 効果音と BGM（Sonant-X で実行時に生成） |
+| `source/sonantx-reduced.js` | サードパーティの Sonant-X 本体（zlib ライセンス）。ここだけ `.js` のまま |
 | `m/` | 画像。`q2.png` がスプライトのアトラス、`l1〜l3.png` がレベルデータ |
-| `build.sh` | 結合 → 圧縮 → zip までを行うビルドスクリプト |
-| `shrinkit.js` | ソースを縮めるための独自の前処理スクリプト |
+| `package.json` | 依存パッケージと `npm run` スクリプトの定義 |
+| `vite.config.ts` | Vite のビルド設定（`outDir`、`base` など） |
+| `tsconfig.json` | TypeScript の設定 |
+| `.github/workflows/deploy.yml` | `main` への push で GitHub Pages にビルド・デプロイする CI |
 
 ---
 
@@ -155,27 +162,35 @@ uv run python -m http.server 8000
 
 ```bash
 npm install
+npm run build
 ```
+
+型チェック（`tsc --noEmit`）を実行したうえで `dist/` に本番用ファイルを出力します。画像 4 枚（`q2.png` / `l1〜l3.png`）はいずれも 4096 バイト未満なので、Vite の既定設定でデータ URI としてバンドルに埋め込まれます。そのため `dist/` に PNG が別ファイルとして出力されることはなく、`dist/index.html` と `dist/assets/` 以下の JS だけが出力されます。
 
 ```bash
-./build.sh
+npm run preview
 ```
 
-`build/` 以下に、単一ファイル版の `underrun.html` と、js13k 提出用の `underrun.zip` が出力されます。
+`dist/` の内容をローカルで確認できます。表示された URL を開いてください。
 
-> **メモ**: `build.sh` は先頭で既存の zip を `rm` するため、初回実行時は「そんなファイルはない」というエラーが 1 行出ますが、処理自体は問題なく進みます。
+テストと型チェック:
+
+```bash
+npm test
+npm run typecheck
+```
 
 ---
 
 ## 日本語アレンジのメモ
 
-- **テキストの日本語化**: 完了。画面に出る文言は `source/terminal.js`（イントロ / ストーリー / エンディング）、`source/game.js`（フロア開始時の走査メッセージ）、`source/entity-cpu.js`（再起動メッセージ）、`source/entity-player.js`（`展開失敗`）、`source/main.js`（`起動中...`）にあります
+- **テキストの日本語化**: 完了。画面に出る文言は `source/terminal.ts`（イントロ / ストーリー / エンディング）、`source/game.ts`（フロア開始時の走査メッセージ）、`source/entity-cpu.ts`（再起動メッセージ）、`source/entity-player.ts`（`展開失敗`）、`source/main.ts`（`起動中...`）にあります
   - 作者名・URL・`JS13K` などの固有名詞と、`CPU: PL(R) Q-COATL 7240 @ 12.6 THZ` のような疑似スペックはそのまま残しています
   - ターミナル演出では `_` が改行 10 個（= 約 1 秒の待ち）に展開されるため、**文中に `_` を書かないこと**（`terminal_prepare_text` を参照）
-- **タイトルまわり**: 完了。`index.html` と `source/html-template.html` の `<title>` を `TAKAGI ACTION` に変更済み
+- **タイトルまわり**: 完了。`index.html` の `<title>` を `TAKAGI ACTION` に変更済み
 - **表示スタイルの調整**: 現状は不要。ターミナル表示（`#a`）は `white-space: nowrap` の 1 行表示・等幅前提ですが、日本語の各行は最長でも横幅の約半分で収まっているため折り返しは発生しません。今後長い行を足す場合は要注意
 - **レベルの追加・難易度調整**: 上記「レベルデータの仕組み」を参照
-- **ファイルサイズの制約について**: 13KB は js13k のルールなので、このリポジトリでは必ずしも守る必要はありません。日本語テキストはバイト数が増えるため、サイズを気にせず自由にアレンジできます
+- **ファイルサイズの制約について**: 13KB は js13k のルールです。このリポジトリはすでに js13k 提出用ビルド（旧 `build.sh`）を持たず、Vite の通常ビルドでサイズ制約なく配信するため、日本語テキストの増量を気にせず自由にアレンジできます
 
 ---
 
