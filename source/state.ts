@@ -1,4 +1,5 @@
 import type { entity_t } from './entity'
+import type { entity_player_t } from './entity-player'
 
 // 実行時 import を持たないこと。型のみの import はコンパイル時に消えるため、
 // このモジュールは依存グラフの葉になり循環参照の起点にならない。
@@ -17,8 +18,7 @@ export const state = {
   current_level: 0,
   cpus_total: 0,
   cpus_rebooted: 0,
-  // Task 5 で entity_player_t | null に狭める
-  entity_player: null as entity_t | null,
+  entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],
   entities_to_kill: [] as entity_t[],
 }
