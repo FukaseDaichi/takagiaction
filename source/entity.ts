@@ -1,6 +1,10 @@
 import { push_sprite } from './renderer'
 import { level_data, level_width, state } from './state'
 
+// このモジュールが import してよいのは非循環コア（state、dom、renderer）のみ。
+// entity_t のサブクラスに（推移的にでも）到達するモジュールを import すると、
+// モジュール初期化時の TDZ（ReferenceError）が復活する。
+
 export class entity_t {
   x: number
   y: number
@@ -37,6 +41,10 @@ export class entity_t {
   }
 
   // separate _init() method, because "constructor" cannot be uglyfied
+  // _init() に書けるのは基底クラス（entity_t）のフィールドのみ。
+  // useDefineForClassFields によりサブクラスのフィールドは基底 constructor の
+  // 後に define されるため、サブクラス固有の状態はここでは代入せずフィールド
+  // 初期化子で書くこと（サイレントに undefined で上書きされる）。
   protected _init(init_param?: number): void {}
 
   _update(): void {
