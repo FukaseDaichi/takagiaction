@@ -90,6 +90,7 @@ Task 1〜7 の間は `index.html` が旧 `.js` を読み続けるため、**ゲ�
     "strict": true,
     "noUncheckedIndexedAccess": false,
     "noEmit": true,
+    "noImplicitOverride": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
@@ -97,6 +98,8 @@ Task 1〜7 の間は `index.html` が旧 `.js` を読み続けるため、**ゲ�
   "include": ["source"]
 }
 ```
+
+`noImplicitOverride` は entity 階層のために入れる。9 サブクラスが基底のメソッドを上書きするが、このフラグがないと `override` の付け忘れをコンパイラが検出しない。「上書きするつもりで名前を間違え、別メソッドを新設していた」類の誤りが黙って通ってしまう。有効にすると TS4114 で弾かれる。
 
 `noUncheckedIndexedAccess` を明示的に `false` にしているのは、`strict` に含まれないフラグであることを読み手に示すため。`level_data[i]` と `keys[code]` の添字アクセスが全域にあり、有効にすると全部 `| undefined` になる。
 
@@ -1723,14 +1726,108 @@ export default defineConfig({
 
 残る `.js` は `source/sonantx-reduced.js` の 1 つだけで、これは `./sonantx-reduced` として import される。同名の `.ts` は存在せず `.d.ts` は解決対象の拡張子に含まれないため、既定の解決順でも正しく `.js` に解決される。設定を消して問題ない。
 
-- [ ] **Step 6: 型チェックとテストが通ることを確認する**
+- [ ] **Step 6: フィールド初期化の恒久テストを追加する**
+
+Task 5 でクラスフィールドの初期化順序の罠を回避したが、**その正しさを守る自動テストがない**。`useDefineForClassFields` の既定が変わったり、誰かがフィールド宣言を初期化子から通常の宣言に書き換えたりすれば静かに壊れる。型チェックでは検出できない。
+
+Task 8 の時点では `audio` / `terminal` / `game` / `input` が実在するため、Task 5 で必要だった大量のモックが減る。ここで恒久テストを置く。
+
+`source/entity-init.test.ts` を作成する。
+
+```ts
+import { describe, expect, it, vi } from 'vitest'
+
+// renderer は dom.ts 経由で document と canvas に触るため Node 環境では評価できない
+vi.mock('./renderer', () => ({
+  push_sprite: () => {},
+  push_light: () => {},
+  push_block: () => {},
+  camera: { x: 0, y: 0, z: 0, shake: 0 },
+}))
+// audio は AudioContext をモジュール初期化時に生成するため同様
+vi.mock('./audio', () => ({
+  audio_play: () => {},
+  audio_sfx_shoot: undefined,
+  audio_sfx_hit: undefined,
+  audio_sfx_hurt: undefined,
+  audio_sfx_beep: undefined,
+  audio_sfx_pickup: undefined,
+  audio_sfx_explode: undefined,
+}))
+// terminal も dom.ts に触る
+vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
+
+import { entity_explosion_t } from './entity-explosion'
+import { entity_particle_t } from './entity-particle'
+import { entity_plasma_t } from './entity-plasma'
+import { entity_player_t } from './entity-player'
+import { entity_sentry_plasma_t, entity_sentry_t } from './entity-sentry'
+import { entity_spider_t } from './entity-spider'
+
+// private フィールドを読むためのヘルパ。初期化順序の検証が目的なので、
+// 内部を覗くこと自体がこのテストの主題である。
+function peek(entity: object, field: string): unknown {
+  return (entity as Record<string, unknown>)[field]
+}
+
+// useDefineForClassFields が true のとき、サブクラスのフィールド宣言は基底
+// constructor の完了後に define される。_init() 内で自クラスのフィールドに
+// 代入すると潰されるため初期化子で書く必要がある。ここが壊れると蜘蛛と歩哨が
+// (0,0) を狙い、粒子と爆発が消えず、射撃判定が壊れる。型チェックでは検出できない。
+describe('クラスフィールドの初期化順序', () => {
+  it('entity_sentry_t は h=20 と生成座標を保持する', () => {
+    const sentry = new entity_sentry_t(112, 0, 456, 5, 32)
+    expect(sentry.h).toBe(20)
+    expect(peek(sentry, '_target_x')).toBe(112)
+    expect(peek(sentry, '_target_z')).toBe(456)
+    expect(peek(sentry, '_select_target_counter')).toBe(0)
+  })
+
+  it('entity_spider_t は生成座標を保持する', () => {
+    const spider = new entity_spider_t(64, 0, 128, 5, 27)
+    expect(peek(spider, '_target_x')).toBe(64)
+    expect(peek(spider, '_target_z')).toBe(128)
+    expect(peek(spider, '_animation_time')).toBe(0)
+  })
+
+  it('寿命を持つエンティティは寿命が設定される', () => {
+    expect(peek(new entity_particle_t(0, 0, 0, 1, 30), '_lifetime')).toBe(3)
+    expect(peek(new entity_explosion_t(0, 0, 0, 0, 26), '_lifetime')).toBe(1)
+  })
+
+  it('entity_player_t は初期の向きとカウンタを持つ', () => {
+    const player = new entity_player_t(0, 0, 0, 5, 18)
+    expect(player._angle).toBe(Math.PI / 2)
+    expect(peek(player, '_bob')).toBe(0)
+    expect(peek(player, '_frame')).toBe(0)
+    expect(peek(player, '_last_shot')).toBe(0)
+    expect(peek(player, '_last_damage')).toBe(0)
+  })
+
+  it('弾は角度から速度を得る（_init が基底フィールドに書ける）', () => {
+    const plasma = new entity_plasma_t(0, 0, 0, 0, 26, 0)
+    expect(plasma.vx).toBe(96)
+    expect(plasma.vz).toBe(0)
+
+    const sentry_plasma = new entity_sentry_plasma_t(0, 0, 0, 0, 26, 0)
+    expect(sentry_plasma.vx).toBe(64)
+    expect(sentry_plasma.vz).toBe(0)
+  })
+})
+```
+
+Run: `npx vitest run source/entity-init.test.ts`
+
+Expected: PASS（5 件）。値が `0` や `undefined` になったらフィールド初期化順序の罠を踏んでいる
+
+- [ ] **Step 7: 型チェックとテストが通ることを確認する**
 
 Run: `npm run typecheck && npm test`
-Expected: 型エラー 0 件、テスト PASS（13 件）
+Expected: 型エラー 0 件、テスト PASS（18 件 = random 6 + entity 7 + entity-init 5）
 
 `resolve.extensions` を消した状態でテストが通ることが、Step 5 の削除が安全だった証明になる。
 
-- [ ] **Step 7: ブラウザで実際に動くことを確認する**
+- [ ] **Step 8: ブラウザで実際に動くことを確認する**
 
 Run: `npm run dev`
 
@@ -1801,10 +1898,10 @@ keys[key_right] = 0
 
 上記が通ったら、実際のブラウザ（ヘッドレスでないもの）で `npm run dev` を開いて、イントロ→操作→射撃→CPU 再起動→レベル遷移→M キーの音声トグルを通しで見てもらう。自動検証で担保できるのはここまで。
 
-- [ ] **Step 8: コミット**
+- [ ] **Step 9: コミット**
 
 ```bash
-git add index.html source/game.ts source/main.ts vite.config.ts
+git add index.html source/game.ts source/main.ts source/entity-init.test.ts vite.config.ts
 git commit -m "feat: game / main を TypeScript 化し index.html を ESM エントリに切り替える"
 ```
 
@@ -1944,7 +2041,7 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 ## 完了条件
 
 - `npm run typecheck` が型エラー 0 件で通る
-- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件）
+- `npm test` が通る（`random.test.ts` 6 件 + `entity.test.ts` 7 件 + `entity-init.test.ts` 5 件 = 18 件）
 - `npm run dev` でゲームが動き、コンソールにエラーが出ない
 - `npm run build` → `npm run preview` でも同様に動く
 - `source/` に `.js` が 1 つだけ残っている（`sonantx-reduced.js`）
