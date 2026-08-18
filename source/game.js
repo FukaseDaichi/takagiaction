@@ -52,6 +52,8 @@ function load_level(id, callback) {
 		cpus_total = 0;
 		cpus_rebooted = 0;
 
+		minimap_reset();
+
 		_temp = _document.createElement('canvas');
 		_temp.width = _temp.height = level_width; // assume square levels
 		_temp = _temp.getContext('2d')
@@ -214,6 +216,7 @@ function game_tick() {
 
 	renderer_end_frame();
 
+	minimap_update();
 
 	// remove dead entities
 	entities = entities.filter(function(entity) {

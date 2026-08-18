@@ -15,6 +15,7 @@ cat \
 	source/music-dark-meat-beat.js \
 	source/sound-effects.js \
 	source/audio.js \
+	source/minimap.js \
 	source/terminal.js \
 	source/main.js \
 	> build/underrun.js

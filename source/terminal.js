@@ -169,6 +169,7 @@ function terminal_run_story(callback) {
 function terminal_run_outro(callback) {
 	game_running = 0;
 	c.style.opacity = 0.3;
+	minimap_hide();
 	a.innerHTML = '';
 	terminal_text_buffer = [];
 
