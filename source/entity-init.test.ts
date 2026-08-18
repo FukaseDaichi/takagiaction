@@ -10,6 +10,7 @@ vi.mock('./renderer', () => ({
 // audio は AudioContext をモジュール初期化時に生成するため同様
 vi.mock('./audio', () => ({
   audio_play: () => {},
+  audio_toggle: () => {},
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,
@@ -23,6 +24,7 @@ vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // フィールド初期化の検証には関係がない）
 vi.mock('./game', () => ({ reload_level: () => {} }))
 
+import { entity_cpu_t } from './entity-cpu'
 import { entity_explosion_t } from './entity-explosion'
 import { entity_particle_t } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
@@ -54,6 +56,16 @@ describe('クラスフィールドの初期化順序', () => {
     expect(peek(spider, '_target_x')).toBe(64)
     expect(peek(spider, '_target_z')).toBe(128)
     expect(peek(spider, '_animation_time')).toBe(0)
+  })
+
+  it('entity_spider_t は次の索敵までのカウンタを 0 で初期化する', () => {
+    const spider = new entity_spider_t(64, 0, 128, 5, 27)
+    expect(peek(spider, '_select_target_counter')).toBe(0)
+  })
+
+  it('entity_cpu_t はアニメーション用の時間カウンタを 0 で初期化する', () => {
+    const cpu = new entity_cpu_t(0, 0, 0, 5, 4)
+    expect(peek(cpu, '_animation_time')).toBe(0)
   })
 
   it('寿命を持つエンティティは寿命が設定される', () => {
