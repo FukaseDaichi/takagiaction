@@ -15,8 +15,6 @@
 
 ## 開発時の実行
 
-`file://` では PNG テクスチャが読めないため、HTTP サーバー経由で開きます。
-
 ```bash
 uv run python -m http.server 8000
 ```
