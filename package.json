@@ -5,6 +5,9 @@
   "type": "module",
   "description": "WebGL 製トップダウン・アクションシューティング",
   "license": "ISC",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
