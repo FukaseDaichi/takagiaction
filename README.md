@@ -16,7 +16,7 @@ GitHub Pages で公開しています。`main` ブランチに push すると自
 
 ## ローカルでの起動
 
-ES モジュール（`<script type="module">`）で書かれているため、`file://` で直接開くと動きません。Vite の開発サーバーを使ってください。
+`source/main.ts` は TypeScript で書かれており、ブラウザは素の `.ts` を実行できません。Vite の開発サーバーが変換を行うため、`file://` で `index.html` を直接開いても動きません。Vite の開発サーバーを使ってください。
 
 ```bash
 npm install
@@ -141,6 +141,7 @@ npm run dev
 | `source/game.ts` | レベル読み込みとメインループ |
 | `source/input.ts` | キー入力 |
 | `source/state.ts` | ゲーム全体で共有する状態 |
+| `source/dom.ts` | `index.html` の DOM 要素（WebGL canvas / ミニマップ canvas / ターミナル）の取得 |
 | `source/renderer.ts` | WebGL レンダラー（320×180 のピクセルアート描画、ライティング） |
 | `source/entity*.ts` | プレイヤー・敵・弾・アイテムなど各エンティティ |
 | `source/minimap.ts` | 画面右上のマップ（視線判定によるフォグオブウォー、2D canvas で描画） |
