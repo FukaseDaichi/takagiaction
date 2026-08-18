@@ -1756,6 +1756,9 @@ vi.mock('./audio', () => ({
 }))
 // terminal も dom.ts に触る
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
+// entity-player は game.ts の reload_level を参照し、game.ts は minimap → dom を
+// 経由して document に触るため、これもモックが必要
+vi.mock('./game', () => ({ reload_level: () => {} }))
 
 import { entity_explosion_t } from './entity-explosion'
 import { entity_particle_t } from './entity-particle'
@@ -1826,8 +1829,9 @@ Expected: PASS（5 件）。値が `0` や `undefined` になったらフィー�
 
 `source/audio-data.test.ts`:
 
+`node:crypto` は使わない。`@types/node` が必要になり、それを入れると `setTimeout` の戻り値型が Node 版（`NodeJS.Timeout`）に切り替わって `terminal.ts:79-80` の `ReturnType<typeof setTimeout> = 0` が通らなくなる。Web Crypto はブラウザと Node 18+ の両方でグローバルに使えるので依存を増やさずに済む（`digest` が非同期になる点だけ異なる）。
+
 ```ts
-import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { music_dark_meat_beat } from './music-dark-meat-beat'
 import {
@@ -1836,8 +1840,13 @@ import {
 } from './sound-effects'
 
 // 値そのものを固定する。差分が出たら git diff で何が変わったか分かる。
-function digest(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16)
+async function digest(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value))
+  const hash = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 16)
 }
 
 const patches = {
@@ -2031,13 +2040,21 @@ jobs:
 Run: `npm run build`
 Expected: `dist/` に `index.html` と `assets/` が出力され、エラーなく終了
 
-画像 4 枚がすべて出力されていることを確認する（静的 import が効いているかの検証）。
+画像 4 枚がバンドルに取り込まれていることを確認する（静的 import が効いているかの検証）。
+
+**PNG は別ファイルとして出力されない。** 4 枚とも 4096 バイト未満（`q2.png` 2171 / `l1`〜`l3` 各 300 前後）で、Vite の既定 `build.assetsInlineLimit` により**データ URI としてバンドルに埋め込まれる**。したがって `find dist -name '*.png'` は 0 件になるのが正しい。これは 404 が構造的に起こり得ないという意味でむしろ強い保証である。
 
 ```bash
-find dist -name '*.png' | sort
+grep -o "data:image/png;base64" dist/assets/*.js | wc -l
 ```
 
-Expected: 4 件（q2 / l1 / l2 / l3 に対応するハッシュ付きファイル）。1 件でも欠けていたら `game.ts` / `main.ts` の import が漏れている
+Expected: **4**。これより少なければ `game.ts` の `level_image_urls` か `main.ts` の `atlas_url` の import が漏れている
+
+```bash
+find dist -type f
+```
+
+Expected: `dist/index.html` と `dist/assets/index-*.js` の 2 ファイルのみ
 
 - [ ] **Step 3: ビルド成果物が動くことを確認する**
 
@@ -2045,7 +2062,27 @@ Run: `npm run preview`
 
 表示された URL を開き、Task 8 Step 7 の検証手順（状態アサーション、手動フレーム送りでの描画確認、`keys` による操作確認、コンソールエラーなし）を再実行する。`base: './'` が効いているかはここで分かる（アセットが 404 なら相対パスの設定漏れ）。
 
-- [ ] **Step 4: AGENTS.md を更新する**
+- [ ] **Step 4: .claude/launch.json を更新する**
+
+現在の内容は旧構成のままで、**もう動かない**。`index.html` が `/source/main.ts` を読むようになったため、素の静的サーバーでは TypeScript を配信できない。
+
+```json
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "takagiaction",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "dev"],
+			"port": 5173
+		}
+	]
+}
+```
+
+Vite の既定ポートは 5173。
+
+- [ ] **Step 5: AGENTS.md を更新する**
 
 以下を書き換える。
 
@@ -2074,21 +2111,21 @@ npm test
 - 「`main` ブランチへの push が GitHub Pages にそのまま公開されます」→ GitHub Actions がビルドしてデプロイすることに変更
 - 「Python は必ず uv で実行する」の節はそのまま残す
 
-- [ ] **Step 5: README.md を更新する**
+- [ ] **Step 6: README.md を更新する**
 
 - ファイル構成表から `build.sh` / `shrinkit.js` / `source/html-template.html` の行を削除し、`vite.config.ts` / `tsconfig.json` を追加
 - 「ビルド」の節（`build.sh` の使い方、`build/` に `underrun.html` と `underrun.zip` が出る説明、`rm` のエラーに関するメモ）を `npm run build` と `npm run preview` の説明に差し替える
 - 13KB 制約に関する記述（178 行目付近）は、もともと「必ずしも守る必要はない」と書いてあるので、js13k 用ビルドが無くなったことを明記する形に更新する
 - 実行手順を `uv run python -m http.server` から `npm run dev` に変更
 
-- [ ] **Step 6: コミット**
+- [ ] **Step 7: コミット**
 
 ```bash
-git add .github/workflows/deploy.yml AGENTS.md README.md
+git add .github/workflows/deploy.yml .claude/launch.json AGENTS.md README.md
 git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメントを更新する"
 ```
 
-- [ ] **Step 7: ユーザーに手作業を依頼する**
+- [ ] **Step 8: ユーザーに手作業を依頼する**
 
 **このステップはエージェントが実行できない。** リポジトリ設定の変更が必要なことをユーザーに伝える。
 
