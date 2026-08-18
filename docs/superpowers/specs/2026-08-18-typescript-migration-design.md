@@ -184,17 +184,17 @@ export const state = {
 
 | メンバ | 呼び出し元 | 修飾子 |
 | --- | --- | --- |
-| `_update()` | game.ts:183 のループ、サブクラスの `super` | `public` |
-| `_render()` | game.ts:199 のループ、サブクラスの `super` | `public` |
-| `_check(other)` | game.ts:194-195 のループ | `public` |
+| `_update()` | `game_tick()` のループ、サブクラスの `super` | `public` |
+| `_render()` | `game_tick()` のループ、サブクラスの `super` | `public` |
+| `_check(other)` | `game_tick()` のループ | `public` |
 | `_receive_damage(from, amount)` | 他エンティティ（plasma / spider / sentry が相手に対して呼ぶ） | `public` |
-| `_dead` | entity.ts 内、および game.ts:182 が読む | `public` |
+| `_dead` | entity.ts 内、および `game_tick()` が読む | `public` |
 | `x` `y` `z` `vx` `vy` `vz` `ax` `ay` `az` `f` `s` `h` | renderer 呼び出しと他エンティティ | `public` |
 | `_kill()` | 自クラスとサブクラスのみ。game.ts からは呼ばれていない | `protected` |
 | `_init(param)` | entity.ts の constructor、サブクラスがオーバーライド | `protected` |
 | `_did_collide()` | entity.ts 内、サブクラスがオーバーライド | `protected` |
 | `_collides(x, z)` | entity.ts 内のみ、オーバーライドなし。テストがサブクラス経由で呼ぶ | `protected` |
-| `_angle` | `entity_player_t` 内、および **minimap.ts:104-105 が読む**（自機の向きを 1px で描くため） | `public` |
+| `_angle` | `entity_player_t` 内、および **`minimap_draw()` 内が読む**（自機の向きを 1px で描くため） | `public` |
 | `_bob` `_frame` `_last_shot` `_last_damage` | `entity_player_t` 内のみ | `private` |
 | `_animation_time` | `entity_cpu_t` / `entity_spider_t` の各クラス内のみ（別々に宣言されている） | それぞれ `private` |
 
@@ -386,7 +386,7 @@ function load_image(
 | `gl.getError()` | 0 |
 | ミニマップの `display` | `block` |
 
-移行後（ESM 化直後、Task 8。コード変更なしで動的 import により再測定）: 自機座標・エンティティ数・CPU 数・HP・向きは上表と完全一致（`state.entity_player.x === 112`、`.z === 456` まで一致しており、PNG デコードとシード付き乱数によるレベル生成が同一結果を出している直接の証拠になる）。カメラは自機座標の符号反転 `(-112, 0, -456)` に収束する。4 方向の移動は対称（右 +12.78 / 左 -12.75 / 上 -12.78 / 下 +12.75、いずれも 0.5 秒相当・30 tick 分）。
+移行後（ESM 化直後、Task 8。コード変更なしで動的 import により再測定）: 自機座標・エンティティ数・CPU 数・HP・向きは上表と完全一致（`state.entity_player.x === 112`、`.z === 456` まで一致しており、PNG デコードとシード付き乱数によるレベル生成が同一結果を出している直接の証拠になる）。カメラは自機座標の符号反転 `(-112, 0, -456)` に収束する。4 方向の移動は対称（右 +12.78 / 左 -12.75 / 上 -12.78 / 下 +12.75）。この値は「キーを 30 tick 押し続けた後、キーを離してさらに 60 tick 進め摩擦で残存速度を減衰させ切った」合計 90 tick 分の総変位である。30 tick（押下中のみ）の変位ではない（後述「測定方法」参照。30 tick だけなら 8.45 になり報告値と一致しない）。
 
 非黒ピクセルは 5757 個（10.0%）、最大輝度 456、`gl.getError()` は 0 のまま。上表の 5475 個 / 442 との差は退行ではない。60 tick 手動送りの間に敵が乱数で動くため、測定時点のフレームで敵の位置が旧構成の測定時と一致するとは限らず、その分の描画面積・輝度が数 % 変動する。`num_verts` はこの段の Task 4 で renderer 内部に隠蔽されており、外から読める公開値ではなくなったため移行後には再測定していない（`renderer_reset_level_geometry()` / `renderer_freeze_level_geometry()` の呼び出しが正しく起きていることは Task 4 のレビューで別途確認済み）。
 
@@ -396,16 +396,40 @@ function load_image(
 
 手順:
 
-1. `window.requestAnimationFrame` を一時的に `() => 0` などの no-op に置き換える
-2. `game_tick()` を手動で 60 回呼ぶ（カメラの初期減衰などを収束させる）
-3. **同一 JS ターン内で** `gl.readPixels(0, 0, 320, 180, gl.RGBA, gl.UNSIGNED_BYTE, buf)` を呼び、`R+G+B > 6` の画素数（非黒）・最大輝度・`gl.getError()` を読む。ターンを跨ぐと `preserveDrawingBuffer: false` によりバッファが破棄され全ゼロになる
-4. `window.requestAnimationFrame` を元に戻し `requestAnimationFrame(game_tick)` でループを再開する
-5. 移動確認は `keys[key_right] = 1` のように `input.ts` の `keys` を直接叩いて 30 tick 進め、`entity_player.x` / `.z` の変化量を見る（合成キーイベントに頼らない）
+1. `window.requestAnimationFrame` を一時的に `() => 0` などの no-op に置き換える。`game_tick()` を rAF から切り離し、以降は手動で呼んだ回数だけ進むようにする
+2. `performance.now` を「呼ぶたびに厳密に `1000/60` ms 進む」スタブに置き換える。
+
+   ```js
+   let stub_now = performance.now()
+   performance.now = () => (stub_now += 1000 / 60)
+   ```
+
+   これが必要な理由: `game.ts` は `time_last = performance.now()` を基準に毎 tick `state.time_elapsed = (performance.now() - time_last) / 1000` を計算している。スタブなしで同期ループから `game_tick()` を連打すると呼び出し間隔は実時間でほぼ 0ms のため `time_elapsed` もほぼ 0 になり、物理がほとんど進まない。1 tick を厳密に 1/60 秒として進めるにはスタブが要る
+3. **スタブ導入直後に空打ちの tick を数回流し、蓄積した実時間の差分を捨てる。** `time_last` はスタブ導入前の実時刻を保持したままなので、スタブ導入後最初の 1 tick は「ページを開いてからスタブを入れるまでの実時間」をそのまま `time_elapsed` として受け取る。数秒開けてからスタブを入れると、その数秒分がまるごと 1 tick の `time_elapsed` になり、摩擦計算が暴走して自機が画面外へ数千 px 飛ぶ。これは実際に発生した失敗であり、測定をやり直す原因になった。スタブ導入後、`state.time_elapsed` が 1/60（≈0.0167）に落ち着いたことを確認してから本計測に入ること
+4. 非黒ピクセル・最大輝度・`gl.getError()` の確認は、`game_tick()` をさらに 60 回呼んで（カメラの初期減衰などを収束させる）から、**同一 JS ターン内で** `gl.readPixels(0, 0, 320, 180, gl.RGBA, gl.UNSIGNED_BYTE, buf)` を呼び、`R+G+B > 6` の画素数（非黒）・最大輝度・`gl.getError()` を読む。ターンを跨ぐと `preserveDrawingBuffer: false` によりバッファが破棄され全ゼロになる
+5. 移動確認は `keys[key_right] = 1` のように `input.ts` の `keys` を直接叩いて **30 tick** 進める（キー押下）。続けて `keys[key_right] = 0` に戻し、**さらに 60 tick** 進める（摩擦で残存速度を減衰させ切る）。報告している移動量は**この合計 90 tick の総変位**であり、押下中の 30 tick だけの変位ではない（30 tick だけでは 8.45 になり、報告値 12.78 と一致しない）。`entity_player.x` / `.z` の変化量を見る（合成キーイベントに頼らない）
+6. `window.requestAnimationFrame` と `performance.now` を元に戻し、`requestAnimationFrame(game_tick)` でループを再開する
 
 状態・関数・`gl` へのアクセス方法は移行前後で異なる:
 
 - **移行前**（旧構成、`<script>` タグの並列読み込み）: `game_running` / `entities` / `entity_player` / `gl` はいずれも top-level `var` で、classic script の実行モデル上すでに `window` のプロパティになっている。コンソールから素の識別子でそのまま読み書きできる
-- **移行後**（ESM、Vite dev server）: 各モジュールはスコープを持つため素の識別子では読めないが、コードに手を入れる必要はない。Vite の開発サーバーが動いている状態で、ブラウザコンソールから `const { state } = await import('/source/state.ts')`、`const { game_tick } = await import('/source/game.ts')` のように動的 import すると、ページが実際に読み込んでいるのと同一のモジュールインスタンスが返る（ESM のモジュールキャッシュは URL 単位）。`gl` は `renderer.ts` が export していないため、`const { canvas } = await import('/source/dom.ts')` で `canvas` を取得し `canvas.getContext('webgl')` を呼ぶ（1 つの canvas は同じ型の WebGL コンテキストを 2 つ持てず、既存のコンテキストがそのまま返る）。ミニマップの `display` は `const { minimap_canvas } = await import('/source/dom.ts')` の後 `getComputedStyle(minimap_canvas).display` で読む
+- **移行後**（ESM、Vite dev server）: 各モジュールはスコープを持つため素の識別子では読めないが、コードに手を入れる必要はない。Vite の開発サーバーが動いている状態で、ブラウザコンソールから `const { state } = await import('/source/state.ts')`、`const { game_tick } = await import('/source/game.ts')` のように動的 import すると、ページが実際に読み込んでいるのと同一のモジュールインスタンスが返る（ESM のモジュールキャッシュは URL 単位）。`gl` は `renderer.ts` が export していないため、`const { canvas } = await import('/source/dom.ts')` で `canvas` を取得し `canvas.getContext('webgl')` を呼ぶ（1 つの canvas は同じ型の WebGL コンテキストを 2 つ持てず、既存のコンテキストがそのまま返る）。ミニマップの `display` は `const { minimap_canvas } = await import('/source/dom.ts')` の後 `getComputedStyle(minimap_canvas).display` で読む。いずれの場合も**テスト用に `window` へ一時的に何かを生やす必要はない**
+
+### 移動量のオフライン検証
+
+上記の移動量（12.78 など）はブラウザなしでも検証できる。関与する物理は `entity.ts` の `_update()` の速度・位置更新式（`vx += ax*dt - vx*min(f*dt,1)`; `x += vx*dt`）そのもので、`dt = 1/60`、摩擦 `f = 5`（プレイヤーの `entity_t` コンストラクタ第 4 引数）、加速度 `ax = ±128`（`entity-player.ts` の `speed`）を単体で回すだけで再現できる。
+
+```bash
+node -e "
+const dt = 1/60, f = 5, speed = 128;
+let x = 0, vx = 0;
+for (let i = 0; i < 30; i++) { vx += speed*dt - vx*Math.min(f*dt,1); x += vx*dt }  // キー押下
+for (let i = 0; i < 60; i++) { vx += 0      - vx*Math.min(f*dt,1); x += vx*dt }    // 慣性を抜く
+console.log(x.toFixed(2))  // 12.78
+"
+```
+
+これが報告値 12.78 と一致することが、「30 tick 押下 + 60 tick 解放」という上記の再現手順が測定値を説明する唯一の経路であることの独立した証拠になる。ブラウザも WebGL も `performance.now` のスタブも要らないため、この数値の妥当性を疑うときはまずここで確認するのが最も速い。
 
 ## 非スコープ
 

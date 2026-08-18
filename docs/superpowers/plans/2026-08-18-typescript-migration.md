@@ -889,7 +889,7 @@ override _check(other: entity_t): void {
 | メンバ | 修飾子 |
 | --- | --- |
 | `_update` `_render` `_check` `_receive_damage` `_dead` | `public`（修飾子を書かない） |
-| `_angle`（`entity_player_t`） | `public`。**minimap.ts:104-105 が自機の向きを読むため private にできない** |
+| `_angle`（`entity_player_t`） | `public`。**`minimap_draw()` が自機の向きを読むため private にできない** |
 | `_kill` `_init` `_did_collide` | `protected override` |
 | `_bob` `_frame` `_last_shot` `_last_damage`（`entity_player_t`） | `private` |
 | `_animation_time`（`entity_cpu_t` / `entity_spider_t` で別々に宣言） | それぞれ `private` |
@@ -1829,7 +1829,7 @@ Expected: PASS（5 件）。値が `0` や `undefined` になったらフィー�
 
 `source/audio-data.test.ts`:
 
-`node:crypto` は使わない。`@types/node` が必要になり、それを入れると `setTimeout` の戻り値型が Node 版（`NodeJS.Timeout`）に切り替わって `terminal.ts:79-80` の `ReturnType<typeof setTimeout> = 0` が通らなくなる。Web Crypto はブラウザと Node 18+ の両方でグローバルに使えるので依存を増やさずに済む（`digest` が非同期になる点だけ異なる）。
+`node:crypto` は使わない。`@types/node` が必要になり、それを入れると `setTimeout` の戻り値型が Node 版（`NodeJS.Timeout`）に切り替わって `terminal.ts` の `terminal_timeout_id` / `terminal_hide_timeout` の `ReturnType<typeof setTimeout> = 0` が通らなくなる。Web Crypto はブラウザと Node 18+ の両方でグローバルに使えるので依存を増やさずに済む（`digest` が非同期になる点だけ異なる）。
 
 ```ts
 import { describe, expect, it } from 'vitest'
