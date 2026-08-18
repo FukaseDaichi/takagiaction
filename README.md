@@ -137,7 +137,7 @@ npm run dev
 
 | パス | 内容 |
 | --- | --- |
-| `index.html` | エントリーポイント。`source/main.ts` を読み込む（GitHub Pages もこれを配信） |
+| `index.html` | エントリーポイント。`source/main.ts` を読み込む。GitHub Pages が配信するのはこれではなく `vite build` が生成した `dist/index.html`（バンドルを参照する形に書き換わったもの）。このファイルがそのまま配信されるとブラウザは生の `.ts` を実行できず起動しない |
 | `source/` | ゲーム本体のソース一式（TypeScript） |
 | `source/game.ts` | レベル読み込みとメインループ |
 | `source/input.ts` | キー入力 |

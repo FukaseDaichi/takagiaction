@@ -2154,7 +2154,17 @@ git commit -m "chore: GitHub Actions で Pages にデプロイしドキュメン
 
 **このステップはエージェントが実行できない。** リポジトリ設定の変更が必要なことをユーザーに伝える。
 
-> GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更してください。この変更をしないと、`actions/deploy-pages@v4` が Pages API から 404 を受け取り deploy ジョブがはっきり失敗します（公開内容が古いまま残るのではありません）。
+> GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更してください。`gh api -X PUT repos/<owner>/<repo>/pages -f build_type=workflow` でも変更できます。
+>
+> **この変更をしないと、CI は全ジョブ success を返したまま壊れたものが公開されます。** deploy ジョブが失敗するわけではありません。`build_type` が `legacy` の間は従来のブランチ直配信が実際の公開内容を決めるため、未ビルドの `index.html` が配信され、ブラウザは生の `.ts`（`Content-Type: video/mp2t`）を実行できずゲームが起動しません。詳細は設計書の「必要な手作業」節に実例を記録しています。
+
+**設定変更後の確認は CI の結果ではなく公開 URL で行うこと。**
+
+```bash
+curl -s https://<owner>.github.io/<repo>/ | grep -oE '<script[^>]*>'
+```
+
+Expected: `./assets/index-*.js` を参照していること。`/source/main.ts` を参照していたら設定が反映されていない
 
 変更後、`main` に push してワークフローが緑になり、公開 URL でゲームが動くことを確認する。
 

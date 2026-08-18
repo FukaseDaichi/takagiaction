@@ -339,7 +339,19 @@ function load_image(
 
 ### 必要な手作業
 
-**GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更する。** これはリポジトリ設定なのでコードからは変更できず、移行後にユーザーが行う必要がある。この変更を忘れると、`actions/deploy-pages@v4` が Pages API から 404 を受け取り **deploy ジョブがはっきり失敗する**（公開内容が古いまま残るのではない）。
+**GitHub のリポジトリ設定 → Pages → Source を「Deploy from a branch」から「GitHub Actions」に変更する。** これはリポジトリ設定なのでコードからは変更できず、移行後にユーザーが行う必要がある。API からなら `gh api -X PUT repos/<owner>/<repo>/pages -f build_type=workflow` で変えられる。
+
+**この変更を忘れると、CI は全ジョブ success を返したまま壊れたものが公開される。** これは実際に起きた。2026-08-18 のマージ時、`build_type` が `legacy` のまま push した結果:
+
+- `Deploy to GitHub Pages` ワークフローの build ジョブと deploy ジョブは**どちらも success**
+- 同時に走った従来の `pages build and deployment`（`dynamic` トリガー）も success
+- しかし `build_type: legacy` の間は従来のブランチ直配信が実際の公開内容を決めるため、配信されたのは**リポジトリ直下の未ビルド `index.html`**
+- 結果として公開サイトは `<script type="module" src="/source/main.ts">` を返し、`/source/main.ts` は HTTP 200 で `Content-Type: video/mp2t`（GitHub Pages は `.ts` を MPEG transport stream として扱う）。ブラウザはモジュールの MIME を厳格に検査するため実行を拒否し、**ゲームは起動しなかった**
+- `/assets/` は 404。ビルド成果物はどこにも配信されていなかった
+
+`build_type` を `workflow` に変更してワークフローを再実行したところ、`index.html` は `./assets/index-*.js`（`application/javascript`、31046 バイト）を参照するようになり、`/source/main.ts` は 404 になり、本番 URL でゲームが起動した（ターミナルに「9 件のシステムを検出」、ミニマップ表示、`gl.getError()` 0、コンソールエラーなし）。
+
+**教訓として、CI の success はこの設定が正しいことの証明にならない。** 公開 URL を実際に取得して、`index.html` が `./assets/` のバンドルを参照していることを確認する必要がある。
 
 ### AGENTS.md / README.md の更新
 
