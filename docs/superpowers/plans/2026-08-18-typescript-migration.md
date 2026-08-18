@@ -1003,10 +1003,16 @@ Expected: エラーは `audio`、`terminal`、`game` からの import 解決失�
 エラー一覧を出して確認する:
 
 ```bash
-npm run typecheck 2>&1 | grep -v "Cannot find module './audio'\|Cannot find module './terminal'\|Cannot find module './game'\|Cannot find module './input'"
+npm run typecheck 2>&1 | grep "error TS" | grep -vE "module '\./(audio|terminal|game|input)'"
 ```
 
-Expected: エラー行が残らない
+Expected: 出力 0 行
+
+**エラーの種別は 2 つあることに注意。** 並存期間中は `source/audio.js` / `game.js` / `terminal.js` が実在するため、TypeScript の解決は `./audio` を旧 `.js` に当てる。`allowJs` がないので使えず、**TS7016**（`Could not find a declaration file for module './audio'`）になる。一方 `./input` は `.js` の兄弟が存在しないので **TS2307**（`Cannot find module`）になる。したがって `Cannot find module` だけを除外するフィルタでは TS7016 の 10 行が残ってしまう。上のようにモジュール名で除外すること。
+
+`resolve.extensions` は Vite の設定で、TypeScript の解決順序には影響しない。tsc は元から `.ts` を `.js` より先に試すため、Task 6 で `audio.ts` が作られれば TS7016 は自然に消える。
+
+**この期間の型チェックは弱い保証しか与えない。** TS7016 になるモジュールからの import は `any` として扱われるため、entity 群における `audio_play()` / `terminal_show_notice()` / `reload_level()` の呼び出しは**まだ型チェックされていない**。これらが実際に検証されるのは Task 8 で型エラーが 0 件になった時点である。
 
 - [ ] **Step 5: entity のテストが通り続けることを確認する**
 
@@ -1247,8 +1253,10 @@ export function audio_toggle(): void {
 
 - [ ] **Step 7: 未解決の import だけが残っていることを確認する**
 
-Run: `npm run typecheck 2>&1 | grep -v "Cannot find module './terminal'\|Cannot find module './game'\|Cannot find module './input'"`
-Expected: エラー行が残らない
+Run: `npm run typecheck 2>&1 | grep "error TS" | grep -vE "module '\./(terminal|game|input)'"`
+Expected: 出力 0 行
+
+Task 5 と同様、`./terminal` と `./game` は旧 `.js` が実在するため TS7016、`./input` は TS2307 になる。モジュール名で除外すること。
 
 - [ ] **Step 8: コミット**
 
@@ -1382,8 +1390,10 @@ function terminal_write_text(lines: string[], callback?: () => void): void {
 
 - [ ] **Step 4: 未解決の import が game.ts のみになったことを確認する**
 
-Run: `npm run typecheck 2>&1 | grep -v "Cannot find module './game'"`
-Expected: エラー行が残らない（この時点で `input.ts` は作成済みなので除外対象から外れる）
+Run: `npm run typecheck 2>&1 | grep "error TS" | grep -vE "module '\./game'"`
+Expected: 出力 0 行（この時点で `input.ts` は作成済みなので除外対象から外れる）
+
+`./game` は旧 `game.js` が実在するため TS7016 になる。
 
 - [ ] **Step 5: 既存のテストが通り続けることを確認する**
 
