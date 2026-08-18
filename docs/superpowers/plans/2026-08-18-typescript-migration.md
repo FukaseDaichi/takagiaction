@@ -119,12 +119,14 @@ export default defineConfig({
 
 - [ ] **Step 5: .gitignore を更新する**
 
-`build` を削除して `dist` を追加する。最終的な内容:
+`build` を削除して `dist` を追加する。`.superpowers`（Subagent-Driven Development の作業ディレクトリ）の行は消さないこと。最終的な内容:
 
 ```
 node_modules
 work
 dist
+
+.superpowers
 ```
 
 - [ ] **Step 6: 13KB パイプラインを削除する**
