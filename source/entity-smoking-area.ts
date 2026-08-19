@@ -101,7 +101,7 @@ export class entity_smoking_area_t extends entity_t {
     terminal_show_notice('深く吸い込む...___非常口のロックが解除された')
   }
 
-  // ダミーは回復手段ではなく「歩いた時間の損」。5% は深度 21 なら 2.3 秒ぶんで、
+  // ダミーは回復手段ではなく「歩いた時間の損」。5% は深度 21 なら 2.7 秒ぶんで、
   // 実質ゼロ。回復ではなくペナルティとして設計されている。
   private _take_dummy(): void {
     this._done = true
