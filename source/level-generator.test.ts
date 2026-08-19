@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generate_level, level_vert_cost } from './level-generator'
+import { generate_level, level_vert_cost, enemy_budget, sentry_count } from './level-generator'
 import type { level_layout_t, tile_pos_t } from './level-generator'
 import { level_height, level_width } from './state'
 
@@ -60,6 +60,26 @@ function bfs_distance_near(layout: level_layout_t, p: tile_pos_t): number {
     if (d >= 0 && d < best) { best = d }
   }
   return best
+}
+
+// 床タイルそのものへの BFS 距離（bfs_distance_near は壁の目標地点用）
+function bfs_distance_floor(layout: level_layout_t, p: tile_pos_t): number {
+  const dist = new Int32Array(level_width * level_height).fill(-1)
+  const queue = [tile_index(layout.start.x, layout.start.z)]
+  dist[queue[0]] = 0
+  for (let head = 0; head < queue.length; head++) {
+    const index = queue[head]
+    const x = index % level_width
+    const z = (index / level_width) | 0
+    for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
+      if (!is_floor(layout.tiles, nx, nz)) { continue }
+      const n = tile_index(nx, nz)
+      if (dist[n] !== -1) { continue }
+      dist[n] = dist[index] + 1
+      queue.push(n)
+    }
+  }
+  return dist[tile_index(p.x, p.z)]
 }
 
 describe('generate_level: 決定性', () => {
@@ -256,4 +276,64 @@ describe('generate_level: 目標地点', () => {
       }
     }
   }, 60000)
+})
+
+describe('敵の総数', () => {
+  // レビュー A-3: 既存の式は深度 8 で当選率 100%、深度 9 以降で非単調になる
+  it('深度が上がると単調非減少で、上限で頭打ちになる', () => {
+    for (let depth = 1; depth < 200; depth++) {
+      expect(enemy_budget(depth + 1)).toBeGreaterThanOrEqual(enemy_budget(depth))
+      expect(sentry_count(depth + 1)).toBeGreaterThanOrEqual(sentry_count(depth))
+    }
+    expect(enemy_budget(1000)).toBe(100)
+    expect(sentry_count(1000)).toBe(10)
+  })
+
+  it('深度 1 は敵 34 体、うちセントリー 1 体', () => {
+    expect(enemy_budget(1)).toBe(34)
+    expect(sentry_count(1)).toBe(1)
+  })
+})
+
+describe('generate_level: 配置', () => {
+  it('敵とアイテムは床タイルの上にあり、互いに重ならない', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const layout = generate_level(10, seed)
+      const all = [...layout.spiders, ...layout.sentries, ...layout.health]
+      for (const p of all) {
+        expect(is_floor(layout.tiles, p.x, p.z)).toBe(true)
+      }
+      const indices = all.map((p) => tile_index(p.x, p.z))
+      expect(new Set(indices).size).toBe(indices.length)
+    }
+  }, 60000)
+
+  // 既存の「開始位置周辺 64px 以内は除外」を BFS 距離 8 タイルに置き換えたもの
+  it('敵とアイテムは開始地点から 8 タイル以上離れている', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const layout = generate_level(10, seed)
+      for (const p of [...layout.spiders, ...layout.sentries, ...layout.health]) {
+        expect(bfs_distance_floor(layout, p)).toBeGreaterThanOrEqual(8)
+      }
+    }
+  }, 60000)
+
+  it('敵の総数は予算を超えない', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const depth of [1, 10, 30]) {
+        const layout = generate_level(depth, seed)
+        expect(layout.spiders.length + layout.sentries.length)
+          .toBeLessThanOrEqual(enemy_budget(depth))
+        expect(layout.sentries.length).toBeLessThanOrEqual(sentry_count(depth))
+      }
+    }
+  }, 60000)
+
+  it('体力回復アイテムは 2〜4 個', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const layout = generate_level(3, seed)
+      expect(layout.health.length).toBeGreaterThanOrEqual(2)
+      expect(layout.health.length).toBeLessThanOrEqual(4)
+    }
+  }, 30000)
 })

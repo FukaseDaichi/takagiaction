@@ -24,6 +24,9 @@ export interface level_layout_t {
   smoking_area: tile_pos_t // 本物の喫煙所
   dummies: tile_pos_t[] // 灰皿撤去済みの空の喫煙所
   exit: tile_pos_t // 非常口
+  spiders: tile_pos_t[]
+  sentries: tile_pos_t[]
+  health: tile_pos_t[]
 }
 
 // renderer.ts の max_verts（1024*64 = 65536）から、エンティティのスプライトと
@@ -39,6 +42,7 @@ const room_place_attempts = 200 // 部屋ごとではなく 1 レベル全体で
 const room_count_floor = 3 // これを下回るシードは棄却して次のシードで作り直す
 const layout_attempts = 8
 const rng_warmup = 8 // 下の build_layout のコメントを参照
+const spawn_min_distance = 8 // 開始地点からの BFS タイル距離。ここより近くには湧かせない
 
 function tile_index(x: number, z: number): number {
   return x + z * level_width
@@ -167,6 +171,18 @@ function bfs_distances(tiles: Uint8Array, start: tile_pos_t): Int32Array {
   return dist
 }
 
+// 深度あたりの敵の総数。既存の「床タイルごとに random_int(0, 16 - id*2) == 0」は
+// 深度 8 で当選率 100%、深度 9 以降で負のレンジになり当選率が非単調に振れる。
+// 総数で管理すれば単調性も上限も保証できる。上限があること自体が要件で、
+// game.ts のエンティティ衝突判定は O(n²)。
+export function enemy_budget(depth: number): number {
+  return Math.min(30 + depth * 4, 100)
+}
+
+export function sentry_count(depth: number): number {
+  return Math.min(1 + Math.floor(depth / 2), 10)
+}
+
 // renderer.ts の push_floor / push_block が積む頂点数。
 // 定数を変えるときは renderer.ts と必ず一緒に見ること。
 export function level_vert_cost(tiles: Uint8Array): number {
@@ -261,7 +277,32 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
     tiles[tile_index(p.x, p.z)] = 8
   }
 
-  return { tiles, rooms, start, smoking_area, dummies, exit }
+  // 湧き先の候補。目標地点は直前に壁へ変えたのでここで自然に除外される。
+  const spawnable: number[] = []
+  for (let i = 0; i < dist.length; i++) {
+    const t = tiles[i]
+    if (dist[i] >= spawn_min_distance && t > 0 && t < 8) { spawnable.push(i) }
+  }
+
+  // 候補から重複なく取り出す。候補が尽きたら取れた分で打ち切る。
+  const take = (count: number): tile_pos_t[] => {
+    const out: tile_pos_t[] = []
+    for (let i = 0; i < count && spawnable.length > 0; i++) {
+      const pick = random_int(0, spawnable.length - 1)
+      const index = spawnable[pick]
+      spawnable.splice(pick, 1)
+      out.push({ x: index % level_width, z: (index / level_width) | 0 })
+    }
+    return out
+  }
+
+  const sentries = take(sentry_count(depth))
+  const spiders = take(enemy_budget(depth) - sentries.length)
+  const health = take(random_int(2, 4))
+
+  return {
+    tiles, rooms, start, smoking_area, dummies, exit, spiders, sentries, health,
+  }
 }
 
 export function generate_level(depth: number, seed: number): level_layout_t {
