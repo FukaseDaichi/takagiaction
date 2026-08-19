@@ -1,10 +1,12 @@
 import { minimap_canvas } from './dom'
+import { entity_exit_t } from './entity-exit'
+import { entity_smoking_area_t } from './entity-smoking-area'
+import { minimap_radius, nicotine_stage } from './nicotine'
 import { level_data, level_height, level_width, state } from './state'
 
 // Fog of war minimap, drawn on a 2d canvas overlaying the WebGL view.
 // One level tile == one pixel, so the whole 64x64 level fits as-is.
 
-const minimap_view_radius = 10 // tiles revealed around the player
 const minimap_explored = new Uint8Array(level_width * level_height)
 const minimap_ctx = minimap_canvas.getContext('2d')!
 const minimap_pixels = minimap_ctx.createImageData(level_width, level_height)
@@ -59,7 +61,9 @@ function minimap_reveal(): void {
   const player = state.entity_player!
   const center_x = player.x >> 3
   const center_z = player.z >> 3
-  const r = minimap_view_radius
+  // ゲージが減るほど描き込み半径が縮む。焦りを情報量の減少で表す。
+  // minimap_explored は累積で消えないので、効くのは「新しく開く速度」だけ。
+  const r = minimap_radius(nicotine_stage(state.nicotine, state.nicotine_max))
 
   for (let dz = -r; dz <= r; dz++) {
     for (let dx = -r; dx <= r; dx++) {
@@ -82,6 +86,20 @@ function minimap_draw(): void {
     }
     else {
       minimap_set_pixel(index, 28, 58, 74) // floor
+    }
+  }
+
+  // 喫煙所は本物もダミーも同じオレンジ。見分けは足で確かめるしかない。
+  // 非常口は開通していて、かつ探索済みのときだけ緑で出る。
+  for (let i = 0; i < state.entities.length; i++) {
+    const e = state.entities[i]
+    const index = (e.x >> 3) + (e.z >> 3) * level_width
+    if (!minimap_explored[index]) { continue }
+
+    if (e instanceof entity_smoking_area_t) {
+      minimap_set_pixel(index, 238, 153, 0)
+    } else if (e instanceof entity_exit_t && state.exit_open) {
+      minimap_set_pixel(index, 0, 220, 120)
     }
   }
 
