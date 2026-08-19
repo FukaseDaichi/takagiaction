@@ -146,7 +146,7 @@ PNG読み込みが消えるとレベル生成が同期処理になるため、`l
 - `source/meta.ts`
 - `source/entity-smoking-area.ts`
 
-いずれも ESM モジュールとして書き、`export` した関数・クラスを利用側が `import` する。`index.html` に script タグを足す形（グローバル汚染）には戻さない — [TypeScript + Vite 移行](2026-08-18-typescript-migration-design.md)がその経路を削除しており、ESM エントリからは import されないモジュールは読み込まれもしない。
+いずれも ESM モジュールとして書き、`export` した関数・クラスを利用側が `import` する。`index.html` に script タグを足す形（グローバル汚染）には戻さない — [TypeScript + Vite 移行](../../architecture.md)がその経路を削除しており、ESM エントリからは import されないモジュールは読み込まれもしない。
 
 ### 改修
 

@@ -7,6 +7,7 @@
 [phoboslab/underrun](https://github.com/phoboslab/underrun)（js13kgames 2018 出品作）をベースにした、WebGL 製のトップダウン・アクションシューティングを日本語向けにアレンジするプロジェクト。TypeScript + Vite 構成で、`index.html` が読み込むのは `source/main.ts` の 1 本だけ。他のモジュールへの依存関係は import が表すので、読み込み順を手で管理する必要はありません。
 
 - `source/` — ゲーム本体（TypeScript）。`sonantx-reduced.js`（サードパーティ、zlib）だけが `.js` のまま
+- `docs/` — 設計書（下記「ドキュメント」参照）
 - `m/` — テクスチャ（PNG）
 - `index.html` — エントリポイント。`source/main.ts` を読み込む
 - `vite.config.ts` / `tsconfig.json` — ビルドと型チェックの設定
@@ -30,6 +31,24 @@ npm run dev
 npm run typecheck
 npm test
 ```
+
+## ドキュメント
+
+### docs/ — 確定した設計書
+
+現行システムの設計書（日本語、AI が読む前提）。**常にコードの現状と一致させる**。
+
+- トピック単位のファイル名（例: `architecture.md`）。日付や経緯は書かない（git 履歴が持つ）
+- 現在形で書く。「〜に変更した」ではなく「〜である」
+- コードから読み取れないことだけを書く: モジュール間の契約・不変条件、数値パラメータの意図、データフォーマット、採用しなかった代替案とその理由
+- 関数一覧や処理の逐次説明は書かない（コードとの二重管理になる）
+- 実装を変更する際は、該当する docs/ を同じコミット群で更新する
+
+### docs/superpowers/ — 作業用ドキュメント
+
+進行中の設計提案（`specs/`）・実装計画（`plans/`）・レビュー（`specs/*-review.md`）。日付プレフィックス付き。**作業が完了したら、設計の結論を docs/ 直下に蒸留して反映し、元ファイルは削除する**。実装手順・チェックボックス・移行前の状況説明は反映しない（完了した時点で不要になるため）。
+
+docs/ と docs/superpowers/ が矛盾する場合、docs/ とコードが正。
 
 ## 方針
 
