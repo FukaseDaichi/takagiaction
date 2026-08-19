@@ -33,6 +33,7 @@ import { entity_player_t } from './entity-player'
 import { entity_sentry_plasma_t, entity_sentry_t } from './entity-sentry'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
+import { state } from './state'
 
 // private フィールドを読むためのヘルパ。初期化順序の検証が目的なので、
 // 内部を覗くこと自体がこのテストの主題である。
@@ -109,5 +110,31 @@ describe('クラスフィールドの初期化順序', () => {
     expect(peek(exit, '_opened')).toBe(false)
     expect(peek(exit, '_used')).toBe(false)
     expect(peek(exit, '_animation_time')).toBe(0)
+  })
+})
+
+// 撃破数はリザルト画面に出す。設計書 §4 は各敵エンティティを
+// 「手を入れないもの」に挙げているが、_kill() 以外に数える場所がない。
+describe('撃破数のカウント', () => {
+  it('蜘蛛を倒すと state.kills が増える', () => {
+    state.kills = 0
+    const spider = new entity_spider_t(0, 0, 0, 5, 27)
+    spider._receive_damage(spider, 99)
+    expect(state.kills).toBe(1)
+  })
+
+  it('歩哨を倒すと state.kills が増える', () => {
+    state.kills = 0
+    const sentry = new entity_sentry_t(0, 0, 0, 5, 32)
+    sentry._receive_damage(sentry, 99)
+    expect(state.kills).toBe(1)
+  })
+
+  it('同じ敵を二度殺しても 1 しか増えない', () => {
+    state.kills = 0
+    const spider = new entity_spider_t(0, 0, 0, 5, 27)
+    spider._receive_damage(spider, 99)
+    spider._receive_damage(spider, 99)
+    expect(state.kills).toBe(1)
   })
 })

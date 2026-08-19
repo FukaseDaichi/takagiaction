@@ -27,27 +27,28 @@ let terminal_text_garbage =
 
 const terminal_text_story =
   '日時: 2718年9月13日 13:32\n' +
-  '重大なソフトウェア障害を検出\n' +
+  '生体モニタリング 警告\n' +
   '解析中...\n' +
   '____\n \n' +
-  'エラーコード: JS13K2018\n' +
-  '状態: システム停止\n' +
-  '詳細: 通信衛星の急速な非計画的分解によるバッファアンダーラン\n' +
-  '影響システム: 施設オートメーション\n' +
-  '影響サブシステム: AI、放射線シールド、電源管理\n' +
+  'エラーコード: NIC-0000\n' +
+  '状態: 血中ニコチン濃度 低下\n' +
+  '詳細: 対象は重度の喫煙依存と診断済み\n' +
+  '適用法令: 嗜好性燃焼物 全面禁止条例（2703年施行）\n' +
+  '当該施設の公認喫煙所: 0 箇所\n' +
   ' \n' +
-  '救援システムを起動中...\n' +
+  '代替療法を照会中...\n' +
   '___' +
-  '失敗\n \n' +
-  '自動再起動を試行中...\n' +
+  '該当なし\n \n' +
+  '離脱症状の抑制を試行中...\n' +
   '___' +
   '失敗\n' +
   '_ \n \n' +
-  '全システムの手動再起動が必要\n' +
+  '地下区画に旧式の喫煙所が残存している可能性\n' +
+  '警備ドローンは稼働中\n' +
   '_ \n' +
   '移動: WASD または矢印キー / 射撃: スペース\n' +
   '音声切替: M\n' +
-  'クリックで現地へ展開開始\n '
+  'クリックで降下開始\n '
 
 const terminal_text_outro =
   '全衛星リンク オンライン\n' +
@@ -171,6 +172,40 @@ function terminal_run_story(callback?: () => void): void {
   terminal_print_ident = true
   terminal_line_wait = 100
   terminal_write_text(terminal_prepare_text(terminal_text_story), callback)
+}
+
+// ラン終了時のリザルト。クリックで次のランを始める。
+// game_running のリセットとミニマップ・HUD の非表示は game.ts の run_end が持つ。
+export function terminal_show_result(
+  depth: number,
+  kills: number,
+  on_restart: () => void,
+): void {
+  canvas.style.opacity = '0.3'
+  terminal_el.innerHTML = ''
+  terminal_text_buffer = []
+
+  terminal_cancel()
+  terminal_show()
+  terminal_write_text(
+    terminal_prepare_text(
+      'ニコチン切れにより行動不能\n' +
+      '_ \n' +
+      '到達深度: ' + depth + '\n' +
+      '撃破数: ' + kills + '\n' +
+      '_ \n' +
+      'クリックで再挑戦\n ',
+    ),
+    () => {
+      document.onclick = () => {
+        document.onclick = null
+        terminal_cancel()
+        terminal_hide()
+        canvas.style.opacity = '1'
+        on_restart()
+      }
+    },
+  )
 }
 
 export function terminal_run_outro(): void {

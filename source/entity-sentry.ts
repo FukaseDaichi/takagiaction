@@ -67,7 +67,9 @@ export class entity_sentry_t extends entity_t {
   }
 
   protected override _kill(): void {
+    if (this._dead) { return } // 二重加算を防ぐ
     super._kill()
+    state.kills++
     new entity_explosion_t(this.x, 0, this.z, 0, 26)
     camera.shake = 3
     audio_play(audio_sfx_explode)
