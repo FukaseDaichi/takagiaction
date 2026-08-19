@@ -2577,8 +2577,18 @@ function load_level(depth: number): void {
   for (let z = 0; z < level_height; z++) {
     for (let x = 0; x < level_width; x++) {
       const index = x + z * level_width
-      if (entity_tiles.has(index)) { continue }
       const tile = level_data[index]
+
+      // 喫煙所と非常口は「ブロックだけ」エンティティが毎フレーム描く。床は静的側で
+      // 敷いておく。非常口は開通するとブロックの描画をやめるため、床が無いと
+      // そのタイルだけ背景の黒が抜けて見える。生成器がこれらのタイルに書くのは
+      // 壁の値なので、床の見た目は明示的に選ぶ（entity-exit が開通時に
+      // level_data へ書き戻す 1 と揃えて、アトラス添字 0 にする）。
+      if (entity_tiles.has(index)) {
+        push_floor(x * 8, z * 8, 0)
+        continue
+      }
+
       if (tile > 7) {
         push_block(x * 8, z * 8, 4, tile - 1)
       } else if (tile > 0) {
@@ -2616,7 +2626,11 @@ function load_level(depth: number): void {
 
 export function game_tick(): void {
   const time_now = performance.now()
-  state.time_elapsed = (time_now - time_last) / 1000
+  // 最初の game_tick はイントロのタイピングとクリック待ちのあとに走るので、
+  // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
+  // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
+  // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
+  state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
 
   renderer_prepare_frame()
@@ -2638,7 +2652,7 @@ export function game_tick(): void {
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
 
   // 限界（0%）: 2 秒ごとに HP が 1 減る。即死ではなく、まだ間に合う猶予帯
-  if (state.game_running && stage === nicotine_stage_limit) {
+  if (state.game_running && !state.smoking && stage === nicotine_stage_limit) {
     limit_damage_timer += state.time_elapsed
     if (limit_damage_timer >= 2) {
       limit_damage_timer -= 2
