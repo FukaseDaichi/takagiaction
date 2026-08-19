@@ -55,6 +55,7 @@ function load_level(depth: number): void {
   state.exit_open = 0
   state.smoking = 0
   limit_damage_timer = 0
+  camera.shake = 0 // 死亡時に貯まった震えを次のランへ持ち越さないようにする
 
   renderer_reset_level_geometry()
   minimap_reset()

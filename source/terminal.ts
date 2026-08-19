@@ -162,23 +162,29 @@ export function terminal_show_result(
 
   terminal_cancel()
   terminal_show()
+
+  // クリックハンドラはテキストの表示チェーン（下の terminal_write_text）が
+  // 終わるより先に登録する。表示完了後のコールバックで登録すると、その間に
+  // 別の terminal_show_notice() が terminal_cancel() でチェーンを壊した場合、
+  // ハンドラが永久に登録されずクリックしても復帰できないままソフトロックする。
+  // 副作用として、表示中でもクリックすれば即座にリトライできるようになるが、
+  // これは許容範囲内（むしろ改善）。
+  document.onclick = () => {
+    document.onclick = null
+    terminal_cancel()
+    terminal_hide()
+    canvas.style.opacity = '1'
+    on_restart()
+  }
+
   terminal_write_text(
     terminal_prepare_text(
-      'ニコチン切れにより行動不能\n' +
+      '生体反応 消失\n' +
       '_ \n' +
       '到達深度: ' + depth + '\n' +
       '撃破数: ' + kills + '\n' +
       '_ \n' +
       'クリックで再挑戦\n ',
     ),
-    () => {
-      document.onclick = () => {
-        document.onclick = null
-        terminal_cancel()
-        terminal_hide()
-        canvas.style.opacity = '1'
-        on_restart()
-      }
-    },
   )
 }

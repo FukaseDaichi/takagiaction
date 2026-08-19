@@ -20,6 +20,9 @@ export class entity_smoking_area_t extends entity_t {
   private _done = false
   private _hp_mark = 0
   private _animation_time = 0
+  // 中断直後の 1 フレームは touching が真のままなので、何もせず再武装だけ
+  // 抑止するためのフラグ。接触が切れるまで解除しない（_advance 参照）。
+  private _needs_release = false
 
   override _check(other: entity_t): void {
     if (other instanceof entity_player_t) { this._touching = true }
@@ -42,8 +45,20 @@ export class entity_smoking_area_t extends entity_t {
     const touching = this._touching
     this._touching = false
 
+    // 接触が切れたら再武装の待ちを解除する。中断直後は _progress が 0 に
+    // 戻っているため、ここで待たせておかないと同じ場所に立ったまま
+    // 次のフレームで即座に再武装してしまう（レビュー Finding 2）。
+    if (!touching) {
+      this._needs_release = false
+    }
+
     let smoking = false
-    if (touching && !this._done) {
+    // state.game_running: 自機の被弾死と同じフレームでここに来ると、
+    // run_end() が先に立てたこのフラグで判定できる。ラン終了後に
+    // terminal_show_notice() を呼ぶと、terminal_show_result() が組んだ
+    // 表示チェーンを terminal_cancel() が壊し、クリック復帰ハンドラが
+    // 登録されないままソフトロックする（レビュー Finding 1）。
+    if (touching && !this._done && !this._needs_release && state.game_running) {
       if (this.is_real) {
         smoking = this._advance()
       } else {
@@ -72,6 +87,9 @@ export class entity_smoking_area_t extends entity_t {
     // 何もできない詰み状態が発生する。
     if (player.h < this._hp_mark) {
       this._progress = 0
+      // 一服中は自機の速度を強制的にゼロにしている。接触が切れるまで
+      // 再武装させないと、動けないまま押さえ込まれ続けて詰む。
+      this._needs_release = true
       terminal_show_notice('咳き込んだ')
       return false
     }

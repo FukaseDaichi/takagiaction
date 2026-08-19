@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // renderer / audio / terminal / game はモジュール初期化時に canvas・AudioContext・
-// document へ触るため Node 環境では評価できない
+// document へ触るため Node 環境では評価できない。
+// terminal_show_notice の呼び出しを記録する（entity-exit.test.ts と同じパターン）。
+// vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
+const mocks = vi.hoisted(() => ({ notices: [] as string[] }))
+
 vi.mock('./renderer', () => ({
   push_sprite: () => {},
   push_light: () => {},
@@ -18,7 +22,9 @@ vi.mock('./audio', () => ({
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
 }))
-vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
+vi.mock('./terminal', () => ({
+  terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
+}))
 vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
@@ -50,6 +56,8 @@ describe('喫煙所', () => {
     state.nicotine_max = 100
     state.smoking = 0
     state.exit_open = 0
+    state.game_running = 1
+    mocks.notices.length = 0
     player = new entity_player_t(0, 0, 0, 5, 18)
     state.entity_player = player
   })
@@ -107,7 +115,11 @@ describe('喫煙所', () => {
     expect(state.smoking).toBe(0)
     expect(state.nicotine).toBeCloseTo(40, 5) // 中断フレームでは回復しない
 
-    // 吸い直せる: ここから 2.5 秒でちゃんと完了する
+    // 吸い直すには一度接触を切る必要がある（レビュー Finding 2。触れたままだと
+    // 再武装しない仕様なので、これをしないと以下の 2.5 秒が永遠に完了しない）
+    idle(area, 0.5)
+
+    // 吸い直せる: 触れ直してから 2.5 秒でちゃんと完了する
     for (let i = 0; i < 5; i++) { tick(area, player, 0.5) }
     expect(state.exit_open).toBe(1)
   })
@@ -146,5 +158,69 @@ describe('喫煙所', () => {
     for (let i = 0; i < 5; i++) { tick(area, player, 0.5) }
     expect(state.nicotine).toBe(10)
     expect(state.exit_open).toBe(0)
+  })
+
+  // レビュー Finding 1: 自機の被弾死と同じフレームで通知を出すと、
+  // terminal_show_result() が組んだ表示チェーンを terminal_cancel() が壊し、
+  // クリック復帰ハンドラが登録されないままソフトロックする。
+  // run_end() は terminal_show_result() を呼ぶ前に game_running を落とすので、
+  // ここでその値を見れば同じフレームの死亡かどうかを判定できる。
+  it('ラン終了後（state.game_running が 0）は接触していても一服が進行せず、ロックは解放される', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 0.5) // 一服開始
+    expect(state.smoking).toBe(1)
+    expect(state.nicotine).toBeCloseTo(20, 5)
+
+    state.game_running = 0
+    tick(area, player, 0.5)
+
+    expect(state.nicotine).toBeCloseTo(20, 5) // 進捗していない = 接触処理をしていない
+    expect(state.exit_open).toBe(0)
+    expect(state.smoking).toBe(0) // 自分が持っていたロックは解放し、プレイヤーを固まらせない
+  })
+
+  it('自機の死亡と同じフレームでは中断の通知を出さない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.5) // 一服開始、_hp_mark = 5
+    mocks.notices.length = 0
+
+    player.h = 0 // 致死ダメージ。run_end() が game_running を落とすのと同じフレーム
+    state.game_running = 0
+    tick(area, player, 0.5)
+
+    expect(mocks.notices.length).toBe(0)
+  })
+
+  // レビュー Finding 2: 一服中は自機の速度が強制的にゼロなので、中断した次の
+  // フレームでその場のまま再武装すると、動けないまま押さえ込まれ続けて詰む
+  it('中断された一服は接触が続く限り再武装せず、離れて戻ると再武装する', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.5) // 一服開始
+    expect(state.smoking).toBe(1)
+
+    player.h = 4 // 被弾で中断
+    tick(area, player, 0.5)
+    expect(state.smoking).toBe(0)
+    const nicotine_after_interrupt = state.nicotine
+
+    // 接触したままの次のフレーム: 再武装してはいけない
+    tick(area, player, 0.5)
+    expect(state.smoking).toBe(0)
+    expect(state.nicotine).toBe(nicotine_after_interrupt)
+
+    // 接触が切れると再武装の待ちが解除される
+    idle(area, 0.5)
+
+    // 再び触れると、今度は正常に一服が始まる
+    tick(area, player, 0.5)
+    expect(state.smoking).toBe(1)
   })
 })

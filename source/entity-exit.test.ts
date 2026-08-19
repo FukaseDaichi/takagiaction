@@ -40,6 +40,7 @@ describe('非常口', () => {
     state.entities_to_kill = []
     state.time_elapsed = 1 / 60
     state.exit_open = 0
+    state.game_running = 1
     mocks.blocks.length = 0
     mocks.notices.length = 0
     player = new entity_player_t(0, 0, 0, 5, 18)
@@ -84,5 +85,16 @@ describe('非常口', () => {
     exit._check(player)
     exit._check(player)
     expect(mocks.notices.length).toBe(1)
+  })
+
+  // レビュー Finding 1: ラン終了と同じフレームで通知を出すと terminal_show_result() の
+  // 表示チェーンを terminal_cancel() が壊しうる。run_end() は terminal_show_result() を
+  // 呼ぶ前に game_running を落とすので、ここでその値を見れば判定できる。
+  it('ラン終了後（state.game_running が 0）は開通していても遷移を予約しない', () => {
+    const exit = new entity_exit_t(80, 0, 80, 0, 18)
+    state.exit_open = 1
+    state.game_running = 0
+    exit._check(player)
+    expect(mocks.notices.length).toBe(0)
   })
 })

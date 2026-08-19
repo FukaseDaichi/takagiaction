@@ -35,7 +35,11 @@ export class entity_exit_t extends entity_t {
   }
 
   override _check(other: entity_t): void {
-    if (state.exit_open && !this._used && other instanceof entity_player_t) {
+    // state.game_running: 自機の被弾死と同じフレームでここに来ると、
+    // terminal_show_result() が組んだ表示チェーンを terminal_show_notice() の
+    // terminal_cancel() が壊しうる（レビュー Finding 1、entity-smoking-area.ts と
+    // 同じ理由）。ラン終了後は遷移そのものを予約しない。
+    if (state.game_running && state.exit_open && !this._used && other instanceof entity_player_t) {
       this._used = true
       audio_play(audio_sfx_beep)
       // next_level() を衝突ループの中から直接呼ぶと、走査中の state.entities を
