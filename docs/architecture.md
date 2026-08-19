@@ -5,12 +5,15 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ## モジュール構成
 
 - `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` の取得と型付けを集約
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` の取得と型付けを集約
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
+- `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
 - `game.ts` — ゲームループとレベル遷移
+- `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
+- `hud.ts` — ニコチンゲージの DOM 更新。`dom.ts` と `nicotine.ts` 以外の実行時 import を持たない、葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する
 
@@ -19,7 +22,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ESM では import した束縛に代入できないため、規則は 1 つ:
 **モジュール境界を越えて再代入される変数は、オブジェクトのプロパティにする。**
 
-- ゲーム状態（`time_elapsed`, `game_running`, `entities`, `entity_player` など）→ `state.ts` の `state` オブジェクト
+- ゲーム状態（`depth`, `nicotine`, `smoking`, `exit_open`, `kills`, `run_seed` など）→ `state.ts` の `state` オブジェクト
 - カメラ（`x` / `y` / `z` / `shake`）→ `renderer.ts` の `camera` オブジェクト。所有者は renderer だが、追従とシェイクはゲームロジックなので game.ts が書く
 - 再代入されない定数と、中身だけ書き換えるバッファ（`level_data` など）は通常の named export でよい
 - 読み書きが 1 モジュールに閉じる変数（`time_last` など）はモジュールローカルにする
@@ -31,14 +34,16 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 ## 循環参照の不変条件
 
-実行時 import のグラフには 11 モジュール（audio, entity-cpu, entity-health, entity-plasma, entity-player, entity-sentry, entity-spider, game, input, minimap, terminal）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
+実行時 import のグラフには 9 モジュール（entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
+
+（`audio.ts` と `terminal.ts` も互いを import し合い、別に独立した 2 モジュールの循環を作っている。これも同じ理由で無害だが、どちらも `entity_t` のサブクラスを宣言しないため、上のクラスタや下の不変条件とは無関係。）
 
 安全性を実際に支えている不変条件は次の 1 つ:
 
 > **`entity.ts` は、`entity_t` のサブクラスを宣言するモジュールに（推移的にも）到達してはならない。**
 
 `extends entity_t` はモジュール初期化時に評価されるため、これを破ると評価順によっては
-`ReferenceError: Cannot access 'entity_t' before initialization` になる。**評価順依存なので、リロードによっては再現しないことがある**のがこのバグの厄介な点。たとえば `entity.ts` に `import { terminal_show_notice } from './terminal'` を足すと、terminal → minimap → entity-cpu 経由でサブクラス宣言に到達して壊れる。
+`ReferenceError: Cannot access 'entity_t' before initialization` になる。**評価順依存なので、リロードによっては再現しないことがある**のがこのバグの厄介な点。たとえば `entity.ts` に `import { next_level } from './game'` を足すと、game → minimap → entity-exit 経由でサブクラス宣言に到達して壊れる。
 
 このために `spawn_particles()` は `entity.ts` のメソッドではなく `entity-particle.ts` の自由関数になっている。基底クラスに機能を足したくなったら、代わりにゲームループ側が検知する形にできないか先に検討する。
 
@@ -63,7 +68,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.png'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。`load_image(url, callback)` は解決済み URL を受け取り、読み込んだ `HTMLImageElement` をコールバック引数で渡す（`this` には依存しない）。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.png'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので PNG を使わないため、静的 import される画像は `m/q2.png`（スプライトアトラス）1 枚だけである。`load_image()` は存在しない。
 
 ## ビルドとデプロイ
 
