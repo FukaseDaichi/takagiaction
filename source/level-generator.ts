@@ -21,6 +21,9 @@ export interface level_layout_t {
   tiles: Uint8Array
   rooms: room_t[]
   start: tile_pos_t
+  smoking_area: tile_pos_t // 本物の喫煙所
+  dummies: tile_pos_t[] // 灰皿撤去済みの空の喫煙所
+  exit: tile_pos_t // 非常口
 }
 
 // renderer.ts の max_verts（1024*64 = 65536）から、エンティティのスプライトと
@@ -140,6 +143,30 @@ function build_walls(tiles: Uint8Array): void {
   }
 }
 
+// 開始タイルから床タイルだけを辿った距離。未到達は -1。
+// 部屋の選定はすべてこの距離で行う。添字順やユークリッド距離を混ぜないこと。
+function bfs_distances(tiles: Uint8Array, start: tile_pos_t): Int32Array {
+  const dist = new Int32Array(level_width * level_height).fill(-1)
+  const queue = [tile_index(start.x, start.z)]
+  dist[queue[0]] = 0
+
+  for (let head = 0; head < queue.length; head++) {
+    const index = queue[head]
+    const x = index % level_width
+    const z = (index / level_width) | 0
+    const next = dist[index] + 1
+
+    for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
+      if (!is_floor_tile(tiles, nx, nz)) { continue }
+      const n = tile_index(nx, nz)
+      if (dist[n] !== -1) { continue }
+      dist[n] = next
+      queue.push(n)
+    }
+  }
+  return dist
+}
+
 // renderer.ts の push_floor / push_block が積む頂点数。
 // 定数を変えるときは renderer.ts と必ず一緒に見ること。
 export function level_vert_cost(tiles: Uint8Array): number {
@@ -185,7 +212,56 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
 
   build_walls(tiles)
 
-  return { tiles, rooms, start: room_center(rooms[0]) }
+  const start = room_center(rooms[0])
+  const dist = bfs_distances(tiles, start)
+
+  // 開始部屋からの BFS 距離で部屋を並べる。添字 0 が開始部屋。
+  const ranked = rooms
+    .map((room) => room_center(room))
+    .map((center) => ({ center, d: dist[tile_index(center.x, center.z)] }))
+    .filter((entry) => entry.d >= 0)
+    .sort((a, b) => a.d - b.d)
+
+  if (ranked.length < room_count_floor) { return null }
+
+  // 深度が上がるほど遠くなる。Math.floor を省くと部屋[3.333] が undefined になり
+  // 深度 1 でランが詰む。min を取る前に floor を適用すること。
+  const k = Math.min(3 + Math.floor(depth / 3), ranked.length - 1)
+  const smoking_area = ranked[k].center
+
+  // 非常口は喫煙所の部屋を除いて最も遠い部屋。除外しないと深度が上がって
+  // k が最終部屋を指したとき喫煙所と非常口が同室になる。
+  // ranked.length >= 3 かつ k >= 2 なので、この探索は必ず添字 1 以上を返す
+  // （= 非常口が開始部屋になることはない）。
+  let exit_rank = 0
+  for (let i = ranked.length - 1; i >= 1; i--) {
+    if (i !== k) { exit_rank = i; break }
+  }
+  const exit = ranked[exit_rank].center
+
+  // ダミーは開始・喫煙所・非常口を除いた部屋から。
+  // 部屋数が足りないときは置ける数だけにする。
+  const eligible: number[] = []
+  for (let i = 1; i < ranked.length; i++) {
+    if (i !== k && i !== exit_rank) { eligible.push(i) }
+  }
+  const dummy_target = Math.min(1 + Math.floor(depth / 4), 3)
+  const dummies: tile_pos_t[] = []
+  while (dummies.length < dummy_target && eligible.length > 0) {
+    const pick = random_int(0, eligible.length - 1)
+    dummies.push(ranked[eligible[pick]].center)
+    eligible.splice(pick, 1)
+  }
+
+  // 喫煙所・ダミー・非常口はブロックとして立つので当たり判定を壁にする。
+  // 見た目はエンティティが毎フレーム push_block() する。レベルジオメトリは
+  // renderer_freeze_level_geometry() で焼かれていて後から書き換えられないため、
+  // 非常口の「壁 → 床」を静的ジオメトリで表現することはできない。
+  for (const p of [smoking_area, exit, ...dummies]) {
+    tiles[tile_index(p.x, p.z)] = 8
+  }
+
+  return { tiles, rooms, start, smoking_area, dummies, exit }
 }
 
 export function generate_level(depth: number, seed: number): level_layout_t {

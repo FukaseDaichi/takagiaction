@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generate_level, level_vert_cost } from './level-generator'
-import type { level_layout_t } from './level-generator'
+import type { level_layout_t, tile_pos_t } from './level-generator'
 import { level_height, level_width } from './state'
 
 function tile_index(x: number, z: number): number {
@@ -31,6 +31,35 @@ function reachable_from(layout: level_layout_t): Uint8Array {
     }
   }
   return seen
+}
+
+// 開始地点から p の 8 近傍で最も近い床タイルまでの BFS 距離。
+// 目標地点そのものは壁なので、隣接する床までの距離で測る。
+function bfs_distance_near(layout: level_layout_t, p: tile_pos_t): number {
+  const dist = new Int32Array(level_width * level_height).fill(-1)
+  const queue = [tile_index(layout.start.x, layout.start.z)]
+  dist[queue[0]] = 0
+  for (let head = 0; head < queue.length; head++) {
+    const index = queue[head]
+    const x = index % level_width
+    const z = (index / level_width) | 0
+    for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
+      if (!is_floor(layout.tiles, nx, nz)) { continue }
+      const n = tile_index(nx, nz)
+      if (dist[n] !== -1) { continue }
+      dist[n] = dist[index] + 1
+      queue.push(n)
+    }
+  }
+  // 直交 4 近傍だけを見る。BFS が 4 連結なので、壁になった目標地点の直交隣接
+  // タイルの距離は必ず「そこが床だったときの距離 - 1」になる。対角を混ぜると
+  // -2 のタイルが紛れ込んで測定値が ±1 ぶれ、深度ごとの単調性の検証が誤検出する。
+  let best = Number.MAX_SAFE_INTEGER
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const d = dist[tile_index(p.x + dx, p.z + dz)]
+    if (d >= 0 && d < best) { best = d }
+  }
+  return best
 }
 
 describe('generate_level: 決定性', () => {
@@ -151,4 +180,80 @@ describe('generate_level: 開始地点', () => {
       expect(is_floor(layout.tiles, layout.start.x, layout.start.z)).toBe(true)
     }
   }, 30000)
+})
+
+describe('generate_level: 目標地点', () => {
+  it('喫煙所・ダミー・非常口は互いに別のタイル', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      for (const depth of [1, 5, 12, 30]) {
+        const layout = generate_level(depth, seed)
+        const all = [layout.smoking_area, layout.exit, ...layout.dummies]
+          .map((p) => tile_index(p.x, p.z))
+        expect(new Set(all).size).toBe(all.length)
+      }
+    }
+  }, 60000)
+
+  // 設計書 §5: 非常口が開始部屋と同一になると詰む
+  it('非常口は開始地点と別のタイル', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      for (const depth of [1, 5, 12, 30]) {
+        const layout = generate_level(depth, seed)
+        expect(tile_index(layout.exit.x, layout.exit.z))
+          .not.toBe(tile_index(layout.start.x, layout.start.z))
+      }
+    }
+  }, 60000)
+
+  // 設計書 §2「深度から整数を得ること」: floor を忘れると部屋[3.333] が
+  // undefined になり深度 1 でランが詰む
+  it('深度 1 でも喫煙所が定義されている', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const layout = generate_level(1, seed)
+      expect(Number.isInteger(layout.smoking_area.x)).toBe(true)
+      expect(Number.isInteger(layout.smoking_area.z)).toBe(true)
+    }
+  }, 30000)
+
+  it('目標地点のタイルは壁になっている（見た目はエンティティが描く）', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const layout = generate_level(8, seed)
+      for (const p of [layout.smoking_area, layout.exit, ...layout.dummies]) {
+        expect(layout.tiles[tile_index(p.x, p.z)]).toBeGreaterThan(7)
+      }
+    }
+  }, 30000)
+
+  it('目標地点はすべて開始地点から到達できる', () => {
+    for (let seed = 1; seed <= 1000; seed++) {
+      const layout = generate_level(8, seed)
+      for (const p of [layout.smoking_area, layout.exit, ...layout.dummies]) {
+        expect(bfs_distance_near(layout, p)).toBeLessThan(Number.MAX_SAFE_INTEGER)
+      }
+    }
+  }, 60000)
+
+  // レビュー B-8: 空き部屋数でクランプしないと深度 12 以降で足りなくなる
+  it('ダミー数は min(1 + floor(深度/4), 3) を上限とし、空き部屋数でも抑えられる', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const depth of [1, 4, 8, 12, 40]) {
+        const layout = generate_level(depth, seed)
+        const want = Math.min(1 + Math.floor(depth / 4), 3)
+        const available = layout.rooms.length - 3 // 開始・喫煙所・非常口を除く
+        expect(layout.dummies.length).toBe(Math.max(0, Math.min(want, available)))
+      }
+    }
+  }, 60000)
+
+  it('同一シード内では深度が上がるほど喫煙所が遠くなる（単調非減少）', () => {
+    for (let seed = 1; seed <= 100; seed++) {
+      let last = -1
+      for (const depth of [1, 3, 6, 9, 12, 15, 30]) {
+        const layout = generate_level(depth, seed)
+        const d = bfs_distance_near(layout, layout.smoking_area)
+        expect(d).toBeGreaterThanOrEqual(last)
+        last = d
+      }
+    }
+  }, 60000)
 })
