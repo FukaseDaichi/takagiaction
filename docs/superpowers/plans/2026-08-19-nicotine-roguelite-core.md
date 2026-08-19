@@ -491,6 +491,9 @@ describe('generate_level: 壁', () => {
   // レビュー A-1: タイル 0（空）は _collides() が通行可能とみなす。
   // 床に隣接する空タイルが 1 つでも残ると自機がマップ外へ歩いて出る。
   it('床に 8 近傍で隣接する非床タイルはすべて壁になっている', () => {
+    // 300 シード × 約 1600 空タイル × 9 近傍を素の expect で回すと 430 万回を超え、
+    // このテスト 1 本で 2 分近くかかる。走査範囲は変えず、違反を見つけたときだけ記録する。
+    const violations: string[] = []
     for (let seed = 1; seed <= 300; seed++) {
       const { tiles } = generate_level(1, seed)
       for (let z = 0; z < level_height; z++) {
@@ -498,12 +501,17 @@ describe('generate_level: 壁', () => {
           if (tiles[tile_index(x, z)] !== 0) { continue }
           for (let dz = -1; dz <= 1; dz++) {
             for (let dx = -1; dx <= 1; dx++) {
-              expect(is_floor(tiles, x + dx, z + dz)).toBe(false)
+              if (is_floor(tiles, x + dx, z + dz) && violations.length < 5) {
+                violations.push(
+                  `seed ${seed}: 空タイル (${x},${z}) が床 (${x + dx},${z + dz}) に隣接`,
+                )
+              }
             }
           }
         }
       }
     }
+    expect(violations).toEqual([])
   }, 30000)
 
   // レビュー A-2: 非床を全部壁で埋めると 2800〜3400 タイルになり
