@@ -15,12 +15,11 @@ export const level_data = new Uint8Array(level_width * level_height)
 export const state = {
   time_elapsed: 0,
   game_running: 0,
-  current_level: 0,
-  cpus_total: 0,
-  cpus_rebooted: 0,
 
   // ラン状態。entity-smoking-area / entity-player / game / minimap / hud の
   // 複数モジュールから読み書きされるため、葉モジュールであるここに置く。
+  depth: 0, // 到達フロア深度。最初のフロアが 1
+  run_seed: 0, // ラン開始時に引く。フロアのシードは run_seed + depth * 7919
   nicotine: 100,
   nicotine_max: 100,
   smoking: 0, // 一服中は 1。移動と射撃をロックする

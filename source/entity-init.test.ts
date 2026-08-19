@@ -22,9 +22,8 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // game は minimap → dom 経由で document に触る（自機の _kill から呼ばれるだけで
 // フィールド初期化の検証には関係がない）
-vi.mock('./game', () => ({ reload_level: () => {}, next_level: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
 
-import { entity_cpu_t } from './entity-cpu'
 import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'
 import { entity_particle_t } from './entity-particle'
@@ -64,11 +63,6 @@ describe('クラスフィールドの初期化順序', () => {
   it('entity_spider_t は次の索敵までのカウンタを 0 で初期化する', () => {
     const spider = new entity_spider_t(64, 0, 128, 5, 27)
     expect(peek(spider, '_select_target_counter')).toBe(0)
-  })
-
-  it('entity_cpu_t はアニメーション用の時間カウンタを 0 で初期化する', () => {
-    const cpu = new entity_cpu_t(0, 0, 0, 5, 4)
-    expect(peek(cpu, '_animation_time')).toBe(0)
   })
 
   it('寿命を持つエンティティは寿命が設定される', () => {

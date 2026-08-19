@@ -21,7 +21,7 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ reload_level: () => {}, next_level: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'

@@ -19,7 +19,7 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ next_level: () => {}, reload_level: () => {} }))
+vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_player_t } from './entity-player'

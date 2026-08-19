@@ -1,14 +1,13 @@
 import { audio_play, audio_sfx_hurt, audio_sfx_shoot } from './audio'
 import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
-import { reload_level } from './game'
+import { run_end } from './game'
 import { key_down, key_left, key_right, key_shoot, key_up, keys } from './input'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
 } from './nicotine'
 import { push_light } from './renderer'
 import { state } from './state'
-import { terminal_show_notice } from './terminal'
 
 export class entity_player_t extends entity_t {
   // minimap.ts が自機の向きを 1px で描くために読む
@@ -80,8 +79,8 @@ export class entity_player_t extends entity_t {
     super._kill()
     this.y = 10
     this.z += 5
-    terminal_show_notice('展開失敗\n' + 'バックアップから復元中...')
-    setTimeout(reload_level, 3000)
+    // 死＝ラン終了。同じフロアの頭からやり直す経路は無くなった
+    run_end()
   }
 
   override _receive_damage(from: entity_t, amount: number): void {

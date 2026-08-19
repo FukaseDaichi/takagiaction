@@ -1,5 +1,4 @@
 import { minimap_canvas } from './dom'
-import { entity_cpu_t } from './entity-cpu'
 import { level_data, level_height, level_width, state } from './state'
 
 // Fog of war minimap, drawn on a 2d canvas overlaying the WebGL view.
@@ -83,19 +82,6 @@ function minimap_draw(): void {
     }
     else {
       minimap_set_pixel(index, 28, 58, 74) // floor
-    }
-  }
-
-  // cpus in explored areas - bright while offline, dimmed once rebooted
-  for (let i = 0; i < state.entities.length; i++) {
-    const cpu = state.entities[i]
-    if (cpu instanceof entity_cpu_t) {
-      const cpu_index = (cpu.x >> 3) + (cpu.z >> 3) * level_width
-      if (minimap_explored[cpu_index]) {
-        cpu.h > 5
-          ? minimap_set_pixel(cpu_index, 40, 60, 100)
-          : minimap_set_pixel(cpu_index, 80, 130, 255)
-      }
     }
   }
 

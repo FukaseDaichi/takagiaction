@@ -23,7 +23,7 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({
   terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
 }))
-vi.mock('./game', () => ({ next_level: () => {}, reload_level: () => {} }))
+vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_player_t } from './entity-player'

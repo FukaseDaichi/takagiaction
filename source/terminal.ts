@@ -1,7 +1,5 @@
 import { audio_play, audio_sfx_terminal } from './audio'
 import { canvas, terminal_el } from './dom'
-import { minimap_hide } from './minimap'
-import { state } from './state'
 
 const terminal_text_ident = '&gt; '
 
@@ -49,29 +47,6 @@ const terminal_text_story =
   '移動: WASD または矢印キー / 射撃: スペース\n' +
   '音声切替: M\n' +
   'クリックで降下開始\n '
-
-const terminal_text_outro =
-  '全衛星リンク オンライン\n' +
-  '接続中...___' +
-  '接続を確立\n' +
-  '通信を受信中...___ \n' +
-
-  '送信: 2018年9月13日\n' +
-  '受信: 2718年9月13日\n \n' +
-
-  'プレイしてくれてありがとう ❤_ \n' +
-  '私は 2012 年の第 1 回から JS13K コンペティションの\n' +
-  'スポンサーを続けてきました。でも今年の大会は\n' +
-  '参加者としては初めてで、最高に楽しかった！\n \n' +
-
-  '無茶な短納期で素晴らしい音楽を書いてくれた親友、\n' +
-  'NO-FATE.NET の ANDREAS LÖSCH に感謝します。\n \n' +
-
-  'さらに JS13K のスタッフ、SONANT-X の開発者、\n' +
-  'そして今年の JS13K の参加者全員に感謝を。\n' +
-  'また来年！\n \n' +
-  'DOMINIC__' +
-  '通信終了'
 
 let terminal_text_buffer: string[] = []
 let terminal_line_wait = 100
@@ -206,16 +181,4 @@ export function terminal_show_result(
       }
     },
   )
-}
-
-export function terminal_run_outro(): void {
-  state.game_running = 0
-  canvas.style.opacity = '0.3'
-  minimap_hide()
-  terminal_el.innerHTML = ''
-  terminal_text_buffer = []
-
-  terminal_cancel()
-  terminal_show()
-  terminal_write_text(terminal_prepare_text(terminal_text_outro))
 }
