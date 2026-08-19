@@ -22,14 +22,16 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // game は minimap → dom 経由で document に触る（自機の _kill から呼ばれるだけで
 // フィールド初期化の検証には関係がない）
-vi.mock('./game', () => ({ reload_level: () => {} }))
+vi.mock('./game', () => ({ reload_level: () => {}, next_level: () => {} }))
 
 import { entity_cpu_t } from './entity-cpu'
+import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'
 import { entity_particle_t } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_player_t } from './entity-player'
 import { entity_sentry_plasma_t, entity_sentry_t } from './entity-sentry'
+import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
 
 // private フィールドを読むためのヘルパ。初期化順序の検証が目的なので、
@@ -90,5 +92,22 @@ describe('クラスフィールドの初期化順序', () => {
     const sentry_plasma = new entity_sentry_plasma_t(0, 0, 0, 0, 26, 0)
     expect(sentry_plasma.vx).toBe(64)
     expect(sentry_plasma.vz).toBe(0)
+  })
+
+  it('entity_smoking_area_t は進捗と接触フラグを 0 / false で初期化する', () => {
+    const area = new entity_smoking_area_t(64, 0, 128, 0, 18)
+    expect(area.is_real).toBe(false)
+    expect(peek(area, '_progress')).toBe(0)
+    expect(peek(area, '_touching')).toBe(false)
+    expect(peek(area, '_was_smoking')).toBe(false)
+    expect(peek(area, '_done')).toBe(false)
+    expect(peek(area, '_animation_time')).toBe(0)
+  })
+
+  it('entity_exit_t は未開通・未使用で始まる', () => {
+    const exit = new entity_exit_t(64, 0, 128, 0, 18)
+    expect(peek(exit, '_opened')).toBe(false)
+    expect(peek(exit, '_used')).toBe(false)
+    expect(peek(exit, '_animation_time')).toBe(0)
   })
 })

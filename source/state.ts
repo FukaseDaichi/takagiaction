@@ -18,6 +18,15 @@ export const state = {
   current_level: 0,
   cpus_total: 0,
   cpus_rebooted: 0,
+
+  // ラン状態。entity-smoking-area / entity-player / game / minimap / hud の
+  // 複数モジュールから読み書きされるため、葉モジュールであるここに置く。
+  nicotine: 100,
+  nicotine_max: 100,
+  smoking: 0, // 一服中は 1。移動と射撃をロックする
+  exit_open: 0, // 一服完了で 1。非常口が通れるようになる
+  kills: 0,
+
   entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],
   entities_to_kill: [] as entity_t[],
