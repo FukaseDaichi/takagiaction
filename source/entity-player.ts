@@ -85,9 +85,7 @@ export class entity_player_t extends entity_t {
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
-    // 無敵ガード。_last_damage は生成直後は 0（残り無敵時間なし）なので、
-    // < 0 だと生成直後の初撃を無敵扱いしてしまう。<= 0 で「無敵切れ」を正しく含める
-    if (this._last_damage <= 0) {
+    if (this._last_damage < 0) {
       audio_play(audio_sfx_hurt)
       super._receive_damage(from, amount)
       this._last_damage = 2

@@ -150,11 +150,17 @@ describe('ニコチン切れの継続ダメージ', () => {
     state.nicotine = 0
     state.nicotine_max = 100
     state.smoking = 0
+    for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
     player = new entity_player_t(64, 0, 64, 5, 18)
     state.entity_player = player
   })
 
   it('被弾の無敵時間を無視して HP を減らす', () => {
+    // 実ゲームでは game_tick が _update() を先に回してから衝突判定に入るので、
+    // _receive_damage が呼ばれる時点で _last_damage は必ず 0 未満になっている。
+    // 生成直後は 0 なので、その順序をテストでも再現する。
+    player._update()
+
     player._receive_damage(player, 1) // ここで 2 秒の無敵が張られる
     expect(player.h).toBe(4)
 
