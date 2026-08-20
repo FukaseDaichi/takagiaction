@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
-  meta_spare_count, meta_upgrade_cost, meta_upgrade_ids,
+  meta_sniff_distance, meta_spare_count, meta_upgrade_cost, meta_upgrade_ids,
 } from './meta'
 import {
   nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
@@ -115,6 +115,13 @@ describe('嗅覚の発動条件', () => {
     expect(meta_sniff_active(nicotine_stage_edgy)).toBe(true)
     meta.levels.sniff = 3
     expect(meta_sniff_active(nicotine_stage_edgy)).toBe(true)
+  })
+
+  it('距離表示は 3 段からで、2 段では出ない', () => {
+    meta.levels.sniff = 2
+    expect(meta_sniff_distance()).toBe(false)
+    meta.levels.sniff = 3
+    expect(meta_sniff_distance()).toBe(true)
   })
 })
 

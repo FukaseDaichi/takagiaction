@@ -17,7 +17,7 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_spider_t } from './entity-spider'
@@ -36,6 +36,7 @@ describe('ヤニ', () => {
     state.nicotine_max = 100
     state.smoking = 0
     state.yani_run = 0
+    state.game_running = 1
     player = new entity_player_t(64, 0, 64, 5, 18)
     state.entity_player = player
   })
@@ -47,6 +48,16 @@ describe('ヤニ', () => {
     yani._check(player)
     expect(state.yani_run).toBe(1)
     expect(yani._dead).toBe(true)
+  })
+
+  // レビュー Finding 4d: run_end() は state.yani_run を meta へ合算・保存してから
+  // 抜ける。そのあとに拾わせても加算は保存に乗らず、静かに 1 本消える
+  it('ラン終了後は拾えない', () => {
+    state.game_running = 0
+    const yani = new entity_yani_t(64, 0, 64, 5, 26)
+    yani._check(player)
+    expect(state.yani_run).toBe(0)
+    expect(yani._dead).toBe(false)
   })
 
   it('自機以外には反応しない', () => {

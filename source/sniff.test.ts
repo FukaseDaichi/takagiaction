@@ -45,6 +45,23 @@ describe('嗅覚の残り香探索', () => {
     expect(r).toBeNull()
   })
 
+  // レビュー Finding 4c: 目標が x=0 にあると隣接候補の nx が -1 になる。
+  // 範囲チェックが無いと添字 -1 + nz*64 が前の行の末尾（x=63）を指し、
+  // まったく別の場所の距離で最寄りを決めてしまう。
+  it('左端の目標では隣接候補が前の行へ回り込まない', () => {
+    const tiles = make_tiles()
+    // z=1 の x=1..63 が横一列の通路。自機は (63,0) にいて (63,1) で通路へ繋がる
+    for (let x = 1; x < level_width; x++) { tiles[x + level_width] = 1 }
+    tiles[level_width - 1] = 1 // (63,0)
+    tiles[0 + level_width] = 8 // 目標 (0,1) は生成器と同じく壁
+    // 目標の上下 (0,0) / (0,2) は虚空のままにして、床の隣接候補を (1,1) だけに絞る
+
+    const r = sniff_find(tiles, level_width - 1, 0, [{ x: 0, z: 1 }])!
+    // (63,0) → (63,1) → 左へ 62 歩で (1,1)。その 63 歩 + 1。
+    // 回り込むと自機のタイル (63,0) の距離 0 を拾って 1 になる
+    expect(r.dist).toBe(64)
+  })
+
   it('目標が空なら null', () => {
     const tiles = make_tiles()
     tiles[1 + level_width] = 1

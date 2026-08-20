@@ -93,6 +93,10 @@ export class entity_player_t extends entity_t {
   }
 
   protected override _kill(): void {
+    // 二重呼び出しの遮断。run_end() 側の game_running ガードがヤニの二重加算は
+    // 止めるが、それだけでは下の姿勢変更が 2 度走って死体がもう一段跳ねる。
+    // entity-spider / entity-sentry と同じ形に揃える
+    if (this._dead) { return }
     super._kill()
     this.y = 10
     this.z += 5

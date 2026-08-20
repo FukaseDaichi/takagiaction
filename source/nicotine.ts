@@ -15,9 +15,10 @@ export function nicotine_stage(nicotine: number, nicotine_max: number): number {
   return nicotine_stage_limit
 }
 
-// 毎秒の減少量。深度が上がるほど速くなるが、線形だと計画B の恒久強化の実効倍率
-// （最大 150 / 耐性 −30% = 2.143 倍）と深度 20 でちょうど相殺してしまい、
-// それ以降は伸びしろがゼロになる。√ にすると釣り合う点が深度 37 まで動く。
+// 毎秒の減少量。深度が上がるほど速くなるが、線形だと恒久強化の実効倍率
+// （最大 150 / 耐性 −30% = 2.143 倍、docs/meta-progression.md）と深度 20 で
+// ちょうど相殺してしまい、それ以降は伸びしろがゼロになる。
+// √ にすると釣り合う点が深度 37 まで動く。
 // 係数 0.19 は設計書 §1 の目安（深度 1 で 100 秒 / 深度 11 で 62 秒）を通る値。
 export function nicotine_drain_rate(depth: number): number {
   return 1 + 0.19 * Math.sqrt(depth - 1)

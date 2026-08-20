@@ -21,7 +21,7 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
@@ -192,6 +192,22 @@ describe('ニコチン切れの継続ダメージ', () => {
     player._receive_withdrawal_damage()
     expect(player.h).toBe(0)
     expect(player._dead).toBe(true)
+  })
+
+  // レビュー Finding 4e: 継続ダメージは _receive_damage の 2 秒の無敵を通さないので、
+  // 同じフレームに敵と接触すると _kill() が 2 度走りうる。ヤニの二重加算は
+  // run_end() 側の game_running が止めるが、死体の姿勢だけがもう一段ずれる
+  it('_kill が二度走っても死体の姿勢は変わらない', () => {
+    player.h = 1
+    const z_alive = player.z
+    player._receive_withdrawal_damage()
+    expect(player._dead).toBe(true)
+    expect(player.z).toBe(z_alive + 5)
+    expect(player.y).toBe(10)
+
+    player._receive_withdrawal_damage() // 同フレームの追い打ち
+    expect(player.z).toBe(z_alive + 5)
+    expect(player.y).toBe(10)
   })
 })
 

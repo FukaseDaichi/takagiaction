@@ -1,7 +1,7 @@
 import { minimap_canvas, sniff_el } from './dom'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
-import { meta, meta_sniff_active } from './meta'
+import { meta_sniff_active, meta_sniff_distance } from './meta'
 import { minimap_radius, nicotine_stage } from './nicotine'
 import { sniff_find } from './sniff'
 import type { sniff_result_t } from './sniff'
@@ -75,7 +75,7 @@ function minimap_sniff(stage: number): void {
   }
 
   // 3 段: 距離も表示する（1 タイル = 1m と読む）
-  if (sniff_result && meta.levels.sniff >= 3) {
+  if (sniff_result && meta_sniff_distance()) {
     sniff_el.textContent = '残り香 ' + sniff_result.dist + 'm'
     sniff_el.style.display = 'block'
   } else {

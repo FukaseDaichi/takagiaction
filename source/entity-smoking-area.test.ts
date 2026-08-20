@@ -30,7 +30,7 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({
   terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
 }))
-vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_smoke_t } from './entity-smoke'

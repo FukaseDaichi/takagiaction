@@ -22,7 +22,7 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // game は minimap → dom 経由で document に触る（自機の _kill から呼ばれるだけで
 // フィールド初期化の検証には関係がない）
-vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'

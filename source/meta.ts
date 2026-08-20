@@ -68,6 +68,12 @@ export function meta_sniff_active(stage: number): boolean {
   return stage >= threshold
 }
 
+// 3 段は方向に加えて距離も出す。効果値の判定はすべてこのモジュールに置く
+// （minimap.ts が meta.levels.sniff を直接読むと、段階の意味が 2 箇所に散る）
+export function meta_sniff_distance(): boolean {
+  return meta.levels.sniff >= 3
+}
+
 const meta_storage_key = 'takagi_meta'
 
 function meta_clamp_int(value: unknown): number {

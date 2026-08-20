@@ -50,8 +50,9 @@ describe('nicotine_drain_rate', () => {
     }
   })
 
-  // レビュー C-2: 線形だと、計画B の全強化（最大 150 / 耐性 −30% = 2.143 倍）と
-  // 深度 20 でちょうど相殺して伸びしろが消える。√ 曲線ならその点が深度 37 まで動く。
+  // レビュー C-2: 線形だと、恒久強化の全解放（最大 150 / 耐性 −30% = 2.143 倍、
+  // docs/meta-progression.md）と深度 20 でちょうど相殺して伸びしろが消える。
+  // √ 曲線ならその点が深度 37 まで動く。
   // ここで見ているのは曲線の形そのもので、強化の実装には依存しない。
   it('係数が 2.143 に達するのは深度 37 付近', () => {
     expect(nicotine_drain_rate(36)).toBeLessThan(150 / 100 / 0.7)
@@ -67,7 +68,7 @@ describe('段階効果', () => {
     expect(player_speed(nicotine_stage_limit)).toBe(96)
   })
 
-  // 設計書 §1: 基礎 0.1 秒 × ニコチン係数。火力強化の係数は計画B で挟まる
+  // 設計書 §1: 基礎 0.1 秒 × ニコチン係数。火力強化の係数はこの間に挟まる
   it('離脱症状では射撃間隔が 1.8 倍になる', () => {
     expect(shot_interval(nicotine_stage_normal)).toBeCloseTo(0.1, 6)
     expect(shot_interval(nicotine_stage_edgy)).toBeCloseTo(0.1, 6)
@@ -75,7 +76,7 @@ describe('段階効果', () => {
     expect(shot_interval(nicotine_stage_limit)).toBeCloseTo(0.18, 6)
   })
 
-  // 計画B: 基礎 0.1 秒 × 火力係数（強化） × ニコチン係数 の順に掛ける
+  // docs/meta-progression.md: 基礎 0.1 秒 × 火力係数（強化） × ニコチン係数 の順に掛ける
   it('火力係数が射撃間隔に掛かる（全強化 0.64）', () => {
     expect(shot_interval(nicotine_stage_normal, 0.64)).toBeCloseTo(0.064, 6)
     expect(shot_interval(nicotine_stage_withdrawal, 0.64)).toBeCloseTo(0.1152, 6)
