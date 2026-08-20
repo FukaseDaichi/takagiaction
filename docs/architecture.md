@@ -5,14 +5,17 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ## モジュール構成
 
 - `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` / `hero_el` の取得と型付けを集約
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` / `hero_el` / `spare_el` / `sniff_el` の取得と型付けを集約
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
+- `sniff.ts` — 嗅覚の残り香探索。`level-generator.ts` の `bfs_distances` を自機タイル起点で呼ぶ純粋関数
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
 - `game.ts` — ゲームループとレベル遷移
+- `menu.ts` — 闇サイトの強化メニュー。`terminal_el` を流用した DOM クリック式
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
+- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `hud.ts` — ニコチンゲージの DOM 更新。`dom.ts` と `nicotine.ts` 以外の実行時 import を持たない、葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する
@@ -34,7 +37,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 ## 循環参照の不変条件
 
-実行時 import のグラフには 9 モジュール（entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
+実行時 import のグラフには 10 モジュール（entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, entity-yani, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
 
 （`audio.ts` と `terminal.ts` も互いを import し合い、別に独立した 2 モジュールの循環を作っている。これも同じ理由で無害だが、どちらも `entity_t` のサブクラスを宣言しないため、上のクラスタや下の不変条件とは無関係。）
 

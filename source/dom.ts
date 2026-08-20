@@ -1,4 +1,4 @@
-// index.html の要素 ID による暗黙グローバル（c / m / a / n / nf / h）の置き換え。
+// index.html の要素 ID による暗黙グローバル（c / m / a / n / nf / h / sp / sn）の置き換え。
 // いずれも index.html に静的に存在するため、取得失敗はプログラミングエラーとして扱う。
 
 export const canvas = document.getElementById('c') as HTMLCanvasElement
