@@ -6,3 +6,4 @@ export const minimap_canvas = document.getElementById('m') as HTMLCanvasElement
 export const terminal_el = document.getElementById('a') as HTMLElement
 export const nicotine_bar = document.getElementById('n') as HTMLElement
 export const nicotine_fill = document.getElementById('nf') as HTMLElement
+export const hero_el = document.getElementById('h') as HTMLElement
