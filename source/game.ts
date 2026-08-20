@@ -4,6 +4,7 @@ import { entity_player_t } from './entity-player'
 import { entity_sentry_t } from './entity-sentry'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
+import { entity_yani_t } from './entity-yani'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
 import {
@@ -126,6 +127,7 @@ function load_level(depth: number): void {
   for (const p of layout.spiders) { new entity_spider_t(p.x * 8, 0, p.z * 8, 5, 27) }
   for (const p of layout.sentries) { new entity_sentry_t(p.x * 8, 0, p.z * 8, 5, 32) }
   for (const p of layout.health) { new entity_health_t(p.x * 8, 0, p.z * 8, 5, 31) }
+  for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
 
   const player = state.entity_player!
   camera.x = -player.x

@@ -3,6 +3,7 @@ import { entity_t } from './entity'
 import { entity_explosion_t } from './entity-explosion'
 import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
+import { entity_yani_t } from './entity-yani'
 import { camera, push_light } from './renderer'
 import { state } from './state'
 
@@ -73,6 +74,8 @@ export class entity_sentry_t extends entity_t {
     new entity_explosion_t(this.x, 0, this.z, 0, 26)
     camera.shake = 3
     audio_play(audio_sfx_explode)
+    // 敵ドロップ: 撃破ごとに 50% で吸い殻を 1 つ落とす（設計書）
+    if (Math.random() < 0.5) { new entity_yani_t(this.x, 0, this.z, 5, 26) }
   }
 }
 
