@@ -48,7 +48,12 @@ function minimap_set_pixel(index: number, r: number, g: number, b: number): void
 }
 
 function minimap_sniff(stage: number): void {
-  if (!meta_sniff_active(stage)) {
+  // state.game_running: run_end() 後も requestAnimationFrame(game_tick) は
+  // 回り続け、minimap_update() は無条件に呼ばれる。ここで打ち切らないと、
+  // minimap_hide() が隠した直後の 1 フレームで sniff_el.style.display を
+  // 'block' に戻し、結果画面の上に残り香表示が復活してしまう
+  // （entity-smoking-area.ts / entity-exit.ts の state.game_running と同じ理由）。
+  if (!state.game_running || !meta_sniff_active(stage)) {
     sniff_result = null
     sniff_timer = 0
     sniff_el.style.display = 'none'
