@@ -1,0 +1,93 @@
+import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
+import { canvas, terminal_el } from './dom'
+import { meta, meta_buy, meta_max_level, meta_upgrade_cost } from './meta'
+import type { meta_upgrade_id_t } from './meta'
+import { terminal_hide, terminal_show } from './terminal'
+
+// 自席の端末から繋がる愛煙家の闇サイト。吸い殻（禁制品）を送ると
+// 物資（火力・予備の一本）や怪しい訓練プログラム（肺活量・耐性・嗅覚）が
+// 届く、という理屈で全項目を説明する（docs/story.md）。
+// terminal_el の見た目をそのまま使うが、購入のたびに全文をタイピングし直すと
+// 操作感が悪いので、メニューは DOM を直接組むクリック式にする。
+
+interface menu_item_t {
+  id: meta_upgrade_id_t
+  name: string
+  describe: (level: number) => string // 現在レベルの効果
+}
+
+const menu_items: menu_item_t[] = [
+  { id: 'lung', name: '肺活量', describe: (lv) => '最大ゲージ ' + (100 + 10 * lv) },
+  { id: 'tolerance', name: 'ニコチン耐性', describe: (lv) => '減少速度 -' + 6 * lv + '%' },
+  {
+    id: 'sniff', name: '嗅覚',
+    describe: (lv) => [
+      'なし',
+      'ゲージ30%以下で残り香の方向が分かる',
+      'ゲージ60%以下から発動する',
+      '距離も分かる',
+    ][lv],
+  },
+  { id: 'power', name: '火力', describe: (lv) => '射撃間隔 -' + 12 * lv + '%' },
+  {
+    id: 'spare', name: '予備の一本',
+    describe: (lv) => 'ラン中 ' + lv + ' 回まで隠れて一服できる [E]',
+  },
+]
+
+export function menu_show(on_start: () => void): void {
+  canvas.style.opacity = '0.3'
+  terminal_show()
+  menu_render(on_start)
+}
+
+function menu_row(html: string, on_click?: () => void, dim = false): HTMLDivElement {
+  const row = document.createElement('div')
+  row.innerHTML = '&gt; ' + html
+  if (on_click) {
+    row.style.cursor = 'pointer'
+    row.onclick = on_click
+  }
+  if (dim) { row.style.opacity = '0.4' }
+  return row
+}
+
+function menu_render(on_start: () => void): void {
+  terminal_el.innerHTML = ''
+  terminal_el.appendChild(menu_row('闇サイト「Y-EXCHANGE」 接続確立'))
+  terminal_el.appendChild(menu_row('ヤニ残高: ' + meta.yani))
+  if (!meta.persistent) {
+    terminal_el.appendChild(
+      menu_row('警告: ストレージ利用不可。強化はこのセッション限りで消える'),
+    )
+  }
+  terminal_el.appendChild(menu_row(' '))
+
+  for (const item of menu_items) {
+    const level = meta.levels[item.id]
+    const maxed = level >= meta_max_level[item.id]
+    const cost = meta_upgrade_cost(level)
+    const label = item.name + ' Lv' + level + '/' + meta_max_level[item.id] +
+      '（' + item.describe(level) + '） ' +
+      (maxed ? 'MAX' : '[ヤニ ' + cost + ' で強化]')
+    if (maxed) {
+      terminal_el.appendChild(menu_row(label))
+    } else {
+      terminal_el.appendChild(menu_row(label, () => {
+        if (meta_buy(item.id)) {
+          audio_play(audio_sfx_pickup)
+          menu_render(on_start)
+        }
+      }, meta.yani < cost))
+    }
+  }
+
+  terminal_el.appendChild(menu_row(' '))
+  terminal_el.appendChild(menu_row('[降下開始]', () => {
+    audio_play(audio_sfx_beep)
+    terminal_el.innerHTML = ''
+    terminal_hide()
+    canvas.style.opacity = '1'
+    on_start()
+  }))
+}

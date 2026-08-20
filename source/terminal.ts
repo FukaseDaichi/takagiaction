@@ -46,7 +46,7 @@ const terminal_text_story =
   '_ \n' +
   '移動: WASD または矢印キー / 射撃: スペース\n' +
   '音声切替: M\n' +
-  'クリックで降下開始\n '
+  'クリックで自席の端末へ\n '
 
 let terminal_text_buffer: string[] = []
 let terminal_line_wait = 100
@@ -56,7 +56,7 @@ let terminal_hide_timeout: ReturnType<typeof setTimeout> = 0
 
 terminal_text_garbage += terminal_text_garbage + terminal_text_garbage
 
-function terminal_show(): void {
+export function terminal_show(): void {
   clearTimeout(terminal_hide_timeout)
   terminal_el.style.opacity = '1'
   terminal_el.style.display = 'block'
@@ -149,12 +149,14 @@ function terminal_run_story(callback?: () => void): void {
   terminal_write_text(terminal_prepare_text(terminal_text_story), callback)
 }
 
-// ラン終了時のリザルト。クリックで次のランを始める。
+// ラン終了時のリザルト。クリックで自席の端末（闇サイトメニュー）へ移る。
 // game_running のリセットとミニマップ・HUD の非表示は game.ts の run_end が持つ。
 export function terminal_show_result(
   depth: number,
   kills: number,
-  on_restart: () => void,
+  yani: number,
+  best_depth: number,
+  on_continue: () => void,
 ): void {
   canvas.style.opacity = '0.3'
   terminal_el.innerHTML = ''
@@ -167,24 +169,23 @@ export function terminal_show_result(
   // 終わるより先に登録する。表示完了後のコールバックで登録すると、その間に
   // 別の terminal_show_notice() が terminal_cancel() でチェーンを壊した場合、
   // ハンドラが永久に登録されずクリックしても復帰できないままソフトロックする。
-  // 副作用として、表示中でもクリックすれば即座にリトライできるようになるが、
-  // これは許容範囲内（むしろ改善）。
+  // canvas の不透明度はここでは戻さない（続くメニューが暗いまま引き継ぐ）
   document.onclick = () => {
     document.onclick = null
     terminal_cancel()
-    terminal_hide()
-    canvas.style.opacity = '1'
-    on_restart()
+    on_continue()
   }
 
   terminal_write_text(
     terminal_prepare_text(
       '生体反応 消失\n' +
+      '救護ドローンが自席へ回収\n' +
       '_ \n' +
-      '到達深度: ' + depth + '\n' +
+      '到達深度: ' + depth + '（自己ベスト: ' + best_depth + '）\n' +
       '撃破数: ' + kills + '\n' +
+      '回収したヤニ: ' + yani + '\n' +
       '_ \n' +
-      'クリックで再挑戦\n ',
+      'クリックで端末へ\n ',
     ),
   )
 }

@@ -7,6 +7,7 @@ import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
+import { menu_show } from './menu'
 import {
   meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
 } from './meta'
@@ -61,7 +62,10 @@ export function run_end(): void {
   meta.yani += state.yani_run
   meta.best_depth = Math.max(meta.best_depth, state.depth)
   meta_save()
-  terminal_show_result(state.depth, state.kills, run_start)
+  terminal_show_result(
+    state.depth, state.kills, state.yani_run, meta.best_depth,
+    () => menu_show(run_start),
+  )
 }
 
 function load_level(depth: number): void {
