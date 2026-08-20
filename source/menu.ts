@@ -1,6 +1,9 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { canvas, terminal_el } from './dom'
-import { meta, meta_buy, meta_max_level, meta_upgrade_cost } from './meta'
+import {
+  meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
+  meta_power_factor, meta_spare_count, meta_upgrade_cost,
+} from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { terminal_hide, terminal_show } from './terminal'
 
@@ -13,25 +16,39 @@ import { terminal_hide, terminal_show } from './terminal'
 interface menu_item_t {
   id: meta_upgrade_id_t
   name: string
-  describe: (level: number) => string // 現在レベルの効果
+  // 現在レベルまでの累積効果。段ごとの増分ではなく「今この行を持っていると
+  // 何が起きるか」を書く。購入判断はこの 1 行だけが根拠になるので、Lv0 でも
+  // 何が手に入るのかが分かる文にする
+  describe: (level: number) => string
 }
 
+// 効果値は meta.ts の getter から引く。式を書き写すと、meta.ts 側の調整が
+// meta.test.ts だけを更新してメニューの数字を古いまま取り残す。
+// describe は常に現在レベルで呼ばれるので、引数なしでも getter で足りる。
+// 係数の百分率は Math.round を通す（耐性の全強化は素で計算すると
+// 30.000000000000004、火力は 36.00000000000001 と表示されてしまう）
 const menu_items: menu_item_t[] = [
-  { id: 'lung', name: '肺活量', describe: (lv) => '最大ゲージ ' + (100 + 10 * lv) },
-  { id: 'tolerance', name: 'ニコチン耐性', describe: (lv) => '減少速度 -' + 6 * lv + '%' },
+  { id: 'lung', name: '肺活量', describe: () => '最大ゲージ ' + meta_nicotine_max() },
+  {
+    id: 'tolerance', name: 'ニコチン耐性',
+    describe: () => '減少速度 -' + Math.round((1 - meta_drain_factor()) * 100) + '%',
+  },
   {
     id: 'sniff', name: '嗅覚',
     describe: (lv) => [
-      'なし',
-      'ゲージ30%以下で残り香の方向が分かる',
-      'ゲージ60%以下から発動する',
-      '距離も分かる',
+      '未取得（ゲージ低下時に残り香の方向が分かるようになる）',
+      'ゲージ30%以下で方向',
+      'ゲージ60%以下で方向',
+      'ゲージ60%以下で方向＋距離',
     ][lv],
   },
-  { id: 'power', name: '火力', describe: (lv) => '射撃間隔 -' + 12 * lv + '%' },
+  {
+    id: 'power', name: '火力',
+    describe: () => '射撃間隔 -' + Math.round((1 - meta_power_factor()) * 100) + '%',
+  },
   {
     id: 'spare', name: '予備の一本',
-    describe: (lv) => 'ラン中 ' + lv + ' 回まで隠れて一服できる [E]',
+    describe: () => 'ラン中 ' + meta_spare_count() + ' 回まで隠れて一服できる [E]',
   },
 ]
 
@@ -45,8 +62,10 @@ function menu_row(html: string, on_click?: () => void, dim = false): HTMLDivElem
   const row = document.createElement('div')
   row.innerHTML = '&gt; ' + html
   if (on_click) {
-    row.style.cursor = 'pointer'
     row.onclick = on_click
+    // dim（残高不足）の行は meta_buy() が false を返すのでクリックしても何も
+    // 起きない。ポインタまで出すと押せる行だと誤解させるので出さない
+    if (!dim) { row.style.cursor = 'pointer' }
   }
   if (dim) { row.style.opacity = '0.4' }
   return row
