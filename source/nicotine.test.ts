@@ -75,6 +75,13 @@ describe('段階効果', () => {
     expect(shot_interval(nicotine_stage_limit)).toBeCloseTo(0.18, 6)
   })
 
+  // 計画B: 基礎 0.1 秒 × 火力係数（強化） × ニコチン係数 の順に掛ける
+  it('火力係数が射撃間隔に掛かる（全強化 0.64）', () => {
+    expect(shot_interval(nicotine_stage_normal, 0.64)).toBeCloseTo(0.064, 6)
+    expect(shot_interval(nicotine_stage_withdrawal, 0.64)).toBeCloseTo(0.1152, 6)
+    expect(shot_interval(nicotine_stage_normal)).toBeCloseTo(0.1, 6) // 省略時は 1
+  })
+
   it('離脱症状で弾の拡散が 2 倍になる', () => {
     expect(shot_spread(nicotine_stage_normal)).toBeCloseTo(0.2, 6)
     expect(shot_spread(nicotine_stage_edgy)).toBeCloseTo(0.2, 6)

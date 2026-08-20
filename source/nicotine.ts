@@ -27,9 +27,9 @@ export function player_speed(stage: number): number {
   return stage >= nicotine_stage_withdrawal ? 96 : 128
 }
 
-// 基礎 0.1 秒 × ニコチン係数（離脱症状で 1.8）
-export function shot_interval(stage: number): number {
-  return 0.1 * (stage >= nicotine_stage_withdrawal ? 1.8 : 1)
+// 基礎 0.1 秒 × 火力係数（恒久強化、省略時 1） × ニコチン係数（離脱症状で 1.8）
+export function shot_interval(stage: number, power_factor = 1): number {
+  return 0.1 * power_factor * (stage >= nicotine_stage_withdrawal ? 1.8 : 1)
 }
 
 // 射角に加算する乱数の幅。0.2 が既定（entity-player の元の実装と同じ）

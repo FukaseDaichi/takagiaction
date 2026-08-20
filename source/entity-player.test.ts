@@ -26,6 +26,7 @@ vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
 import { key_right, key_shoot, keys } from './input'
+import { meta } from './meta'
 import { level_data, state } from './state'
 
 function plasma_count(): number {
@@ -43,6 +44,7 @@ describe('自機とニコチン段階', () => {
     state.nicotine = 100
     state.nicotine_max = 100
     state.smoking = 0
+    meta.levels.power = 0
     mocks.light_calls.length = 0
     for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
     player = new entity_player_t(64, 0, 64, 5, 18)
@@ -118,6 +120,21 @@ describe('自機とニコチン段階', () => {
     expect(plasma_count()).toBe(1) // 0.18 秒に届かない
 
     state.time_elapsed = 0.04
+    player._update()
+    expect(plasma_count()).toBe(2)
+  })
+
+  it('火力強化で射撃間隔が縮む（3 段で 0.064 秒）', () => {
+    meta.levels.power = 3
+    keys[key_shoot] = 1
+    player._update() // 1 発目
+    expect(plasma_count()).toBe(1)
+
+    state.time_elapsed = 0.05
+    player._update()
+    expect(plasma_count()).toBe(1) // 0.064 秒に届かない
+
+    state.time_elapsed = 0.02
     player._update()
     expect(plasma_count()).toBe(2)
   })

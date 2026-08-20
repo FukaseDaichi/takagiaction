@@ -3,6 +3,7 @@ import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
 import { run_end } from './game'
 import { key_down, key_left, key_right, key_shoot, key_up, keys } from './input'
+import { meta_power_factor } from './meta'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
 } from './nicotine'
@@ -58,7 +59,7 @@ export class entity_player_t extends entity_t {
         t.x, 0, t.z, 0, 26,
         t._angle + Math.random() * spread - spread * 0.55,
       )
-      t._last_shot = shot_interval(stage)
+      t._last_shot = shot_interval(stage, meta_power_factor())
     }
 
     super._update()
