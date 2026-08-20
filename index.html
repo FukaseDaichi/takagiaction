@@ -8,6 +8,9 @@
 		b{animation: r 1s infinite;}
 		@keyframes r {50%{opacity:0;}}
 		#c{width:100%;image-rendering:optimizeSpeed;image-rendering:pixelated;}
+		#h{position:fixed;inset:0;background:url(m/hero.png) center/cover no-repeat;image-rendering:pixelated;animation:kb 30s ease-out forwards;transition:opacity 1s;}
+		#h::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.45) 100%);}
+		@keyframes kb{to{transform:scale(1.06);}}
 		#a{font-weight:bold;color:#c80;position:absolute;top:4vw;left:2vw;font-size:1.6vw;overflow:hidden;white-space: nowrap;width:94%;text-shadow: 0 0 7px #f70;transition:opacity 1s;}
 		#m{position:absolute;top:1.25vw;right:1.25vw;width:20vw;height:20vw;background:rgba(0,0,0,.7);border:0.3125vw solid #e90;image-rendering:optimizeSpeed;image-rendering:pixelated;display:none;}
 		#n{position:absolute;bottom:2vw;left:2vw;width:40vw;height:1.6vw;background:rgba(0,0,0,.7);border:0.3125vw solid #e90;display:none;}
@@ -16,6 +19,7 @@
 </head>
 <body style="margin:0;background:#000">
 	<canvas id="c" width=320 height=180></canvas>
+	<div id="h"></div>
 	<code id="a"></code>
 	<canvas id="m" width=64 height=64></canvas>
 	<div id="n"><i id="nf"></i></div>
