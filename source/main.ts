@@ -1,9 +1,8 @@
 import atlas_url from '../m/q2.png'
 import { audio_init } from './audio'
-import { game_tick, next_level } from './game'
+import { game_tick, run_start } from './game'
 import { input_init } from './input'
 import { renderer_bind_image, renderer_init } from './renderer'
-import { state } from './state'
 import { terminal_cancel, terminal_hide, terminal_run_intro, terminal_write_line } from './terminal'
 
 input_init()
@@ -20,10 +19,12 @@ audio_init(() => {
       const atlas = new Image()
       atlas.src = atlas_url
       atlas.onload = () => {
-        state.game_running = 1
         terminal_hide()
         renderer_bind_image(atlas)
-        next_level(game_tick)
+        // レベル生成が同期処理になったのでコールバックは要らない。
+        // rAF ループはここで一度だけ回し始める（ラン再開では回し直さない）
+        run_start()
+        game_tick()
       }
     })
   }

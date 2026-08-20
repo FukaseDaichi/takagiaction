@@ -66,7 +66,9 @@ export class entity_spider_t extends entity_t {
   }
 
   protected override _kill(): void {
+    if (this._dead) { return } // 二重加算を防ぐ
     super._kill()
+    state.kills++
     new entity_explosion_t(this.x, 0, this.z, 0, 26)
     camera.shake = 1
     audio_play(audio_sfx_explode)
