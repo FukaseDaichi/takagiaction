@@ -27,7 +27,8 @@ export class entity_smoking_area_t extends entity_t {
   private _touching = false
   private _was_smoking = false
   private _progress = 0
-  private _done = false
+  // minimap.ts が「残り香が残っているか」（嗅覚の目標になるか）を読むため公開
+  _done = false
   private _hp_mark = 0
   private _animation_time = 0
   private _smoke_timer = 0

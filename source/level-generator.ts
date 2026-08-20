@@ -150,7 +150,7 @@ function build_walls(tiles: Uint8Array): void {
 
 // 開始タイルから床タイルだけを辿った距離。未到達は -1。
 // 部屋の選定はすべてこの距離で行う。添字順やユークリッド距離を混ぜないこと。
-function bfs_distances(tiles: Uint8Array, start: tile_pos_t): Int32Array {
+export function bfs_distances(tiles: Uint8Array, start: tile_pos_t): Int32Array {
   const dist = new Int32Array(level_width * level_height).fill(-1)
   const queue = [tile_index(start.x, start.z)]
   dist[queue[0]] = 0

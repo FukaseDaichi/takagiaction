@@ -8,3 +8,4 @@ export const nicotine_bar = document.getElementById('n') as HTMLElement
 export const nicotine_fill = document.getElementById('nf') as HTMLElement
 export const hero_el = document.getElementById('h') as HTMLElement
 export const spare_el = document.getElementById('sp') as HTMLElement
+export const sniff_el = document.getElementById('sn') as HTMLElement
