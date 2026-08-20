@@ -27,6 +27,7 @@ export interface level_layout_t {
   spiders: tile_pos_t[]
   sentries: tile_pos_t[]
   health: tile_pos_t[]
+  yani: tile_pos_t[] // 床に散在する吸い殻
 }
 
 // renderer.ts の max_verts（1024*64 = 65536）から、エンティティのスプライトと
@@ -299,9 +300,10 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   const sentries = take(sentry_count(depth))
   const spiders = take(enemy_budget(depth) - sentries.length)
   const health = take(random_int(2, 4))
+  const yani = take(random_int(1, 3)) // 床への散在: 1 フロアあたり 1〜3（設計書）
 
   return {
-    tiles, rooms, start, smoking_area, dummies, exit, spiders, sentries, health,
+    tiles, rooms, start, smoking_area, dummies, exit, spiders, sentries, health, yani,
   }
 }
 

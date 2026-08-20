@@ -299,7 +299,7 @@ describe('generate_level: 配置', () => {
   it('敵とアイテムは床タイルの上にあり、互いに重ならない', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const layout = generate_level(10, seed)
-      const all = [...layout.spiders, ...layout.sentries, ...layout.health]
+      const all = [...layout.spiders, ...layout.sentries, ...layout.health, ...layout.yani]
       for (const p of all) {
         expect(is_floor(layout.tiles, p.x, p.z)).toBe(true)
       }
@@ -312,7 +312,7 @@ describe('generate_level: 配置', () => {
   it('敵とアイテムは開始地点から 8 タイル以上離れている', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const layout = generate_level(10, seed)
-      for (const p of [...layout.spiders, ...layout.sentries, ...layout.health]) {
+      for (const p of [...layout.spiders, ...layout.sentries, ...layout.health, ...layout.yani]) {
         expect(bfs_distance_floor(layout, p)).toBeGreaterThanOrEqual(8)
       }
     }
@@ -334,6 +334,17 @@ describe('generate_level: 配置', () => {
       const layout = generate_level(3, seed)
       expect(layout.health.length).toBeGreaterThanOrEqual(2)
       expect(layout.health.length).toBeLessThanOrEqual(4)
+    }
+  }, 30000)
+
+  it('ヤニは 1〜3 個で床タイルの上にある', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const layout = generate_level(3, seed)
+      expect(layout.yani.length).toBeGreaterThanOrEqual(1)
+      expect(layout.yani.length).toBeLessThanOrEqual(3)
+      for (const p of layout.yani) {
+        expect(is_floor(layout.tiles, p.x, p.z)).toBe(true)
+      }
     }
   }, 30000)
 })
