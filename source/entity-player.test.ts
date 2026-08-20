@@ -25,7 +25,7 @@ vi.mock('./game', () => ({ run_end: () => {}, next_level: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
-import { key_right, key_shoot, keys } from './input'
+import { key_right, key_shoot, key_spare, keys } from './input'
 import { meta } from './meta'
 import { level_data, state } from './state'
 
@@ -192,5 +192,65 @@ describe('ニコチン切れの継続ダメージ', () => {
     player._receive_withdrawal_damage()
     expect(player.h).toBe(0)
     expect(player._dead).toBe(true)
+  })
+})
+
+describe('予備の一本', () => {
+  let player: entity_player_t
+
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.nicotine = 20
+    state.nicotine_max = 100
+    state.smoking = 0
+    state.game_running = 1
+    state.spares_left = 2
+    for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
+    player = new entity_player_t(64, 0, 64, 5, 18)
+    state.entity_player = player
+  })
+
+  it('E キーで 50% 回復し、残数が減り、キーは消費される', () => {
+    keys[key_spare] = 1
+    player._update()
+    expect(state.nicotine).toBe(70)
+    expect(state.spares_left).toBe(1)
+    expect(keys[key_spare]).toBe(0)
+  })
+
+  it('回復は最大値で頭打ちになる', () => {
+    state.nicotine = 80
+    keys[key_spare] = 1
+    player._update()
+    expect(state.nicotine).toBe(100)
+  })
+
+  it('残数 0 では何も起きない', () => {
+    state.spares_left = 0
+    keys[key_spare] = 1
+    player._update()
+    expect(state.nicotine).toBe(20)
+    expect(keys[key_spare]).toBe(0)
+  })
+
+  it('一服中は使えず、残数も減らない', () => {
+    state.smoking = 1
+    keys[key_spare] = 1
+    player._update()
+    expect(state.nicotine).toBe(20)
+    expect(state.spares_left).toBe(2)
+  })
+
+  // リザルト表示中に terminal_show_notice を呼ぶと、表示チェーンが壊れて
+  // クリック復帰できなくなる（既存レビュー Finding 1 と同じ構図）
+  it('ラン終了後は使えない', () => {
+    state.game_running = 0
+    keys[key_spare] = 1
+    player._update()
+    expect(state.nicotine).toBe(20)
+    expect(state.spares_left).toBe(2)
   })
 })

@@ -217,7 +217,7 @@ export function game_tick(): void {
     push_sprite(-camera.x - 50 + i * 4, 29 - camera.y, -camera.z - 30, 26)
   }
 
-  hud_update(state.nicotine, state.nicotine_max, stage)
+  hud_update(state.nicotine, state.nicotine_max, stage, state.spares_left)
 
   renderer_end_frame()
 

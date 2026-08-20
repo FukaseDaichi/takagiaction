@@ -1,14 +1,15 @@
-import { audio_play, audio_sfx_hurt, audio_sfx_shoot } from './audio'
+import { audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot } from './audio'
 import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
 import { run_end } from './game'
-import { key_down, key_left, key_right, key_shoot, key_up, keys } from './input'
+import { key_down, key_left, key_right, key_shoot, key_spare, key_up, keys } from './input'
 import { meta_power_factor } from './meta'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
 } from './nicotine'
 import { push_light } from './renderer'
 import { state } from './state'
+import { terminal_show_notice } from './terminal'
 
 export class entity_player_t extends entity_t {
   // minimap.ts が自機の向きを 1px で描くために読む
@@ -50,6 +51,21 @@ export class entity_player_t extends entity_t {
 
     t._last_damage -= state.time_elapsed
     t._last_shot -= state.time_elapsed
+
+    // 予備の一本: E で 50% 回復。エッジ検出は input.ts と対で、処理したら 0 へ戻す。
+    // こっそり浅く吸うだけなので感知器は作動せず（非常口は開かない）、回復も半分止まり。
+    // リザルト表示中の terminal_show_notice は表示チェーンを壊すので game_running を見る
+    if (keys[key_spare]) {
+      keys[key_spare] = 0
+      if (!smoking && state.game_running && state.spares_left > 0) {
+        state.spares_left--
+        state.nicotine = Math.min(
+          state.nicotine_max, state.nicotine + state.nicotine_max * 0.5,
+        )
+        audio_play(audio_sfx_pickup)
+        terminal_show_notice('隠れて一服した（残り ' + state.spares_left + ' 本）')
+      }
+    }
 
     if (!smoking && keys[key_shoot] && t._last_shot < 0) {
       audio_play(audio_sfx_shoot)
