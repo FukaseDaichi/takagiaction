@@ -1,6 +1,7 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
+import { spawn_smoke } from './entity-smoke'
 import { push_block, push_light, push_sprite } from './renderer'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
@@ -29,6 +30,7 @@ export class entity_smoking_area_t extends entity_t {
   private _done = false
   private _hp_mark = 0
   private _animation_time = 0
+  private _smoke_timer = 0
   // 中断直後の 1 フレームは touching が真のままなので、何もせず再武装だけ
   // 抑止するためのフラグ。接触が切れるまで解除しない（_advance 参照）。
   private _needs_release = false
@@ -48,6 +50,16 @@ export class entity_smoking_area_t extends entity_t {
   // エンティティの添字順に依存せず判定できるのはここだけ。
   override _render(): void {
     this._animation_time += state.time_elapsed
+
+    // 一服完了後の本物は煙を出し続ける。「もう吸える場所ではない」ではなく
+    // 「たった今誰かが吸った」ことが見た目で分かる
+    if (this._done && this.is_real) {
+      this._smoke_timer -= state.time_elapsed
+      if (this._smoke_timer <= 0) {
+        this._smoke_timer = 0.5
+        spawn_smoke(this.x + 4, this.z + 4)
+      }
+    }
 
     const revealed = this.revealed_dummy
     push_block(

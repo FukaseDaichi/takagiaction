@@ -33,6 +33,7 @@ vi.mock('./terminal', () => ({
 vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
+import { entity_smoke_t } from './entity-smoke'
 import { entity_player_t } from './entity-player'
 import { level_data, state } from './state'
 
@@ -292,5 +293,30 @@ describe('喫煙所', () => {
     expect(area.revealed_dummy).toBe(false)
     expect(mocks.blocks[0][2]).toBe(33)
     expect(mocks.blocks[0][3]).toBe(34)
+  })
+
+  it('完了した本物は 0.5 秒ごとに煙を 1 個ずつ出す', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 一服完了
+
+    const count = (): number =>
+      state.entities.filter((e) => e instanceof entity_smoke_t).length
+
+    const before = count()
+    idle(area, 0.5)
+    idle(area, 0.5)
+    expect(count()).toBe(before + 2)
+  })
+
+  it('ダミーと未完了の本物は煙を出さない', () => {
+    const dummy = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    tick(dummy, player, 0.5) // 踏んで開示
+    const real = new entity_smoking_area_t(128, 0, 128, 0, 18)
+    real.is_real = true
+
+    idle(dummy, 0.5)
+    idle(real, 0.5)
+    expect(state.entities.some((e) => e instanceof entity_smoke_t)).toBe(false)
   })
 })
