@@ -89,7 +89,7 @@ function minimap_draw(): void {
     }
   }
 
-  // 喫煙所は本物もダミーも同じオレンジ。見分けは足で確かめるしかない。
+  // 喫煙所は開示済みダミーだけ灰色。それ以外（未接触・本物）は同じオレンジで、見分けは足で確かめるしかない。
   // 非常口は開通していて、かつ探索済みのときだけ緑で出る。
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
@@ -97,7 +97,13 @@ function minimap_draw(): void {
     if (!minimap_explored[index]) { continue }
 
     if (e instanceof entity_smoking_area_t) {
-      minimap_set_pixel(index, 238, 153, 0)
+      // 開示済みダミーだけ灰色。それ以外（未接触・本物）は同じオレンジで、
+      // 見分けは足で確かめるしかない
+      if (e.revealed_dummy) {
+        minimap_set_pixel(index, 110, 110, 110)
+      } else {
+        minimap_set_pixel(index, 238, 153, 0)
+      }
     } else if (e instanceof entity_exit_t && state.exit_open) {
       minimap_set_pixel(index, 0, 220, 120)
     }
