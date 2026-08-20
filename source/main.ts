@@ -1,6 +1,6 @@
 import atlas_url from '../m/q2.png'
 import { audio_init } from './audio'
-import { game_tick, run_start } from './game'
+import { run_start } from './game'
 import { hero_el } from './dom'
 import { input_init } from './input'
 import { menu_show } from './menu'
@@ -12,17 +12,6 @@ input_init()
 meta_load()
 
 terminal_write_line('起動中...')
-
-// rAF ループは起動時に一度だけ回し始める（ラン再開では回し直さない）
-let game_started = false
-
-function start_run(): void {
-  run_start()
-  if (!game_started) {
-    game_started = true
-    game_tick()
-  }
-}
 
 audio_init(() => {
   document.onclick = () => {
@@ -41,7 +30,7 @@ audio_init(() => {
         renderer_bind_image(atlas)
         // 初回もメニュー（自席の端末）を経由する。前セッションの残高が
         // あれば降下前に使えるし、初回プレイでも操作の予告になる
-        menu_show(start_run)
+        menu_show(run_start)
       }
     })
   }

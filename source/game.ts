@@ -28,6 +28,11 @@ let time_last = performance.now()
 // ゲージ 0% の継続ダメージ用。読み書きが game.ts に閉じるのでモジュールローカル。
 let limit_damage_timer = 0
 
+// rAF ループは起動時に一度だけ回し始める（ラン再開では回し直さない）。
+// このフラグを呼び出し側に持たせると、run_start() を渡す箇所ごとに「ループも
+// 起動する版」と「しない版」が生まれ、どちらを渡すかで挙動が変わってしまう
+let game_started = false
+
 export function run_start(): void {
   // ラン開始ごとにシードを引く。シードを深度から一意に決めると、どのランでも
   // 深度 1 が同じ間取りになって暗記ゲーになる。
@@ -40,6 +45,10 @@ export function run_start(): void {
   state.nicotine = state.nicotine_max
   state.game_running = 1
   next_level()
+  if (!game_started) {
+    game_started = true
+    game_tick()
+  }
 }
 
 // 降下の実行。予約は state.descend_timer に積まれ、game_tick が消化する
@@ -149,7 +158,7 @@ function load_level(depth: number): void {
   terminal_show_notice('深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
 }
 
-export function game_tick(): void {
+function game_tick(): void {
   const time_now = performance.now()
   // 最初の game_tick はイントロのタイピングとクリック待ちのあとに走るので、
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
