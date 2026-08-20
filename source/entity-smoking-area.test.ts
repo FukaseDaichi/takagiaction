@@ -4,12 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // document へ触るため Node 環境では評価できない。
 // terminal_show_notice の呼び出しを記録する（entity-exit.test.ts と同じパターン）。
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
-const mocks = vi.hoisted(() => ({ notices: [] as string[] }))
+const mocks = vi.hoisted(() => ({
+  notices: [] as string[],
+  blocks: [] as number[][],
+  sprites: [] as number[][],
+  lights: [] as number[][],
+}))
 
 vi.mock('./renderer', () => ({
-  push_sprite: () => {},
-  push_light: () => {},
-  push_block: () => {},
+  push_sprite: (...args: number[]) => { mocks.sprites.push(args) },
+  push_light: (...args: number[]) => { mocks.lights.push(args) },
+  push_block: (...args: number[]) => { mocks.blocks.push(args) },
   camera: { x: 0, y: 0, z: 0, shake: 0 },
 }))
 vi.mock('./audio', () => ({
@@ -58,6 +63,9 @@ describe('喫煙所', () => {
     state.exit_open = 0
     state.game_running = 1
     mocks.notices.length = 0
+    mocks.blocks.length = 0
+    mocks.sprites.length = 0
+    mocks.lights.length = 0
     player = new entity_player_t(0, 0, 0, 5, 18)
     state.entity_player = player
   })
@@ -222,5 +230,62 @@ describe('喫煙所', () => {
     // 再び触れると、今度は正常に一服が始まる
     tick(area, player, 0.5)
     expect(state.smoking).toBe(1)
+  })
+
+  it('触れる前は本物とダミーが同一の見た目で描かれる', () => {
+    const real = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    real.is_real = true
+    const dummy = new entity_smoking_area_t(128, 0, 128, 0, 18)
+
+    idle(real, 0.5)
+    const real_block = mocks.blocks[0].slice(2) // タイル引数のみ比較
+    const real_sprite_tile = mocks.sprites[0][3]
+    const real_lights = mocks.lights.length
+
+    mocks.blocks.length = 0
+    mocks.sprites.length = 0
+    mocks.lights.length = 0
+
+    idle(dummy, 0.5)
+    expect(mocks.blocks[0].slice(2)).toEqual(real_block)
+    expect(mocks.sprites[0][3]).toBe(real_sprite_tile)
+    expect(mocks.lights.length).toBe(real_lights)
+  })
+
+  it('灰皿は低いブロック（側面タイルが 8/9/17 以外）で描かれる', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    idle(area, 0.5)
+    const side_tile = mocks.blocks[0][3]
+    expect([8, 9, 17]).not.toContain(side_tile)
+  })
+
+  it('ダミーを踏むと撤去跡タイルに差し替わり、ライトが消え、revealed_dummy が立つ', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = false
+    expect(area.revealed_dummy).toBe(false)
+
+    tick(area, player, 0.5) // 踏む
+    mocks.blocks.length = 0
+    mocks.sprites.length = 0
+    mocks.lights.length = 0
+
+    idle(area, 0.5)
+    expect(area.revealed_dummy).toBe(true)
+    expect(mocks.blocks[0][2]).toBe(35) // 天面 = ボルト跡
+    expect(mocks.blocks[0][3]).toBe(36) // 側面 = 貼り紙
+    expect(mocks.sprites[0][3]).toBe(36) // 標識も貼り紙に
+    expect(mocks.lights.length).toBe(0) // 消灯
+  })
+
+  it('本物は完了しても revealed_dummy は立たず、灰皿タイルのまま', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 一服完了
+
+    mocks.blocks.length = 0
+    idle(area, 0.5)
+    expect(area.revealed_dummy).toBe(false)
+    expect(mocks.blocks[0][2]).toBe(33)
+    expect(mocks.blocks[0][3]).toBe(34)
   })
 })

@@ -1,12 +1,21 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
-import { push_block, push_light } from './renderer'
+import { push_block, push_light, push_sprite } from './renderer'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
 
 // 一服にかかる時間（秒）。この間ずっと触れ続けないと非常口は開かない。
 const smoking_duration = 2.5
+
+// アトラス上の割り当て（tools/atlas.py が 33〜38 に焼き込む）。
+// 側面タイルは 8/9/17 以外であること — push_block はその3つだけ高さ16にする。
+// スタンド灰皿は低い方（高さ8）で描く。
+const tile_ashtray_top = 33
+const tile_ashtray_side = 34
+const tile_removed_top = 35
+const tile_removed_side = 36
+const tile_sign = 37
 
 export class entity_smoking_area_t extends entity_t {
   // 本物なら true、ダミー（灰皿撤去済み）なら false。
@@ -28,6 +37,11 @@ export class entity_smoking_area_t extends entity_t {
     if (other instanceof entity_player_t) { this._touching = true }
   }
 
+  // ダミーだと開示済みか。minimap が灰色化に使う
+  get revealed_dummy(): boolean {
+    return this._done && !this.is_real
+  }
+
   // game_tick は「エンティティ i の _update → i より後ろとの衝突判定 → i の _render」
   // の順に回す。i より前のエンティティからの _check は i の反復より先に済んでいるので、
   // _render の時点で _touching はこのフレームの接触結果として完成している。
@@ -35,12 +49,21 @@ export class entity_smoking_area_t extends entity_t {
   override _render(): void {
     this._animation_time += state.time_elapsed
 
-    push_block(this.x, this.z, 4, 17)
-    push_light(
-      this.x + 4, 4, this.z + 12,
-      1.0, 0.6, 0.1,
-      this._done ? 0.08 : 0.03 + Math.sin(this._animation_time * 3) * 0.01,
+    const revealed = this.revealed_dummy
+    push_block(
+      this.x, this.z,
+      revealed ? tile_removed_top : tile_ashtray_top,
+      revealed ? tile_removed_side : tile_ashtray_side,
     )
+    // 標識は灰皿の右脇。開示後は撤去告知の貼り紙に変わる
+    push_sprite(this.x + 9, 0, this.z + 1, revealed ? tile_removed_side : tile_sign)
+    if (!revealed) {
+      push_light(
+        this.x + 4, 4, this.z + 12,
+        1.0, 0.6, 0.1,
+        this._done ? 0.08 : 0.03 + Math.sin(this._animation_time * 3) * 0.01,
+      )
+    }
 
     const touching = this._touching
     this._touching = false
