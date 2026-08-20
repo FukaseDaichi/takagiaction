@@ -5,7 +5,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ## モジュール構成
 
 - `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` の取得と型付けを集約
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` / `hero_el` の取得と型付けを集約
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
@@ -69,6 +69,12 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 ## アセットの読み込み
 
 画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.png'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので PNG を使わないため、静的 import される画像は `m/q2.png`（スプライトアトラス）1 枚だけである。`load_image()` は存在しない。
+
+## 起動時の hero レイヤー
+
+`index.html` の `#h` はイントロ用のフルスクリーン画像レイヤーで、`#c` の直後・`#a`（terminal）の直前に配置する。`z-index` は使わず、DOM 順（`#c` → `#h` → `#a`）だけで重なりを決めているため、この順序を変えると terminal の文字が hero の下に隠れる。`::after` の暗いグラデーション（スクリム）は terminal の文字を hero 画像の上でも視認できるようにするためのもの。アニメーションは 30 秒かけて `scale(1)` から `scale(1.06)` まで拡大する Ken Burns 効果のみで、他の演出は乗せない。
+
+`hero_el`（`dom.ts`）はゲーム開始クリックで `opacity` を 1 秒かけてフェードアウトさせたあと `display:none` にする。この非表示はページの生存期間中ずっと有効で、リザルト画面などで hero を再表示することはない。
 
 ## ビルドとデプロイ
 
