@@ -6,6 +6,9 @@ import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
+import {
+  meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
+} from './meta'
 import { minimap_hide, minimap_reset, minimap_update } from './minimap'
 import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
@@ -29,7 +32,9 @@ export function run_start(): void {
   state.run_seed = ((Math.random() * 0x7ffffffe) | 0) + 1
   state.depth = 0
   state.kills = 0
-  state.nicotine_max = 100
+  state.yani_run = 0
+  state.spares_left = meta_spare_count()
+  state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
   state.game_running = 1
   next_level()
@@ -37,13 +42,24 @@ export function run_start(): void {
 
 export function next_level(): void {
   state.depth++
+  state.yani_run += state.depth // フロア到達ボーナス: そのフロアの深度と同数
   load_level(state.depth)
 }
 
 export function run_end(): void {
+  // 二重呼び出し防止。ここは meta（ラン間で残る恒久状態）を書くので、
+  // 2 度走るとヤニが二重に加算されて保存される。ニコチン切れの継続ダメージで
+  // 死んだ同じフレームに敵と接触すると、_receive_withdrawal_damage() が
+  // _receive_damage() の 2 秒の無敵を通さないぶん _kill() が 2 度走りうる。
+  if (!state.game_running) { return }
   state.game_running = 0
   minimap_hide()
   hud_hide()
+  // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
+  // 深度を伸ばす動機にならない（設計書）
+  meta.yani += state.yani_run
+  meta.best_depth = Math.max(meta.best_depth, state.depth)
+  meta_save()
   terminal_show_result(state.depth, state.kills, run_start)
 }
 
@@ -143,7 +159,8 @@ export function game_tick(): void {
   if (state.game_running && !state.smoking) {
     state.nicotine = Math.max(
       0,
-      state.nicotine - nicotine_drain_rate(state.depth) * state.time_elapsed,
+      state.nicotine -
+        nicotine_drain_rate(state.depth) * meta_drain_factor() * state.time_elapsed,
     )
   }
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)

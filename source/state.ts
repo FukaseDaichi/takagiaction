@@ -25,6 +25,8 @@ export const state = {
   smoking: 0, // 一服中は 1。移動と射撃をロックする
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
   kills: 0,
+  yani_run: 0, // このランで得たヤニ。run_end() が meta.yani に合算する
+  spares_left: 0, // 予備の一本の残数。run_start() が強化レベルから設定する
 
   entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],
