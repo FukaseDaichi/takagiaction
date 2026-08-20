@@ -43,7 +43,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 `terminal_show_notice()` は完了コールバックを受け取らず、代わりに表示にかかる秒数を返す。降下はこの秒数を `state.descend_timer` に積み、`game_tick` が `state.time_elapsed` で減らして 0 で `next_level()` を呼ぶ。この形は 2 つのことを同時に満たす: 走査中の `state.entities` を衝突ループの内側から差し替えないこと、そして演出中に別の通知が挟まっても降下が消えないこと。ラン終了中（`state.game_running` が 0）は予約を進めず、`load_level` が 0 に戻す。
 
-例外は `terminal_show_result()` のクリックハンドラで、これはチェーンの完了を待たず登録時点で有効にしてある（同じ理由）。
+例外は 2 つ。1 つは `terminal_show_result()` のクリックハンドラで、これはチェーンの完了を待たず登録時点で有効にしてある（同じ理由）。もう 1 つは `main.ts` の起動シーケンスで、`terminal_write_line()` の完了コールバックに `renderer_init()` ・アトラス画像読み込み・`menu_show(run_start)` を載せている。こちらはチェーンの完了に依存したままだが安全なのは、ラン開始前は通知の出どころが存在しないため（`audio_toggle()` の `terminal_show_notice()` 呼び出しは `state.game_running` でガードされている）で、割り込みでチェーンごと捨てられる心配がない。
 
 ## 循環参照の不変条件
 
@@ -56,7 +56,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 > **`entity.ts` は、`entity_t` のサブクラスを宣言するモジュールに（推移的にも）到達してはならない。**
 
 `extends entity_t` はモジュール初期化時に評価されるため、これを破ると評価順によっては
-`ReferenceError: Cannot access 'entity_t' before initialization` になる。**評価順依存なので、リロードによっては再現しないことがある**のがこのバグの厄介な点。たとえば `entity.ts` に `import { next_level } from './game'` を足すと、game → minimap → entity-exit 経由でサブクラス宣言に到達して壊れる。
+`ReferenceError: Cannot access 'entity_t' before initialization` になる。**評価順依存なので、リロードによっては再現しないことがある**のがこのバグの厄介な点。たとえば `entity.ts` に `import { run_end } from './game'` を足すと、game → minimap → entity-exit 経由でサブクラス宣言に到達して壊れる。
 
 このために `spawn_particles()` は `entity.ts` のメソッドではなく `entity-particle.ts` の自由関数になっている。基底クラスに機能を足したくなったら、代わりにゲームループ側が検知する形にできないか先に検討する。
 
@@ -102,7 +102,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 検証手順の要点:
 
-1. `window.requestAnimationFrame` を no-op に置き換え、`game_tick()` を手動で呼ぶ
+1. `game_tick` は `export` されていない（モジュールスコープの `function`）ため、外から直接は呼べない。rAF に渡されるコールバックを捕まえるのが唯一の入口: `window.requestAnimationFrame` を `(cb) => { window.__tick = cb; return 0 }` のようなスタブに置き換え、以降は `window.__tick()` を手動で呼んで 1 tick 進める（tick の末尾で `requestAnimationFrame(game_tick)` が呼ばれるたびに `window.__tick` は次のコールバックで上書きされるので、そのまま呼び続けられる）
 2. `performance.now` を「呼ぶたびに `1000/60` ms 進む」スタブに置き換える（実時間で連打すると `time_elapsed` ≈ 0 になり物理が進まない）
 3. スタブ導入直後に空打ちの tick を流し、`state.time_elapsed` が 1/60 に落ち着いてから本計測に入る（怠ると導入前の実時間が 1 tick に乗り、自機が画面外へ飛ぶ）
 4. `readPixels` は tick を進めたのと**同一 JS ターン内**で呼ぶ

@@ -60,10 +60,13 @@ function next_level(): void {
 }
 
 export function run_end(): void {
-  // 二重呼び出し防止。ここは meta（ラン間で残る恒久状態）を書くので、
-  // 2 度走るとヤニが二重に加算されて保存される。ニコチン切れの継続ダメージで
-  // 死んだ同じフレームに敵と接触すると、_receive_withdrawal_damage() が
-  // _receive_damage() の 2 秒の無敵を通さないぶん _kill() が 2 度走りうる。
+  // 二重呼び出しの二次防御（一次防御は entity_player_t._kill() の _dead ガードで、
+  // entity-spider.ts / entity-sentry.ts と同じ形。通常はそちらが _kill() の再入を
+  // 止めるので run_end() はここまで来ない）。ここは meta（ラン間で残る恒久状態）を
+  // 書くので、万一 2 度走るとヤニが二重に加算されて保存される。ニコチン切れの
+  // 継続ダメージで死んだ自機は、衝突ループのフレーム末尾での除去まで 2 体目として
+  // 生き残っており、_receive_withdrawal_damage() が _receive_damage() の 2 秒無敵を
+  // 通さないぶん、_dead ガードが外れれば _kill() は同じフレームでもう一度走りうる。
   if (!state.game_running) { return }
   state.game_running = 0
   minimap_hide()

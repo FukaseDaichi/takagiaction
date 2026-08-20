@@ -34,7 +34,7 @@ E キーはエッジ検出（非リピート keydown で 1、使用側が 0 に�
 
 ## `run_end()` の単一呼び出し不変条件
 
-`run_end()` は `state.game_running` を唯一の書き手として扱い、これが 0 なら即座に戻る。`entity_player_t._kill()` は `run_end()` をガードなしに呼び、さらに `_receive_withdrawal_damage()` は `_receive_damage()` の 2 秒の無敵を通さないため、ニコチン切れの死と同じフレームの敵との接触が重なると `_kill()` が 2 度走りうる。ガードが無いとその 1 フレームでヤニが二重に加算され、そのまま保存される。ラン終了後に走る他モジュール（`entity-exit` / `entity-smoking-area` / `entity-yani` / `minimap`）も同じフラグを見て自分の副作用を止める。
+一次防御は `entity_player_t._kill()` の `_dead` ガード（`entity-spider.ts` / `entity-sentry.ts` の `_kill()` と同じ形）で、これだけでも `_kill()` の再入は止まり `run_end()` は 2 度呼ばれない。`run_end()` 自身が持つ `state.game_running` ガードは二次防御で、こちらも単独で同じ再入を止められるが、本来の役目は `run_end()` を、`entity-exit` / `entity-smoking-area` / `entity-player` が実行条件として読む同フラグの唯一の書き手であり続けさせること。危険自体はまだ現実にある: `_receive_withdrawal_damage()` は `_receive_damage()` の 2 秒無敵を通さず、死んだ自機は衝突ループの除去（フレーム末尾）前まで 2 体目として接触されうるため、2 つのガードが同時に外れれば、ニコチン切れの死と同じフレームの敵接触で `_kill()` が 2 度走り、ヤニが二重に加算されたまま保存される。
 
 ## 保存
 

@@ -25,8 +25,9 @@ interface menu_item_t {
 // 効果値は meta.ts の getter から引く。式を書き写すと、meta.ts 側の調整が
 // meta.test.ts だけを更新してメニューの数字を古いまま取り残す。
 // describe は常に現在レベルで呼ばれるので、引数なしでも getter で足りる。
-// 係数の百分率は Math.round を通す（耐性の全強化は素で計算すると
-// 30.000000000000004、火力は 36.00000000000001 と表示されてしまう）
+// 係数の百分率は Math.round を通す（耐性の全強化は 1 - meta_drain_factor() が
+// 浮動小数の丸め誤差で 0.30000000000000004 になり、100 倍すると
+// 30.000000000000004 と表示されてしまう）
 const menu_items: menu_item_t[] = [
   { id: 'lung', name: '肺活量', describe: () => '最大ゲージ ' + meta_nicotine_max() },
   {
