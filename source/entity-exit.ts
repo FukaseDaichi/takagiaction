@@ -1,7 +1,6 @@
 import { audio_play, audio_sfx_beep } from './audio'
 import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
-import { next_level } from './game'
 import { push_block, push_light } from './renderer'
 import { level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
@@ -42,10 +41,14 @@ export class entity_exit_t extends entity_t {
     if (state.game_running && state.exit_open && !this._used && other instanceof entity_player_t) {
       this._used = true
       audio_play(audio_sfx_beep)
-      // next_level() を衝突ループの中から直接呼ぶと、走査中の state.entities を
-      // 差し替えることになる。terminal のコールバックは setTimeout 経由なので
-      // フレームの外で走る（CPU 端末が次のレベルへ移る際に使っていたのと同じ経路）。
-      terminal_show_notice('非常口を通過___下の階へ', next_level)
+      // 降下は state.descend_timer に積み、実行は game_tick に任せる。理由は 2 つ:
+      // ・next_level() を衝突ループの中から直接呼ぶと、走査中の state.entities を
+      //   差し替えることになる
+      // ・terminal_show_notice() の完了コールバックに載せると、約 5 秒の通過演出中に
+      //   別の通知（E の予備の一本、ダミーの灰皿告知、M の音声トグル）が 1 つ出た
+      //   だけで terminal_cancel() が予約ごと捨て、深度が進まないまま非常口も
+      //   喫煙所も使用済みになってフロアが永久に詰む（レビュー Finding 1）
+      state.descend_timer = terminal_show_notice('非常口を通過___下の階へ')
     }
   }
 }

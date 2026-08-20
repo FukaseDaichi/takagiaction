@@ -25,7 +25,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ESM では import した束縛に代入できないため、規則は 1 つ:
 **モジュール境界を越えて再代入される変数は、オブジェクトのプロパティにする。**
 
-- ゲーム状態（`depth`, `nicotine`, `smoking`, `exit_open`, `kills`, `run_seed` など）→ `state.ts` の `state` オブジェクト
+- ゲーム状態（`depth`, `nicotine`, `smoking`, `exit_open`, `descend_timer`, `kills`, `run_seed` など）→ `state.ts` の `state` オブジェクト
 - カメラ（`x` / `y` / `z` / `shake`）→ `renderer.ts` の `camera` オブジェクト。所有者は renderer だが、追従とシェイクはゲームロジックなので game.ts が書く
 - 再代入されない定数と、中身だけ書き換えるバッファ（`level_data` など）は通常の named export でよい
 - 読み書きが 1 モジュールに閉じる変数（`time_last` など）はモジュールローカルにする
@@ -34,6 +34,16 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 `renderer_reset_level_geometry()` / `renderer_freeze_level_geometry()` の 2 関数だけで操作する。
 
 `state.entity_player` は `entity_player_t | null` だが、`game_tick` は `load_level` の代入後にしか走らないため、読み出し側は `!` を使い毎フレームの null チェックは入れない。WebGL の初期化 API（`getContext()` 等）の `| null` も同様に、失敗したらゲームが成立しないため初期化境界で `!` を使う。
+
+## terminal の表示チェーンに副作用を載せない
+
+`terminal.ts` の通知は 1 行ずつ `setTimeout` を繋ぐ表示チェーンで、その予約は `terminal_timeout_id` 1 本に集約される。`terminal_show_notice()` は冒頭で `terminal_cancel()` を呼ぶため、**新しい通知は先行する通知のチェーンを途中で丸ごと捨てる**。通知の出どころは複数モジュールに散っている（喫煙所、非常口、予備の一本、音声トグル、フロア到達）ので、いつ捨てられるかは呼び出し側から予測できない。
+
+> **表示チェーンの完了に依存する副作用を作ってはならない。** ゲーム進行に必要な処理は `state` に予約し、`game_tick` に実行させる。
+
+`terminal_show_notice()` は完了コールバックを受け取らず、代わりに表示にかかる秒数を返す。降下はこの秒数を `state.descend_timer` に積み、`game_tick` が `state.time_elapsed` で減らして 0 で `next_level()` を呼ぶ。この形は 2 つのことを同時に満たす: 走査中の `state.entities` を衝突ループの内側から差し替えないこと、そして演出中に別の通知が挟まっても降下が消えないこと。ラン終了中（`state.game_running` が 0）は予約を進めず、`load_level` が 0 に戻す。
+
+例外は `terminal_show_result()` のクリックハンドラで、これはチェーンの完了を待たず登録時点で有効にしてある（同じ理由）。
 
 ## 循環参照の不変条件
 

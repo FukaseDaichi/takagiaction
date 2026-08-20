@@ -48,6 +48,10 @@ const terminal_text_story =
   '音声切替: M\n' +
   'クリックで自席の端末へ\n '
 
+// 通知を打ち終えてから隠すまでの余韻（ミリ秒）。terminal_show_notice() が
+// 返す所要時間と実際の待ちがずれないよう、両方でこの定数を使う
+const terminal_notice_tail = 2000
+
 let terminal_text_buffer: string[] = []
 let terminal_line_wait = 100
 let terminal_print_ident = true
@@ -100,18 +104,31 @@ export function terminal_write_line(line: string, callback?: () => void): void {
   }
 }
 
-export function terminal_show_notice(notice: string, callback?: () => void): void {
+// 通知を表示し、表示が終わるまでにかかる秒数を返す。
+//
+// 完了コールバックは受け取らない。渡されたコールバックは terminal_timeout_id の
+// 表示チェーンにしか載せられず、そのチェーンは別の場所からの
+// terminal_show_notice()（音声トグル、予備の一本、ダミーの灰皿告知）が
+// 冒頭の terminal_cancel() で丸ごと捨ててしまう。非常口の降下予約をここに
+// 載せていたため、通過演出の約 5 秒のあいだに通知が 1 つ挟まるだけで降下が
+// 消え、フロアが永久に詰んだ（レビュー Finding 1）。表示の完了に合わせて
+// 何かしたい呼び出し側は、戻り値の秒数を使って自分の側で予約すること
+// （game.ts の state.descend_timer が例）。
+export function terminal_show_notice(notice: string): number {
   terminal_el.innerHTML = ''
   terminal_text_buffer = []
 
   terminal_cancel()
   terminal_show()
-  terminal_write_text(terminal_prepare_text(notice), () => {
-    terminal_timeout_id = setTimeout(() => {
-      terminal_hide()
-      callback?.()
-    }, 2000)
+
+  const lines = terminal_prepare_text(notice)
+  // terminal_write_text() は lines を shift() で消費するので、長さは渡す前に読む。
+  // 1 行につき terminal_line_wait を 1 回、打ち終わりに余韻を 1 回待つ
+  const duration = lines.length * terminal_line_wait + terminal_notice_tail
+  terminal_write_text(lines, () => {
+    terminal_timeout_id = setTimeout(terminal_hide, terminal_notice_tail)
   })
+  return duration / 1000
 }
 
 export function terminal_run_intro(): void {

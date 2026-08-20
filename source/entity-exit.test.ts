@@ -20,10 +20,14 @@ vi.mock('./audio', () => ({
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
 }))
+// 本物と同じく「表示にかかる秒数」を返す。呼び出し側はこれを降下予約に使う
 vi.mock('./terminal', () => ({
-  terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
+  terminal_show_notice: (notice: string) => {
+    mocks.notices.push(notice)
+    return 5.1
+  },
 }))
-vi.mock('./game', () => ({ next_level: () => {}, run_end: () => {} }))
+vi.mock('./game', () => ({ run_end: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_player_t } from './entity-player'
@@ -41,6 +45,7 @@ describe('非常口', () => {
     state.time_elapsed = 1 / 60
     state.exit_open = 0
     state.game_running = 1
+    state.descend_timer = 0
     mocks.blocks.length = 0
     mocks.notices.length = 0
     player = new entity_player_t(0, 0, 0, 5, 18)
@@ -76,6 +81,7 @@ describe('非常口', () => {
     const exit = new entity_exit_t(80, 0, 80, 0, 18)
     exit._check(player)
     expect(mocks.notices.length).toBe(0)
+    expect(state.descend_timer).toBe(0)
   })
 
   it('開通後に触れると遷移は一度だけ予約される', () => {
@@ -87,6 +93,17 @@ describe('非常口', () => {
     expect(mocks.notices.length).toBe(1)
   })
 
+  // レビュー Finding 1: 降下の予約は terminal の完了コールバックではなく
+  // state に積む。コールバックに載せていたときは、通過演出の約 5 秒のあいだに
+  // 別の通知が 1 つ出るだけで terminal_cancel() に予約ごと消され、深度が
+  // 進まないままフロアが詰んだ。予約が state 側にあることをここで固定する。
+  it('降下は通過演出の長さぶん state.descend_timer に予約される', () => {
+    const exit = new entity_exit_t(80, 0, 80, 0, 18)
+    state.exit_open = 1
+    exit._check(player)
+    expect(state.descend_timer).toBe(5.1) // モックが返す表示秒数
+  })
+
   // レビュー Finding 1: ラン終了と同じフレームで通知を出すと terminal_show_result() の
   // 表示チェーンを terminal_cancel() が壊しうる。run_end() は terminal_show_result() を
   // 呼ぶ前に game_running を落とすので、ここでその値を見れば判定できる。
@@ -96,5 +113,6 @@ describe('非常口', () => {
     state.game_running = 0
     exit._check(player)
     expect(mocks.notices.length).toBe(0)
+    expect(state.descend_timer).toBe(0)
   })
 })

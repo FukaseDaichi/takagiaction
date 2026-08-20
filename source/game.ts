@@ -42,7 +42,9 @@ export function run_start(): void {
   next_level()
 }
 
-export function next_level(): void {
+// 降下の実行。予約は state.descend_timer に積まれ、game_tick が消化する
+// （entity-exit.ts 参照）。game.ts の外から呼ぶ経路は無い
+function next_level(): void {
   state.depth++
   state.yani_run += state.depth // フロア到達ボーナス: そのフロアの深度と同数
   load_level(state.depth)
@@ -75,6 +77,10 @@ function load_level(depth: number): void {
   state.entities_to_kill = []
   state.exit_open = 0
   state.smoking = 0
+  // 降下予約の解除。ラン終了中は game_tick が予約を進めないので、非常口に
+  // 触れた直後に死ぬと予約が残ったままリザルトへ抜ける。ここで消さないと
+  // 次のランの 1 階が数秒で勝手に降下する
+  state.descend_timer = 0
   limit_damage_timer = 0
   camera.shake = 0 // 死亡時に貯まった震えを次のランへ持ち越さないようにする
 
@@ -151,6 +157,16 @@ export function game_tick(): void {
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
   state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
+
+  // 非常口の通過演出が終わったら降下する。予約の実体は state.descend_timer で、
+  // terminal の表示チェーンから独立しているため、演出中に別の通知が出ても
+  // 消えない（レビュー Finding 1、予約側の理由は entity-exit.ts）。
+  // renderer_prepare_frame() より前に済ませて、このフレームから新しいフロアを描く。
+  // ラン終了中（リザルト表示中）は進めない。0 に戻すのは load_level が持つ。
+  if (state.game_running && state.descend_timer > 0) {
+    state.descend_timer -= state.time_elapsed
+    if (state.descend_timer <= 0) { next_level() }
+  }
 
   renderer_prepare_frame()
 

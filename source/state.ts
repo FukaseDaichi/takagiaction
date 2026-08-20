@@ -24,6 +24,11 @@ export const state = {
   nicotine_max: 100,
   smoking: 0, // 一服中は 1。移動と射撃をロックする
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
+  // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
+  // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに
+  // 載せると、演出中の別の通知が terminal_cancel() で予約ごと消してしまい
+  // フロアが永久に詰む（レビュー Finding 1）
+  descend_timer: 0,
   kills: 0,
   yani_run: 0, // このランで得たヤニ。run_end() が meta.yani に合算する
   spares_left: 0, // 予備の一本の残数。run_start() が強化レベルから設定する
