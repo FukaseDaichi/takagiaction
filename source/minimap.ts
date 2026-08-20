@@ -97,8 +97,6 @@ function minimap_draw(): void {
     if (!minimap_explored[index]) { continue }
 
     if (e instanceof entity_smoking_area_t) {
-      // 開示済みダミーだけ灰色。それ以外（未接触・本物）は同じオレンジで、
-      // 見分けは足で確かめるしかない
       if (e.revealed_dummy) {
         minimap_set_pixel(index, 110, 110, 110)
       } else {

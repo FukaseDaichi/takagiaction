@@ -3,6 +3,7 @@ import { state } from './state'
 
 // 一服完了後の喫煙所から立ちのぼる煙。物理（重力・摩擦・壁判定）は不要なので
 // 基底の _update() は呼ばず、上昇と横揺れだけを自前で積分する。
+// アトラス 33〜38 の契約の一部（entity-smoking-area.ts と tools/atlas.py を参照）
 const smoke_tile = 38
 const smoke_lifetime = 2
 const smoke_rise_speed = 8

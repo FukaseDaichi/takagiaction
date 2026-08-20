@@ -245,6 +245,8 @@ describe('喫煙所', () => {
     // real（64,64）と dummy（128,128）で意図的に異なるので比較対象から外し、
     // 色と減衰（r, g, b, falloff）だけを一致させる。
     const real_light_rgb_falloff = mocks.lights[0].slice(3)
+    const real_blocks = mocks.blocks.length
+    const real_sprites = mocks.sprites.length
     const real_lights = mocks.lights.length
 
     mocks.blocks.length = 0
@@ -255,6 +257,8 @@ describe('喫煙所', () => {
     expect(mocks.blocks[0].slice(2)).toEqual(real_block)
     expect(mocks.sprites[0][3]).toBe(real_sprite_tile)
     expect(mocks.lights[0].slice(3)).toEqual(real_light_rgb_falloff)
+    expect(mocks.blocks.length).toBe(real_blocks)
+    expect(mocks.sprites.length).toBe(real_sprites)
     expect(mocks.lights.length).toBe(real_lights)
   })
 
