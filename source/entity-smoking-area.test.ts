@@ -365,6 +365,9 @@ describe('喫煙所', () => {
     for (let i = 0; i < 5; i++) { tick(real, player, 0.5) }
     expect(mocks.monologue).toEqual(['complete'])
     expect(mocks.notices.some((n) => n.includes('非常口'))).toBe(true)
+    // 高木の一人称だった旧文言に戻っていないことをピン留めする
+    // （ターミナルは高木の一人称を持たない）
+    expect(mocks.notices.some((n) => n.includes('深く吸い込む'))).toBe(false)
   })
 
   it('被弾で中断すると高木が咳き込む（吹き出し側）', () => {

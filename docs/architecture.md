@@ -5,11 +5,12 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ## モジュール構成
 
 - `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` / `hero_el` / `spare_el` / `sniff_el` の取得と型付けを集約
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `nicotine_bar` / `nicotine_fill` / `hero_el` / `spare_el` / `sniff_el` / `bubble_el` の取得と型付けを集約
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
 - `sniff.ts` — 嗅覚の残り香探索。`level-generator.ts` の `bfs_distances` を自機タイル起点で呼ぶ純粋関数
+- `projection.ts` — ワールド座標→CSS ピクセル座標の変換。実行時 import を一切持たない、最も葉に近いモジュール。`renderer.ts` の GLSL 行列を JS 側に再現する（詳細は後述の「renderer.ts と projection.ts の定数複製」）
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
 - `game.ts` — ゲームループとレベル遷移
@@ -17,6 +18,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
 - `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `hud.ts` — ニコチンゲージの DOM 更新。`dom.ts` と `nicotine.ts` 以外の実行時 import を持たない、葉に近いモジュール
+- `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する
 
@@ -84,6 +86,10 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.png'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので PNG を使わないため、静的 import される画像は `m/q2.png`（スプライトアトラス）1 枚だけである。`load_image()` は存在しない。
 
 喫煙所まわりのタイル（アトラス 33〜38）は `tools/atlas.py` が `m/q2.png` に焼き込む。番号が 33 から始まるのは 32 以下を既存のスプライトが使い切っているため（32 はセンチネル）。この番号は tool と `entity-smoking-area.ts` / `entity-smoke.ts` が共有する契約で、片方だけ動かすと別の絵が出る。焼き込みは元画像の左上ピクセルを背景キーとみなして近い色を透過に落とし、貼る前に貼り先を消すので、同じ入力なら何度流しても結果は同じ（冪等）。ブロックの面に使うタイルでも背景キーは効くため、四隅が透過して面取りされた輪郭になる。焼き込み元の画像はリポジトリに含めていないため、`m/q2.png` に焼き込み済みの 16×16 ピクセルが唯一の原本であり、この tool で今の絵を再生成することはできない。
+
+## renderer.ts と projection.ts の定数複製
+
+`projection.ts` は DOM の吹き出し（`monologue.ts`）をワールド座標に追従させるため、`renderer.ts` の頂点シェーダが使う view・projection 行列（`v` / `r`）と `renderer_end_frame()` が加える `cam` オフセット（`y - 10` / `z - 30`）を JS 側の関数として再現している。行列は GLSL 文字列リテラル内の `const mat4` であり JS から直接読めないため、また既存の実装計画が `renderer.ts` を構造的に変更しない方針を採ったため、共有定数への切り出しではなく複製という形になっている。この数値は `renderer.ts` と `projection.ts` が共有する契約で、片方だけ動かすと吹き出しが実際のカメラと違う位置に出る。
 
 ## 起動時の hero レイヤー
 

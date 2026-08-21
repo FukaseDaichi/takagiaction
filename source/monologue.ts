@@ -91,27 +91,28 @@ export function monologue_notify_stage(stage: number): void {
 export function monologue_reset(): void {
   bubble = bubble_idle()
   bubble_el.style.opacity = '0'
+  bubble_el.classList.remove('tr')
 }
 
 export function monologue_update(px: number, pz: number): void {
   bubble_advance(bubble, state.time_elapsed)
   const text = bubble_visible_text(bubble)
-  if (!text) {
-    // textContent は残したまま opacity だけ落とす（CSS transition でフェードアウト）
-    bubble_el.style.opacity = '0'
-    return
-  }
-  bubble_el.textContent = text
-  bubble_el.style.opacity = '1'
-
-  // 自機頭上（中心 x+3、高さ 8）を投影して吹き出しの下端中央を合わせる
+  // 位置はフェードアウト中も追従させる（止めると消えかけの吹き出しがその場に
+  // 取り残され、フロア遷移では新しい階の無関係な位置で消えることになる）。
+  // clientWidth の読みは style 書き込みより先に済ませる（同フレームの再レイアウト回避）
   const w = canvas.clientWidth
+  // 自機頭上（中心 x+3、高さ 8）を投影して吹き出しの下端中央を合わせる
   const p = project(px + 3, 8, pz, camera.x, camera.y, camera.z, w, canvas.clientHeight)
-  if (!p) {
-    bubble_el.style.opacity = '0'
-    return
+  if (p) {
+    // カメラの追従が p.x を幅の 44〜56% 付近に留めるため、今のところこの
+    // clamp が実際に効くことはない。将来カメラやアスペクト比が変わった
+    // ときの安全網として残す。箱の中心だけを clamp しており端は見ていない
+    // ので、これ単独では横に長い行のクリッピングは防げない。
+    const x = Math.max(w * 0.08, Math.min(w * 0.92, p.x))
+    bubble_el.style.transform =
+      'translate(' + x + 'px,' + (p.y - 2) + 'px) translate(-50%,-100%)'
   }
-  const x = Math.max(w * 0.08, Math.min(w * 0.92, p.x))
-  bubble_el.style.transform =
-    'translate(' + x + 'px,' + (p.y - 2) + 'px) translate(-50%,-100%)'
+  // textContent は消さない（空にすると枠と尾だけの箱がフェードアウトして見える）
+  if (text) { bubble_el.textContent = text }
+  bubble_el.style.opacity = text && p ? '1' : '0'
 }

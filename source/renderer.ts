@@ -42,6 +42,8 @@ const vertex_shader =
   shader_attribute_vec + "3 n;" +
   shader_uniform + "vec3 cam;" +
   shader_uniform + "float l[7*"+max_lights+"];" +
+  // source/projection.ts はこの v・r 行列と renderer_end_frame() の cam オフセット（-10/-30）を
+  // JS で再現して DOM の吹き出しを配置する契約。片方だけ動かすと吹き出しが別の場所に出る。
   shader_const_mat4 + "v=mat4(1,0,0,0,0,.707,.707,0,0,-.707,.707,0,0,-22.627,-22.627,1);" + // view
   shader_const_mat4 + "r=mat4(.977,0,0,0,0,1.303,0,0,0,0,-1,-1,0,0,-2,0);"+ // projection
   "void main(void){" +
