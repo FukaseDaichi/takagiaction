@@ -48,7 +48,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 例外は `main.ts` の起動シーケンス 1 つだけである。`terminal_write_line()` の完了コールバックに `renderer_init()` ・アトラス画像読み込み・`death_screen_show(null, run_start)` を載せており、チェーンの完了に依存したままになっている。ここが安全なのは、ラン開始前は通知の出どころが存在しないため（`audio_toggle()` の `terminal_show_notice()` 呼び出しは `state.game_running` でガードされている）で、割り込みでチェーンごと捨てられる心配がない。
 
-死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_el` を空にして隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
+死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_clear()`（表示内容と `terminal_text_buffer` を対で戻す）を呼んでから隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
 
 ## 循環参照の不変条件
 
