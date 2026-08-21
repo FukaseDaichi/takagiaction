@@ -45,7 +45,7 @@ export class entity_exit_t extends entity_t {
       // ・next_level() を衝突ループの中から直接呼ぶと、走査中の state.entities を
       //   差し替えることになる
       // ・terminal_show_notice() の完了コールバックに載せると、約 5 秒の通過演出中に
-      //   別の通知（E の予備の一本、ダミーの灰皿告知、M の音声トグル）が 1 つ出た
+      //   別の通知（E の予備の一本、M の音声トグル）が 1 つ出た
       //   だけで terminal_cancel() が予約ごと捨て、深度が進まないまま非常口も
       //   喫煙所も使用済みになってフロアが永久に詰む（レビュー Finding 1）
       state.descend_timer = terminal_show_notice('非常口を通過___下の階へ')
