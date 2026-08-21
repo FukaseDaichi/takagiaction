@@ -89,7 +89,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## renderer.ts と projection.ts の定数複製
 
-`projection.ts` は DOM の吹き出し（`monologue.ts`）をワールド座標に追従させるため、`renderer.ts` の頂点シェーダが使う view・projection 行列（`v` / `r`）と `renderer_end_frame()` が加える `cam` オフセット（`y - 10` / `z - 30`）を JS 側の関数として再現している。行列は GLSL 文字列リテラル内の `const mat4` であり JS から直接読めないため、また既存の実装計画が `renderer.ts` を構造的に変更しない方針を採ったため、共有定数への切り出しではなく複製という形になっている。この数値は `renderer.ts` と `projection.ts` が共有する契約で、片方だけ動かすと吹き出しが実際のカメラと違う位置に出る。
+`projection.ts` は DOM の吹き出し（`monologue.ts`）をワールド座標に追従させるため、`renderer.ts` の頂点シェーダが使う view・projection 行列（`v` / `r`）と `renderer_end_frame()` が加える `cam` オフセット（`y - 10` / `z - 30`）を JS 側の関数として再現している。行列は GLSL 文字列リテラル内の `const mat4` であり JS から直接読めないため、共有定数への切り出しではなく複製という形になっている。この数値は `renderer.ts` と `projection.ts` が共有する契約で、片方だけ動かすと吹き出しが実際のカメラと違う位置に出る。
 
 ## 起動時の hero レイヤー
 
