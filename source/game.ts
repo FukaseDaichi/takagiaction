@@ -1,3 +1,4 @@
+import { death_screen_show } from './death-screen'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
@@ -7,7 +8,6 @@ import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
-import { menu_show } from './menu'
 import {
   meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
 } from './meta'
@@ -24,7 +24,7 @@ import {
   renderer_prepare_frame, renderer_reset_level_geometry,
 } from './renderer'
 import { level_data, level_height, level_width, state } from './state'
-import { terminal_show_notice, terminal_show_result } from './terminal'
+import { terminal_show_notice } from './terminal'
 
 let time_last = performance.now()
 
@@ -84,10 +84,17 @@ export function run_end(): void {
   meta.yani += state.yani_run
   meta.best_depth = Math.max(meta.best_depth, state.depth)
   meta_save()
-  terminal_show_result(
-    state.depth, state.kills, state.yani_run, meta.best_depth,
-    () => menu_show(run_start),
-  )
+  death_screen_show({
+    depth: state.depth,
+    kills: state.kills,
+    best_depth: meta.best_depth,
+    run_time: state.run_time,
+    smoke_count: state.smoke_count,
+    dummy_count: state.dummy_count,
+    death_cause: state.death_cause,
+    nicotine_ratio: state.nicotine / state.nicotine_max,
+    hp: Math.max(0, state.entity_player ? state.entity_player.h : 0),
+  }, run_start)
 }
 
 function load_level(depth: number): void {

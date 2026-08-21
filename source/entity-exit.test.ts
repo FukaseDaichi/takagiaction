@@ -104,9 +104,10 @@ describe('非常口', () => {
     expect(state.descend_timer).toBe(5.1) // モックが返す表示秒数
   })
 
-  // レビュー Finding 1: ラン終了と同じフレームで通知を出すと terminal_show_result() の
-  // 表示チェーンを terminal_cancel() が壊しうる。run_end() は terminal_show_result() を
-  // 呼ぶ前に game_running を落とすので、ここでその値を見れば判定できる。
+  // レビュー Finding 1: ラン終了と同じフレームで通知を出すと、run_end() が
+  // death_screen_show() で止めたターミナルを再び動かしてしまう。run_end() は
+  // death_screen_show() を呼ぶ前に game_running を落とすので、ここでその値を
+  // 見れば判定できる。
   it('ラン終了後（state.game_running が 0）は開通していても遷移を予約しない', () => {
     const exit = new entity_exit_t(80, 0, 80, 0, 18)
     state.exit_open = 1

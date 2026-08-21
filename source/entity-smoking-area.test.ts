@@ -179,11 +179,11 @@ describe('喫煙所', () => {
     expect(state.exit_open).toBe(0)
   })
 
-  // レビュー Finding 1: 自機の被弾死と同じフレームで通知を出すと、
-  // terminal_show_result() が組んだ表示チェーンを terminal_cancel() が壊し、
-  // クリック復帰ハンドラが登録されないままソフトロックする。
-  // run_end() は terminal_show_result() を呼ぶ前に game_running を落とすので、
-  // ここでその値を見れば同じフレームの死亡かどうかを判定できる。
+  // レビュー Finding 1: 自機の被弾死と同じフレームで通知を出すと、run_end() が
+  // death_screen_show() で止めたターミナルを terminal_show_notice() が
+  // 再び動かしてしまう。run_end() は death_screen_show() を呼ぶ前に
+  // game_running を落とすので、ここでその値を見れば同じフレームの
+  // 死亡かどうかを判定できる。
   it('ラン終了後（state.game_running が 0）は接触していても一服が進行せず、ロックは解放される', () => {
     const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
     area.is_real = true

@@ -35,8 +35,8 @@ export class entity_exit_t extends entity_t {
 
   override _check(other: entity_t): void {
     // state.game_running: 自機の被弾死と同じフレームでここに来ると、
-    // terminal_show_result() が組んだ表示チェーンを terminal_show_notice() の
-    // terminal_cancel() が壊しうる（レビュー Finding 1、entity-smoking-area.ts と
+    // run_end() が death_screen_show() で止めたターミナルを
+    // terminal_show_notice() が再び動かしてしまう（entity-smoking-area.ts と
     // 同じ理由）。ラン終了後は遷移そのものを予約しない。
     if (state.game_running && state.exit_open && !this._used && other instanceof entity_player_t) {
       this._used = true

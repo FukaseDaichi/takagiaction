@@ -1,0 +1,157 @@
+/* 死亡画面（リザルト＋闇サイト）。index.html の 1 文字 id スタイルとは独立 */
+#ds {
+  position: fixed;
+  inset: 0;
+  display: none;
+  grid-template-rows: 1fr auto auto;
+  gap: 1vw;
+  padding: 1.2vw 1.5vw;
+  box-sizing: border-box;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #101d14 0%, #070d09 60%, #050805 100%);
+  color: #b9dcc4;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  z-index: 10;
+  user-select: none;
+  overflow: auto;
+}
+#ds .ds-main { display: grid; grid-template-columns: 48fr 52fr; gap: 1.5vw; min-height: 0; }
+#ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; position: relative; }
+
+#ds .ds-title {
+  margin: 0;
+  font-size: 3.4vw;
+  font-weight: bold;
+  color: #ffaa2b;
+  text-shadow: 0 0 14px #f70;
+  letter-spacing: 0.1em;
+}
+#ds .ds-sub { margin: 0; font-size: 1.1vw; color: #cfe8d8; }
+
+#ds .ds-panel {
+  border: 1px solid #2e6b4f;
+  border-radius: 0.4vw;
+  background: rgba(6, 20, 12, 0.85);
+  box-shadow: inset 0 0 18px rgba(20, 80, 50, 0.25);
+  padding: 0.8vw 1vw;
+}
+#ds .ds-panel-title { color: #7fe0a8; font-weight: bold; font-size: 1.15vw; margin-bottom: 0.5vw; }
+
+#ds .ds-record { width: 60%; }
+#ds .ds-record-row {
+  display: flex; align-items: center; gap: 0.5vw;
+  font-size: 1.15vw; padding: 0.28vw 0;
+  border-bottom: 1px solid rgba(46, 107, 79, 0.4);
+}
+#ds .ds-record-row:last-child { border-bottom: none; }
+#ds .ds-record-row img { width: 1.4vw; height: 1.4vw; }
+#ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
+
+#ds .ds-hero {
+  flex: 1;
+  min-height: 0;
+  border-radius: 0.4vw;
+  background-position: center 20%;
+  background-size: cover;
+  image-rendering: auto;
+}
+
+/* 状態パネル（赤）。死亡モードのみ表示 */
+#ds .ds-status {
+  border: 1px solid #b3271e;
+  border-radius: 0.4vw;
+  background: rgba(30, 5, 3, 0.88);
+  box-shadow: 0 0 16px rgba(255, 60, 40, 0.25), inset 0 0 20px rgba(255, 60, 40, 0.15);
+  color: #ff6b5e;
+  padding: 0.8vw 1vw;
+  display: grid;
+  grid-template-columns: 1.2fr auto 1.3fr;
+  gap: 0.8vw;
+  align-items: center;
+}
+#ds .ds-death-message { font-size: 1.25vw; font-weight: bold; line-height: 1.5; grid-column: 1 / -1; }
+#ds .ds-status img { height: 7vw; }
+#ds .ds-gauge-row { display: flex; align-items: center; gap: 0.6vw; font-size: 1vw; margin: 0.3vw 0; }
+#ds .ds-gauge-row b { margin-left: auto; }
+#ds .ds-blocks { display: flex; gap: 0.15vw; }
+#ds .ds-blocks i {
+  width: 0.8vw; height: 0.9vw;
+  background: #ff3b30; box-shadow: 0 0 5px #f33;
+}
+#ds .ds-blocks i.off { background: #4a1310; box-shadow: none; }
+
+#ds .ds-right { display: flex; flex-direction: column; gap: 0.7vw; min-height: 0; }
+#ds .ds-yani {
+  border: 1px solid #b3271e;
+  border-radius: 0.4vw;
+  background: rgba(25, 8, 4, 0.85);
+  padding: 0.6vw 1vw;
+}
+#ds .ds-yani-amount { color: #ffaa2b; font-size: 1.9vw; font-weight: bold; text-shadow: 0 0 10px #f70; }
+#ds .ds-yani-note { color: #e8c9a8; font-size: 0.95vw; margin-top: 0.2vw; }
+#ds .ds-warning { color: #ff6b5e; font-size: 0.95vw; margin-top: 0.2vw; }
+#ds .ds-upgrades-head { color: #ffaa2b; font-size: 1.3vw; font-weight: bold; }
+
+#ds .ds-row {
+  display: grid;
+  grid-template-columns: 4vw 1fr auto;
+  gap: 0.8vw;
+  align-items: center;
+  border: 1px solid #2e6b4f;
+  border-radius: 0.4vw;
+  background: rgba(8, 22, 14, 0.85);
+  padding: 0.55vw 0.8vw;
+}
+#ds .ds-row.selected { border-color: #ffaa2b; box-shadow: 0 0 10px rgba(255, 170, 43, 0.5); }
+#ds .ds-row img { width: 3.4vw; height: 3.4vw; }
+#ds .ds-row-name { font-weight: bold; font-size: 1.2vw; }
+#ds .ds-row-desc { font-size: 0.95vw; color: #9cc4aa; }
+#ds .ds-row-level { font-size: 1vw; color: #eaf5ee; text-align: right; }
+#ds .ds-pips { display: flex; gap: 0.25vw; margin-top: 0.3vw; justify-content: flex-end; }
+#ds .ds-pips i { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: #1c3a2a; }
+#ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
+#ds .ds-buy {
+  grid-row: 1 / -1; grid-column: 3;
+  display: flex; align-items: center; gap: 0.6vw;
+  border: 1px solid #ffaa2b; border-radius: 0.3vw;
+  background: rgba(60, 35, 5, 0.6);
+  color: #ffaa2b; font: inherit; font-size: 1.1vw; font-weight: bold;
+  padding: 0.4vw 0.7vw; cursor: pointer;
+}
+#ds .ds-buy span { font-size: 1.6vw; }
+#ds .ds-buy:disabled { opacity: 0.35; cursor: default; }
+#ds .ds-row-right { display: flex; align-items: center; gap: 0.8vw; }
+
+#ds .ds-bottom { display: grid; grid-template-columns: 1.2fr 1.6fr 1.2fr; gap: 1.5vw; align-items: stretch; }
+#ds .ds-next { display: flex; gap: 0.8vw; align-items: center; }
+#ds .ds-next img { height: 5.5vw; }
+#ds .ds-next-title { color: #7fe0a8; font-weight: bold; font-size: 1.2vw; }
+#ds .ds-next-depth { font-size: 1.1vw; margin: 0.2vw 0; }
+#ds .ds-next-note { font-size: 0.95vw; color: #9cc4aa; }
+#ds .ds-items { display: flex; gap: 0.6vw; align-items: center; }
+#ds .ds-slot {
+  width: 5vw; height: 5vw;
+  border: 1px solid #2e6b4f; border-radius: 0.3vw;
+  background: rgba(8, 22, 14, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; color: #40634f; font-size: 0.9vw;
+}
+#ds .ds-slot img { width: 3.6vw; height: 3.6vw; }
+#ds .ds-slot b { position: absolute; right: 0.2vw; bottom: 0.1vw; color: #eaf5ee; font-size: 0.95vw; }
+#ds .ds-descend {
+  border: 2px solid #ffaa2b; border-radius: 0.5vw;
+  background: linear-gradient(180deg, rgba(90, 50, 5, 0.7), rgba(40, 20, 2, 0.9));
+  color: #ffaa2b; font: inherit; font-weight: bold; font-size: 2.2vw;
+  text-shadow: 0 0 10px #f70; box-shadow: 0 0 16px rgba(255, 170, 43, 0.4);
+  cursor: pointer; padding: 0.6vw 1vw;
+}
+#ds .ds-descend small { display: block; font-size: 1vw; font-weight: normal; color: #e8c9a8; }
+#ds .ds-descend.selected { box-shadow: 0 0 26px rgba(255, 170, 43, 0.9); }
+
+#ds .ds-footer {
+  border-top: 1px solid #2e6b4f;
+  padding-top: 0.5vw;
+  color: #7fe0a8;
+  font-size: 1vw;
+  display: flex; gap: 2.5vw;
+}
