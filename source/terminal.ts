@@ -108,7 +108,7 @@ export function terminal_write_line(line: string, callback?: () => void): void {
 //
 // 完了コールバックは受け取らない。渡されたコールバックは terminal_timeout_id の
 // 表示チェーンにしか載せられず、そのチェーンは別の場所からの
-// terminal_show_notice()（音声トグル、予備の一本、ダミーの灰皿告知）が
+// terminal_show_notice()（音声トグル、予備の一本、非常口通過）が
 // 冒頭の terminal_cancel() で丸ごと捨ててしまう。非常口の降下予約をここに
 // 載せていたため、通過演出の約 5 秒のあいだに通知が 1 つ挟まるだけで降下が
 // 消え、フロアが永久に詰んだ（レビュー Finding 1）。表示の完了に合わせて
