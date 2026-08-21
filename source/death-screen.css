@@ -17,8 +17,17 @@
   user-select: none;
   overflow: auto;
 }
-#ds .ds-main { display: grid; grid-template-columns: 48fr 52fr; gap: 1.5vw; min-height: 0; }
-#ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; position: relative; }
+#ds .ds-main { display: grid; grid-template-columns: 52fr 48fr; gap: 1.5vw; min-height: 0; }
+#ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; }
+/* 見本ではイラストが左半分の背景で、記録と状態パネルがその上に浮く */
+#ds .ds-left-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8vw;
+}
 
 #ds .ds-title {
   margin: 0;
@@ -39,7 +48,7 @@
 }
 #ds .ds-panel-title { color: #7fe0a8; font-weight: bold; font-size: 1.15vw; margin-bottom: 0.5vw; }
 
-#ds .ds-record { width: 60%; }
+#ds .ds-record { width: 45%; position: relative; }
 #ds .ds-record-row {
   display: flex; align-items: center; gap: 0.5vw;
   font-size: 1.15vw; padding: 0.28vw 0;
@@ -50,8 +59,8 @@
 #ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
 
 #ds .ds-hero {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
   border-radius: 0.4vw;
   background-position: center 20%;
   background-size: cover;
@@ -60,6 +69,8 @@
 
 /* 状態パネル（赤）。死亡モードのみ表示 */
 #ds .ds-status {
+  position: relative;
+  margin-top: auto; /* 見本どおりイラストの下端に貼り付ける */
   border: 1px solid #b3271e;
   border-radius: 0.4vw;
   background: rgba(30, 5, 3, 0.88);
@@ -73,9 +84,18 @@
 }
 #ds .ds-death-message { font-size: 1.25vw; font-weight: bold; line-height: 1.5; grid-column: 1 / -1; }
 #ds .ds-status img { height: 7vw; }
-#ds .ds-gauge-row { display: flex; align-items: center; gap: 0.6vw; font-size: 1vw; margin: 0.3vw 0; }
+/* ラベルは折り返さず、入り切らないブロック帯だけを次の行に落とす
+   （「吸いたい気持ち」の 15 ブロックは 1 行に収まらない） */
+#ds .ds-gauge-row {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 0.2vw 0.6vw; font-size: 1vw; margin: 0.3vw 0;
+  white-space: nowrap;
+}
 #ds .ds-gauge-row b { margin-left: auto; }
-#ds .ds-blocks { display: flex; gap: 0.15vw; }
+#ds .ds-blocks { display: flex; flex-shrink: 0; gap: 0.15vw; }
+/* 吸いたい気持ちだけは 15 ブロックあり、見本どおり帯と MAX をラベルの下に落とす */
+#ds .ds-craving-label { flex: 0 0 100%; }
+#ds .ds-craving .ds-blocks { flex: 1 1 auto; }
 #ds .ds-blocks i {
   width: 0.8vw; height: 0.9vw;
   background: #ff3b30; box-shadow: 0 0 5px #f33;
@@ -99,6 +119,7 @@
   grid-template-columns: 4vw 1fr auto;
   gap: 0.8vw;
   align-items: center;
+  flex: 1 0 auto; /* 5 行で右列を埋める。見本の行の高さはこれで決まる */
   border: 1px solid #2e6b4f;
   border-radius: 0.4vw;
   background: rgba(8, 22, 14, 0.85);
@@ -113,24 +134,30 @@
 #ds .ds-pips i { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: #1c3a2a; }
 #ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
 #ds .ds-buy {
-  grid-row: 1 / -1; grid-column: 3;
+  align-self: stretch; /* 見本どおり行の高さいっぱいの箱にする */
   display: flex; align-items: center; gap: 0.6vw;
   border: 1px solid #ffaa2b; border-radius: 0.3vw;
   background: rgba(60, 35, 5, 0.6);
   color: #ffaa2b; font: inherit; font-size: 1.1vw; font-weight: bold;
   padding: 0.4vw 0.7vw; cursor: pointer;
 }
-#ds .ds-buy span { font-size: 1.6vw; }
+#ds .ds-cost { text-align: center; line-height: 1.2; }
+#ds .ds-plus { font-size: 1.8vw; }
 #ds .ds-buy:disabled { opacity: 0.35; cursor: default; }
-#ds .ds-row-right { display: flex; align-items: center; gap: 0.8vw; }
+/* ds-row は align-items:center なので、値の箱を行の高さまで伸ばすには
+   この列だけ stretch に戻す必要がある（見本のヤニ箱は行いっぱい） */
+#ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.8vw; }
+#ds .ds-row-level { display: flex; flex-direction: column; justify-content: center; }
 
-#ds .ds-bottom { display: grid; grid-template-columns: 1.2fr 1.6fr 1.2fr; gap: 1.5vw; align-items: stretch; }
+#ds .ds-bottom { display: grid; grid-template-columns: 1.1fr 1.5fr 1.45fr; gap: 1.5vw; align-items: stretch; }
 #ds .ds-next { display: flex; gap: 0.8vw; align-items: center; }
 #ds .ds-next img { height: 5.5vw; }
 #ds .ds-next-title { color: #7fe0a8; font-weight: bold; font-size: 1.2vw; }
 #ds .ds-next-depth { font-size: 1.1vw; margin: 0.2vw 0; }
 #ds .ds-next-note { font-size: 0.95vw; color: #9cc4aa; }
-#ds .ds-items { display: flex; gap: 0.6vw; align-items: center; }
+/* 見本では「所持アイテム」がスロットの上に載る。title を 1 行占有させて折り返す */
+#ds .ds-items { display: flex; flex-wrap: wrap; gap: 0.6vw; align-items: center; }
+#ds .ds-items .ds-panel-title { flex-basis: 100%; margin-bottom: 0; }
 #ds .ds-slot {
   width: 5vw; height: 5vw;
   border: 1px solid #2e6b4f; border-radius: 0.3vw;

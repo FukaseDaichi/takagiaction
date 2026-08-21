@@ -160,6 +160,11 @@ function render(): void {
     (dead ? '救護ドローンが君を回収して、自席へ戻した。' : '闇サイトに接続した。') +
     '</p>'
 
+  // 見本ではイラストが左半分の背景で、記録と状態パネルがその上に浮く。
+  // ds-hero を絶対配置の背景にするため、この 3 つを 1 つの入れ物にまとめる
+  left += '<div class="ds-left-body">' +
+    '<div class="ds-hero" style="background-image:url(' + hero_url + ')"></div>'
+
   if (dead) {
     left += '<div class="ds-panel ds-record">' +
       '<div class="ds-panel-title">今回の記録</div>' +
@@ -169,11 +174,7 @@ function render(): void {
       record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
       record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所') +
       '</div>'
-  }
 
-  left += '<div class="ds-hero" style="background-image:url(' + hero_url + ')"></div>'
-
-  if (dead) {
     const message = death_message(r.death_cause)
     const condition = condition_texts(r.nicotine_ratio)
     const craving_percent = Math.round(condition.craving_ratio * 100)
@@ -189,12 +190,17 @@ function render(): void {
       '<div>' +
       '<div class="ds-gauge-row">手の震え<b>' + condition.tremor + '</b></div>' +
       '<div class="ds-gauge-row">集中力<b>' + condition.focus + '</b></div>' +
-      '<div class="ds-gauge-row">吸いたい気持ち ' +
+      // 15 ブロックの帯は 1 行に収まらない。ラベルを要素に包むのは、
+      // 裸のテキストノードだと CSS で行を占有させられないため
+      '<div class="ds-gauge-row ds-craving">' +
+      '<span class="ds-craving-label">吸いたい気持ち</span>' +
       blocks(Math.round(condition.craving_ratio * 15), 15) +
       '<b>' + (craving_percent >= 100 ? 'MAX' : craving_percent + '%') + '</b></div>' +
       '</div>' +
       '</div>'
   }
+
+  left += '</div>'
 
   let rows = ''
   for (let i = 0; i < upgrade_rows.length; i++) {
@@ -216,11 +222,14 @@ function render(): void {
       '<div class="ds-row-right">' +
       '<div class="ds-row-level">Lv. ' + level + ' / ' + max +
       '<div class="ds-pips" style="color:' + row.color + '">' + pips + '</div></div>' +
+      // ヤニと金額の改行は ds-cost の中で起こす。ds-buy は flex なので、
+      // 直下に置いた <br> は要素として独立した flex 項目になり改行にならない
       (maxed
         ? '<button class="ds-buy" disabled>MAX</button>'
         : '<button class="ds-buy" data-buy="' + row.id + '"' +
           (meta.yani < cost ? ' disabled' : '') +
-          '>ヤニ<br>' + cost + '<span>＋</span></button>') +
+          '><span class="ds-cost">ヤニ<br>' + cost + '</span>' +
+          '<span class="ds-plus">＋</span></button>') +
       '</div></div>'
   }
 
