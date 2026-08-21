@@ -239,6 +239,7 @@ describe('予備の一本', () => {
     state.smoking = 0
     state.game_running = 1
     state.spares_left = 2
+    state.smoke_count = 0
     for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
     player = new entity_player_t(64, 0, 64, 5, 18)
     state.entity_player = player
@@ -250,6 +251,7 @@ describe('予備の一本', () => {
     expect(state.nicotine).toBe(70)
     expect(state.spares_left).toBe(1)
     expect(keys[key_spare]).toBe(0)
+    expect(state.smoke_count).toBe(1)
   })
 
   it('回復は最大値で頭打ちになる', () => {
