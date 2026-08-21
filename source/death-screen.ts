@@ -29,18 +29,20 @@ import stat_dummy_url from '../m/ui/icon-stat-dummy.png'
 import item_spare_url from '../m/ui/item-spare.png'
 
 // 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。
-// 見本は m/result.png。旧 terminal リザルト＋menu.ts の後継で、
-// result = null は初回起動モード（記録と状態パネルを隠す）。
+// 見本は m/result.png。result = null は初回起動モード（記録と状態パネルを隠す）。
 
 interface upgrade_row_t {
   id: meta_upgrade_id_t
   name: string
   icon: string
   color: string
-  // 現在レベルまでの累積効果。式は meta.ts の getter から引く（menu.ts の方針を継承）
+  // 現在レベルまでの累積効果。式は meta.ts の getter から引く
   describe: () => string
 }
 
+// 係数の百分率は Math.round を通す（耐性の全強化は 1 - meta_drain_factor() が
+// 浮動小数の丸め誤差で 0.30000000000000004 になり、100 倍すると
+// 30.000000000000004 と表示されてしまう）
 const upgrade_rows: upgrade_row_t[] = [
   {
     id: 'lung', name: '肺活量', icon: icon_lung_url, color: '#3ac6f0',

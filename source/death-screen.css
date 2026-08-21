@@ -1,4 +1,6 @@
-/* 死亡画面（リザルト＋闇サイト）。index.html の 1 文字 id スタイルとは独立 */
+/* 死亡画面（リザルト＋闇サイト）。index.html の <style> とは独立
+   （id 限定スタイルだけでなく、裸の型セレクタ（b / div:last-child）も
+   index.html 側で #a 限定にしてあるため干渉しない） */
 #ds {
   position: fixed;
   inset: 0;
