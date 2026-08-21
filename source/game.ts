@@ -13,6 +13,9 @@ import {
 } from './meta'
 import { minimap_hide, minimap_reset, minimap_update } from './minimap'
 import {
+  monologue_arrival, monologue_notify_stage, monologue_reset, monologue_update,
+} from './monologue'
+import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
 } from './nicotine'
 import {
@@ -71,6 +74,7 @@ export function run_end(): void {
   state.game_running = 0
   minimap_hide()
   hud_hide()
+  monologue_reset()
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
   // 深度を伸ばす動機にならない（設計書）
   meta.yani += state.yani_run
@@ -159,6 +163,10 @@ function load_level(depth: number): void {
   renderer_freeze_level_geometry()
 
   terminal_show_notice('深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
+  // フロアを跨いだ表示・予約は消す。到達つぶやきはターミナルの深度ログの
+  // 2 秒後に出る（遅延は monologue 側の定数）
+  monologue_reset()
+  monologue_arrival()
 }
 
 function game_tick(): void {
@@ -243,6 +251,13 @@ function game_tick(): void {
   camera.shake = camera.shake * 0.9 + camera_shake_amount(stage)
   camera.x += camera.shake * (Math.random() - 0.5)
   camera.z += camera.shake * (Math.random() - 0.5)
+
+  // 高木のつぶやき。ラン終了後（リザルト表示中）は進めない — run_end() が
+  // monologue_reset() で消しているので、ここで動かすと復活してしまう
+  if (state.game_running) {
+    monologue_notify_stage(stage)
+    monologue_update(player.x, player.z)
+  }
 
   // health bar, render with plasma sprite
   for (let i = 0; i < player.h; i++) {
