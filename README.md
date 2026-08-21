@@ -163,7 +163,8 @@ npm run dev
 | `source/terminal.ts` | ターミナル風の演出とテキスト（イントロ / ストーリー / リザルト画面） |
 | `source/audio.ts`, `sound-effects.ts`, `music-*.ts` | 効果音と BGM（Sonant-X で実行時に生成） |
 | `source/sonantx-reduced.js` | サードパーティの Sonant-X 本体（zlib ライセンス）。ここだけ `.js` のまま |
-| `m/` | 画像。`q2.png`（スプライトのアトラス）のみ |
+| `m/` | 画像。スプライトのアトラス `q2.png` と、タイトル・死亡画面のイラストとアイコン（WebP 15 枚） |
+| `tools/` | 画像を用意する補助スクリプト（`uv run` で実行）。`atlas.py` はタイルを `q2.png` に焼き込み、`webp.py` は PNG を配信用の WebP に変換する |
 | `package.json` | 依存パッケージと `npm run` スクリプトの定義 |
 | `vite.config.ts` | Vite のビルド設定（`outDir`、`base` など） |
 | `tsconfig.json` | TypeScript の設定 |
@@ -178,7 +179,7 @@ npm install
 npm run build
 ```
 
-型チェック（`tsc --noEmit`）を実行したうえで `dist/` に本番用ファイルを出力します。画像は `q2.png` の 1 枚だけで、4096 バイト未満なので Vite の既定設定でデータ URI としてバンドルに埋め込まれます。そのため `dist/` に PNG が別ファイルとして出力されることはなく、`dist/index.html` と `dist/assets/` 以下の JS だけが出力されます。
+型チェック（`tsc --noEmit`）を実行したうえで `dist/` に本番用ファイルを出力します。`dist/` 全体は約 560KB で、そのうち約 450KB はタイトルと死亡画面のイラスト 2 枚です。画像のうち 4096 バイト未満のもの（死亡画面の小さいアイコン）は Vite の既定設定でデータ URI としてバンドルに埋め込まれ、それより大きいものは `dist/assets/` にハッシュ付きの別ファイルとして出力されます。
 
 ```bash
 npm run preview
