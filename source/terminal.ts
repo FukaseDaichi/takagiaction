@@ -77,6 +77,13 @@ export function terminal_cancel(): void {
   clearTimeout(terminal_timeout_id)
 }
 
+// 表示内容と terminal_text_buffer は常に対で戻す。片方だけ戻すと、消えた行が
+// バッファに残ったまま次の terminal_write_line() で復活する
+export function terminal_clear(): void {
+  terminal_el.innerHTML = ''
+  terminal_text_buffer = []
+}
+
 function terminal_prepare_text(text: string): string[] {
   return text.replace(/_/g, '\n'.repeat(10)).split('\n')
 }
@@ -115,8 +122,7 @@ export function terminal_write_line(line: string, callback?: () => void): void {
 // 何かしたい呼び出し側は、戻り値の秒数を使って自分の側で予約すること
 // （game.ts の state.descend_timer が例）。
 export function terminal_show_notice(notice: string): number {
-  terminal_el.innerHTML = ''
-  terminal_text_buffer = []
+  terminal_clear()
 
   terminal_cancel()
   terminal_show()

@@ -12,7 +12,6 @@ export const death_cause_nicotine = 1
 export interface run_result_t {
   depth: number
   kills: number
-  best_depth: number
   run_time: number
   smoke_count: number
   dummy_count: number

@@ -1,5 +1,5 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
-import { canvas, terminal_el } from './dom'
+import { canvas } from './dom'
 import {
   condition_texts, death_message, format_run_time,
 } from './death-screen-model'
@@ -10,7 +10,7 @@ import {
   meta_spare_count, meta_upgrade_cost,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
-import { terminal_cancel, terminal_hide } from './terminal'
+import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
 import './death-screen.css'
 
 import hero_url from '../m/ui/hero.png'
@@ -73,7 +73,7 @@ const upgrade_rows: upgrade_row_t[] = [
   },
 ]
 
-// 選択位置。0〜4 = 強化行、5 = 地下へ戻る
+// 選択位置。0 〜 upgrade_rows.length-1 = 強化行、upgrade_rows.length = 地下へ戻る
 let selected = 0
 let current: run_result_t | null = null
 let on_descend = (): void => {}
@@ -94,7 +94,7 @@ export function death_screen_show(
   // 死亡画面はターミナルを使わない。表示中の通知チェーンや起動時の文字が
   // 裏で動いたまま・映ったまま残らないよう、ここで止めて隠す
   terminal_cancel()
-  terminal_el.innerHTML = ''
+  terminal_clear()
   terminal_hide()
   render()
   root.style.display = 'grid'
@@ -118,15 +118,17 @@ function buy(id: meta_upgrade_id_t): void {
 
 function on_key(event: KeyboardEvent): void {
   const k = event.key
+  const descend_index = upgrade_rows.length
   if (k === 'Tab') {
     event.preventDefault()
-    selected = selected === 5 ? 0 : 5
+    selected = selected === descend_index ? 0 : descend_index
   } else if (k === 'ArrowUp' || k === 'ArrowLeft') {
-    selected = selected === 5 ? 4 : (selected + 4) % 5
+    selected = selected === descend_index
+      ? descend_index - 1 : (selected + descend_index - 1) % descend_index
   } else if (k === 'ArrowDown' || k === 'ArrowRight') {
-    selected = selected === 5 ? 0 : (selected + 1) % 5
+    selected = selected === descend_index ? 0 : (selected + 1) % descend_index
   } else if (k === 'Enter') {
-    if (selected === 5) { descend() } else { buy(upgrade_rows[selected].id) }
+    if (selected === descend_index) { descend() } else { buy(upgrade_rows[selected].id) }
     return // buy() が再描画済み。下の再描画と二重にしない
   } else if (k === 'Escape') {
     descend()
@@ -213,8 +215,7 @@ function render(): void {
     for (let p = 0; p < max; p++) {
       pips += '<i class="' + (p < level ? 'on' : '') + '"></i>'
     }
-    rows += '<div class="ds-row' + (selected === i ? ' selected' : '') +
-      '" data-index="' + i + '">' +
+    rows += '<div class="ds-row' + (selected === i ? ' selected' : '') + '">' +
       '<img src="' + row.icon + '" alt="">' +
       '<div><div class="ds-row-name" style="color:' + row.color + '">' +
       row.name + '</div>' +
@@ -254,7 +255,8 @@ function render(): void {
     slots += '<div class="ds-slot">EMPTY</div>'
   }
 
-  const recommended = Math.max(dead ? r.best_depth : meta.best_depth, 1)
+  // meta.best_depth は未プレイ時 0 のため、1 で底上げして「推奨深度: 0F+」を避ける
+  const recommended = Math.max(meta.best_depth, 1)
   const bottom = '<div class="ds-panel ds-next">' +
     '<img src="' + door_url + '" alt="">' +
     '<div><div class="ds-next-title">次の潜入準備</div>' +
@@ -263,7 +265,7 @@ function render(): void {
     '</div>' +
     '<div class="ds-panel ds-items"><div class="ds-panel-title">所持アイテム</div>' +
     slots + '</div>' +
-    '<button class="ds-descend' + (selected === 5 ? ' selected' : '') + '">' +
+    '<button class="ds-descend' + (selected === upgrade_rows.length ? ' selected' : '') + '">' +
     (dead ? '地下へ戻る' : '地下へ潜る') +
     '<small>また煙草を探しに行く</small></button>'
 

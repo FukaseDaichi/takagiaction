@@ -87,13 +87,12 @@ export function run_end(): void {
   death_screen_show({
     depth: state.depth,
     kills: state.kills,
-    best_depth: meta.best_depth,
     run_time: state.run_time,
     smoke_count: state.smoke_count,
     dummy_count: state.dummy_count,
     death_cause: state.death_cause,
     nicotine_ratio: state.nicotine / state.nicotine_max,
-    hp: Math.max(0, state.entity_player ? state.entity_player.h : 0),
+    hp: Math.max(0, state.entity_player!.h),
   }, run_start)
 }
 

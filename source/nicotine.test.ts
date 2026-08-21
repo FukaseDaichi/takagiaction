@@ -77,9 +77,9 @@ describe('段階効果', () => {
   })
 
   // docs/meta-progression.md: 基礎 0.1 秒 × 火力係数（強化） × ニコチン係数 の順に掛ける
-  it('火力係数が射撃間隔に掛かる（全強化 0.64）', () => {
-    expect(shot_interval(nicotine_stage_normal, 0.64)).toBeCloseTo(0.064, 6)
-    expect(shot_interval(nicotine_stage_withdrawal, 0.64)).toBeCloseTo(0.1152, 6)
+  it('火力係数が射撃間隔に掛かる（全強化 0.50）', () => {
+    expect(shot_interval(nicotine_stage_normal, 0.5)).toBeCloseTo(0.05, 6)
+    expect(shot_interval(nicotine_stage_withdrawal, 0.5)).toBeCloseTo(0.09, 6)
     expect(shot_interval(nicotine_stage_normal)).toBeCloseTo(0.1, 6) // 省略時は 1
   })
 

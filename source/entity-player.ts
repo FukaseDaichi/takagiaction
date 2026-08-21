@@ -1,4 +1,5 @@
 import { audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot } from './audio'
+import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
 import { run_end } from './game'
@@ -121,7 +122,7 @@ export class entity_player_t extends entity_t {
     this.h -= 1
     if (this.h <= 0) {
       // 死因の記録は _kill() より前。run_end() がこの値を死亡画面に渡す
-      state.death_cause = 1
+      state.death_cause = death_cause_nicotine
       this._kill()
     }
   }

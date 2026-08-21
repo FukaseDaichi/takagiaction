@@ -1,6 +1,9 @@
 /* 死亡画面（リザルト＋闇サイト）。index.html の <style> とは独立
    （id 限定スタイルだけでなく、裸の型セレクタ（b / div:last-child）も
-   index.html 側で #a 限定にしてあるため干渉しない） */
+   index.html 側で #a 限定にしてあるため干渉しない）。
+   寸法はすべて vw 単位で、16:9 前後のアスペクト比を前提にしている。
+   極端に横長・縦長な画面では右列の内容や状態パネルがはみ出す
+   （旧テキスト UI でも同じで、退行ではない） */
 #ds {
   position: fixed;
   inset: 0;
@@ -48,6 +51,8 @@
 }
 #ds .ds-panel-title { color: #7fe0a8; font-weight: bold; font-size: 1.15vw; margin-bottom: 0.5vw; }
 
+/* position: relative は、DOM 順で先行する absolute な .ds-hero の下に
+   隠れないようにするための重ね順の土台（消すとパネルが消えたように見える） */
 #ds .ds-record { width: 45%; position: relative; }
 #ds .ds-record-row {
   display: flex; align-items: center; gap: 0.5vw;
@@ -69,6 +74,7 @@
 
 /* 状態パネル（赤）。死亡モードのみ表示 */
 #ds .ds-status {
+  /* position: relative は .ds-record と同じ理由（.ds-hero の下に隠れないため） */
   position: relative;
   margin-top: auto; /* 見本どおりイラストの下端に貼り付ける */
   border: 1px solid #b3271e;
@@ -129,7 +135,13 @@
 #ds .ds-row img { width: 3.4vw; height: 3.4vw; }
 #ds .ds-row-name { font-weight: bold; font-size: 1.2vw; }
 #ds .ds-row-desc { font-size: 0.95vw; color: #9cc4aa; }
-#ds .ds-row-level { font-size: 1vw; color: #eaf5ee; text-align: right; }
+/* text-align: right が効くのは「Lv. n / m」の匿名テキストだけ。
+   flex-direction: column の既定 align-items: stretch がその匿名テキストを
+   幅いっぱいに伸ばすので右寄せが成立する（子の .ds-pips は個別に flex-end で右寄せ） */
+#ds .ds-row-level {
+  font-size: 1vw; color: #eaf5ee; text-align: right;
+  display: flex; flex-direction: column; justify-content: center;
+}
 #ds .ds-pips { display: flex; gap: 0.25vw; margin-top: 0.3vw; justify-content: flex-end; }
 #ds .ds-pips i { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: #1c3a2a; }
 #ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
@@ -147,7 +159,6 @@
 /* ds-row は align-items:center なので、値の箱を行の高さまで伸ばすには
    この列だけ stretch に戻す必要がある（見本のヤニ箱は行いっぱい） */
 #ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.8vw; }
-#ds .ds-row-level { display: flex; flex-direction: column; justify-content: center; }
 
 #ds .ds-bottom { display: grid; grid-template-columns: 1.1fr 1.5fr 1.45fr; gap: 1.5vw; align-items: stretch; }
 #ds .ds-next { display: flex; gap: 0.8vw; align-items: center; }
