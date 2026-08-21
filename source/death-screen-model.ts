@@ -8,7 +8,7 @@ export const death_cause_nicotine = 1
 // run_end() が組み立てて death_screen_show() に渡す。state を直接読ませない
 // のは、死亡画面の表示中に次のランが state を書き換えても表示が変わらないため
 // 獲得ヤニの内訳は持たない。run_end() が先に meta.yani へ合算し、
-// 画面には合算後の残高だけを出す（見本 m/result.png に内訳表示は無い）
+// 画面には合算後の残高だけを出す（内訳表示は無い）
 export interface run_result_t {
   depth: number
   kills: number

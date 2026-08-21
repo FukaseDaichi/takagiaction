@@ -29,7 +29,7 @@ import stat_dummy_url from '../m/ui/icon-stat-dummy.png'
 import item_spare_url from '../m/ui/item-spare.png'
 
 // 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。
-// 見本は m/result.png。result = null は初回起動モード（記録と状態パネルを隠す）。
+// result = null は初回起動モード（記録と状態パネルを隠す）。
 
 interface upgrade_row_t {
   id: meta_upgrade_id_t
