@@ -52,9 +52,20 @@ const terminal_text_story =
 // 返す所要時間と実際の待ちがずれないよう、両方でこの定数を使う
 const terminal_notice_tail = 2000
 
+// 1 行あたりの待ち（ミリ秒）と `> ` プレフィックスの有無。表示チェーンごとに
+// 決まる設定なので、モジュール変数ではなく引数でチェーンを引き回す。モジュール
+// 変数にすると、ノイズ表示（早送り・プレフィックスなし）のチェーンを
+// terminal_cancel() が途中で捨てたとき通常値へ戻す側が走らず、以後そのセッション
+// のすべての通知が早送り・プレフィックスなしのまま表示される
+type terminal_style_t = {
+  line_wait: number
+  print_ident: boolean
+}
+
+const terminal_style_normal: terminal_style_t = { line_wait: 100, print_ident: true }
+const terminal_style_garbage: terminal_style_t = { line_wait: 16, print_ident: false }
+
 let terminal_text_buffer: string[] = []
-let terminal_line_wait = 100
-let terminal_print_ident = true
 let terminal_timeout_id: ReturnType<typeof setTimeout> = 0
 let terminal_hide_timeout: ReturnType<typeof setTimeout> = 0
 
@@ -88,26 +99,32 @@ function terminal_prepare_text(text: string): string[] {
   return text.replace(/_/g, '\n'.repeat(10)).split('\n')
 }
 
-function terminal_write_text(lines: string[], callback?: () => void): void {
+function terminal_write_text(lines: string[], style: terminal_style_t, callback?: () => void): void {
   const line = lines.shift()
   if (line === undefined) {
     callback?.()
     return
   }
-  terminal_write_line(line, () => terminal_write_text(lines, callback))
+  terminal_write_line(line, () => terminal_write_text(lines, style, callback), style)
 }
 
-export function terminal_write_line(line: string, callback?: () => void): void {
+// style を最後の引数にしているのは、外から呼ぶ側（main.ts の `起動中...`）が
+// 通常の文体しか使わないため
+export function terminal_write_line(
+  line: string,
+  callback?: () => void,
+  style: terminal_style_t = terminal_style_normal,
+): void {
   if (terminal_text_buffer.length > 20) {
     terminal_text_buffer.shift()
   }
   if (line) {
     audio_play(audio_sfx_terminal)
-    terminal_text_buffer.push((terminal_print_ident ? terminal_text_ident : '') + line)
+    terminal_text_buffer.push((style.print_ident ? terminal_text_ident : '') + line)
     terminal_el.innerHTML = '<div>' + terminal_text_buffer.join('&nbsp;</div><div>') + '<b>█</b></div>'
   }
   if (callback) {
-    terminal_timeout_id = setTimeout(callback, terminal_line_wait)
+    terminal_timeout_id = setTimeout(callback, style.line_wait)
   }
 }
 
@@ -129,9 +146,9 @@ export function terminal_show_notice(notice: string): number {
 
   const lines = terminal_prepare_text(notice)
   // terminal_write_text() は lines を shift() で消費するので、長さは渡す前に読む。
-  // 1 行につき terminal_line_wait を 1 回、打ち終わりに余韻を 1 回待つ
-  const duration = lines.length * terminal_line_wait + terminal_notice_tail
-  terminal_write_text(lines, () => {
+  // 1 行につき line_wait を 1 回、打ち終わりに余韻を 1 回待つ
+  const duration = lines.length * terminal_style_normal.line_wait + terminal_notice_tail
+  terminal_write_text(lines, terminal_style_normal, () => {
     terminal_timeout_id = setTimeout(terminal_hide, terminal_notice_tail)
   })
   return duration / 1000
@@ -139,17 +156,12 @@ export function terminal_show_notice(notice: string): number {
 
 export function terminal_run_intro(): void {
   terminal_text_buffer = []
-  terminal_write_text(terminal_prepare_text(terminal_text_title), () => {
-    terminal_timeout_id = setTimeout(() => {
-      terminal_run_garbage()
-    }, 4000)
+  terminal_write_text(terminal_prepare_text(terminal_text_title), terminal_style_normal, () => {
+    terminal_timeout_id = setTimeout(terminal_run_garbage, 4000)
   })
 }
 
-function terminal_run_garbage(callback?: () => void): void {
-  terminal_print_ident = false
-  terminal_line_wait = 16
-
+function terminal_run_garbage(): void {
   let t = terminal_text_garbage
   const length = terminal_text_garbage.length
 
@@ -159,15 +171,11 @@ function terminal_run_garbage(callback?: () => void): void {
     t += terminal_text_garbage.substr(s, e) + '\n'
   }
   t += ' \n \n'
-  terminal_write_text(terminal_prepare_text(t), () => {
-    terminal_timeout_id = setTimeout(() => {
-      terminal_run_story(callback)
-    }, 1500)
+  terminal_write_text(terminal_prepare_text(t), terminal_style_garbage, () => {
+    terminal_timeout_id = setTimeout(terminal_run_story, 1500)
   })
 }
 
-function terminal_run_story(callback?: () => void): void {
-  terminal_print_ident = true
-  terminal_line_wait = 100
-  terminal_write_text(terminal_prepare_text(terminal_text_story), callback)
+function terminal_run_story(): void {
+  terminal_write_text(terminal_prepare_text(terminal_text_story), terminal_style_normal)
 }
