@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
 const mocks = vi.hoisted(() => ({
   notices: [] as string[],
+  monologue: [] as string[],
   blocks: [] as number[][],
   sprites: [] as number[][],
   lights: [] as number[][],
@@ -31,6 +32,12 @@ vi.mock('./terminal', () => ({
   terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
 }))
 vi.mock('./game', () => ({ run_end: () => {} }))
+vi.mock('./monologue', () => ({
+  monologue_all_done: () => { mocks.monologue.push('all_done') },
+  monologue_complete: () => { mocks.monologue.push('complete') },
+  monologue_dummy: () => { mocks.monologue.push('dummy') },
+  monologue_interrupt: () => { mocks.monologue.push('interrupt') },
+}))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_smoke_t } from './entity-smoke'
@@ -64,6 +71,7 @@ describe('喫煙所', () => {
     state.exit_open = 0
     state.game_running = 1
     mocks.notices.length = 0
+    mocks.monologue.length = 0
     mocks.blocks.length = 0
     mocks.sprites.length = 0
     mocks.lights.length = 0
@@ -203,6 +211,7 @@ describe('喫煙所', () => {
     tick(area, player, 0.5)
 
     expect(mocks.notices.length).toBe(0)
+    expect(mocks.monologue.length).toBe(0)
   })
 
   // レビュー Finding 2: 一服中は自機の速度が強制的にゼロなので、中断した次の
@@ -322,5 +331,51 @@ describe('喫煙所', () => {
     idle(dummy, 0.5)
     idle(real, 0.5)
     expect(state.entities.some((e) => e instanceof entity_smoke_t)).toBe(false)
+  })
+
+  // 通知の移管（docs/story.md「声の使い分け」）: 高木の体験は吹き出し、
+  // 事実と指示はターミナル
+  it('ダミーを踏むと高木がぼやく（他に未回収の喫煙所が残っている場合）', () => {
+    const dummy = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    const real = new entity_smoking_area_t(128, 0, 128, 0, 18)
+    real.is_real = true
+
+    tick(dummy, player, 0.5)
+    expect(mocks.monologue).toEqual(['dummy'])
+  })
+
+  it('最後の 1 箇所がダミーなら「もう喫煙所はない」になる', () => {
+    const real = new entity_smoking_area_t(128, 0, 128, 0, 18)
+    real.is_real = true
+    for (let i = 0; i < 5; i++) { tick(real, player, 0.5) } // 一服完了
+    mocks.monologue.length = 0
+
+    const dummy = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    tick(dummy, player, 0.5)
+    expect(mocks.monologue).toEqual(['all_done'])
+  })
+
+  it('本物が最後の 1 箇所でも完了のセリフを出す（誘導はターミナルのロック解除通知が担う）', () => {
+    const dummy = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    tick(dummy, player, 0.5) // 開示
+    mocks.monologue.length = 0
+
+    const real = new entity_smoking_area_t(128, 0, 128, 0, 18)
+    real.is_real = true
+    for (let i = 0; i < 5; i++) { tick(real, player, 0.5) }
+    expect(mocks.monologue).toEqual(['complete'])
+    expect(mocks.notices.some((n) => n.includes('非常口'))).toBe(true)
+  })
+
+  it('被弾で中断すると高木が咳き込む（吹き出し側）', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.5)
+    player.h = 4
+    tick(area, player, 0.5)
+    expect(mocks.monologue).toEqual(['interrupt'])
+    expect(mocks.notices.length).toBe(0) // ターミナルには出さない
   })
 })

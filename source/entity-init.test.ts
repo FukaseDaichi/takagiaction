@@ -23,6 +23,12 @@ vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // game は minimap → dom 経由で document に触る（自機の _kill から呼ばれるだけで
 // フィールド初期化の検証には関係がない）
 vi.mock('./game', () => ({ run_end: () => {} }))
+vi.mock('./monologue', () => ({
+  monologue_all_done: () => {},
+  monologue_complete: () => {},
+  monologue_dummy: () => {},
+  monologue_interrupt: () => {},
+}))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'

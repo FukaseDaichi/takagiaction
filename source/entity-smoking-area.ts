@@ -2,6 +2,9 @@ import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
 import { spawn_smoke } from './entity-smoke'
+import {
+  monologue_all_done, monologue_complete, monologue_dummy, monologue_interrupt,
+} from './monologue'
 import { push_block, push_light, push_sprite } from './renderer'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
@@ -126,7 +129,7 @@ export class entity_smoking_area_t extends entity_t {
       // 一服中は自機の速度を強制的にゼロにしている。接触が切れるまで
       // 再武装させないと、動けないまま押さえ込まれ続けて詰む。
       this._needs_release = true
-      terminal_show_notice('咳き込んだ')
+      monologue_interrupt()
       return false
     }
 
@@ -152,7 +155,8 @@ export class entity_smoking_area_t extends entity_t {
     player.h = Math.min(player.h + 1, 5)
     state.exit_open = 1
     audio_play(audio_sfx_beep)
-    terminal_show_notice('深く吸い込む...___非常口のロックが解除された')
+    monologue_complete()
+    terminal_show_notice('煙を感知___非常口のロックが解除された')
   }
 
   // ダミーは回復手段ではなく「歩いた時間の損」。5% は深度 21 なら 2.7 秒ぶんで、
@@ -164,6 +168,16 @@ export class entity_smoking_area_t extends entity_t {
       state.nicotine + state.nicotine_max * 0.05,
     )
     audio_play(audio_sfx_pickup)
-    terminal_show_notice('灰皿は撤去されました')
+    // このフロアの喫煙所（本物 + ダミー）が全部 _done なら、ハズレ告知の
+    // 代わりに「もう無い」を出して非常口へ向かわせる。この状態では本物で
+    // 一服済み（＝非常口が開いている）ので文言と状況が矛盾しない。
+    // 本物側（_complete）では分岐しない — 誘導はロック解除通知が担う。
+    if (state.entities.every(
+      (e) => !(e instanceof entity_smoking_area_t) || e._done,
+    )) {
+      monologue_all_done()
+    } else {
+      monologue_dummy()
+    }
   }
 }
