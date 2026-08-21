@@ -17,6 +17,10 @@
 		#n{position:absolute;bottom:2vw;left:2vw;width:40vw;height:1.6vw;background:rgba(0,0,0,.7);border:0.3125vw solid #e90;display:none;}
 		#nf{display:block;height:100%;width:100%;background:#e90;}
 		#sp{position:absolute;bottom:2vw;left:45vw;color:#e90;font-weight:bold;font-size:1.3vw;text-shadow:0 0 7px #f70;display:none;}
+		#b{position:absolute;left:0;top:0;padding:.3vw .7vw;background:rgba(0,0,0,.75);border:1px solid #e90;border-radius:.5vw;color:#e90;font-weight:bold;font-size:1.4vw;white-space:nowrap;opacity:0;transition:opacity .5s;pointer-events:none;}
+		#b::after{content:'';position:absolute;left:50%;bottom:-.35vw;margin-left:-.35vw;border:.35vw solid transparent;border-bottom:0;border-top-color:#e90;}
+		#b.tr{animation:tr .12s infinite;}
+		@keyframes tr{25%{margin:-2px 0 0 1px;}75%{margin:2px 0 0 -1px;}}
 	</style>
 </head>
 <body style="margin:0;background:#000">
@@ -27,5 +31,6 @@
 	<code id="sn"></code>
 	<div id="n"><i id="nf"></i></div>
 	<code id="sp"></code>
+	<code id="b"></code>
 	<script type="module" src="/source/main.ts"></script>
 </body></html>
