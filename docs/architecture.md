@@ -14,9 +14,10 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
 - `game.ts` — ゲームループとレベル遷移
-- `menu.ts` — 闇サイトの強化メニュー。`terminal_el` を流用した DOM クリック式
+- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
+- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
-- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
+- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import を一切持たず、Node でモックなしに評価できる
 - `hud.ts` — ニコチンゲージの DOM 更新。`dom.ts` と `nicotine.ts` 以外の実行時 import を持たない、葉に近いモジュール
 - `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
@@ -45,7 +46,9 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 `terminal_show_notice()` は完了コールバックを受け取らず、代わりに表示にかかる秒数を返す。降下はこの秒数を `state.descend_timer` に積み、`game_tick` が `state.time_elapsed` で減らして 0 で `next_level()` を呼ぶ。この形は 2 つのことを同時に満たす: 走査中の `state.entities` を衝突ループの内側から差し替えないこと、そして演出中に別の通知が挟まっても降下が消えないこと。ラン終了中（`state.game_running` が 0）は予約を進めず、`load_level` が 0 に戻す。
 
-例外は 2 つ。1 つは `terminal_show_result()` のクリックハンドラで、これはチェーンの完了を待たず登録時点で有効にしてある（同じ理由）。もう 1 つは `main.ts` の起動シーケンスで、`terminal_write_line()` の完了コールバックに `renderer_init()` ・アトラス画像読み込み・`menu_show(run_start)` を載せている。こちらはチェーンの完了に依存したままだが安全なのは、ラン開始前は通知の出どころが存在しないため（`audio_toggle()` の `terminal_show_notice()` 呼び出しは `state.game_running` でガードされている）で、割り込みでチェーンごと捨てられる心配がない。
+例外は `main.ts` の起動シーケンス 1 つだけである。`terminal_write_line()` の完了コールバックに `renderer_init()` ・アトラス画像読み込み・`death_screen_show(null, run_start)` を載せており、チェーンの完了に依存したままになっている。ここが安全なのは、ラン開始前は通知の出どころが存在しないため（`audio_toggle()` の `terminal_show_notice()` 呼び出しは `state.game_running` でガードされている）で、割り込みでチェーンごと捨てられる心配がない。
+
+死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_el` を空にして隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
 
 ## 循環参照の不変条件
 
@@ -95,7 +98,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 `index.html` の `#h` はイントロ用のフルスクリーン画像レイヤーで、`#c` の直後・`#a`（terminal）の直前に配置する。`z-index` は使わず、DOM 順（`#c` → `#h` → `#a`）だけで重なりを決めているため、この順序を変えると terminal の文字が hero の下に隠れる。`::after` の暗いグラデーション（スクリム）は terminal の文字を hero 画像の上でも視認できるようにするためのもの。アニメーションは 30 秒かけて `scale(1)` から `scale(1.06)` まで拡大する Ken Burns 効果のみで、他の演出は乗せない。
 
-`hero_el`（`dom.ts`）はゲーム開始クリックで `opacity` を 1 秒かけてフェードアウトさせたあと `display:none` にする。この非表示はページの生存期間中ずっと有効で、リザルト画面などで hero を再表示することはない。
+`hero_el`（`dom.ts`）はゲーム開始クリックで `opacity` を 1 秒かけてフェードアウトさせたあと `display:none` にする。この非表示はページの生存期間中ずっと有効で、死亡画面などで hero を再表示することはない。
 
 ## ビルドとデプロイ
 

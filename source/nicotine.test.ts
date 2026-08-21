@@ -50,13 +50,13 @@ describe('nicotine_drain_rate', () => {
     }
   })
 
-  // レビュー C-2: 線形だと、恒久強化の全解放（最大 150 / 耐性 −30% = 2.143 倍、
-  // docs/meta-progression.md）と深度 20 でちょうど相殺して伸びしろが消える。
-  // √ 曲線ならその点が深度 37 まで動く。
+  // 線形だと、恒久強化の全解放（最大 200 / 耐性 −40% = 3.33 倍、
+  // docs/meta-progression.md）と深度 40 でちょうど相殺して伸びしろが消える。
+  // √ 曲線ならその点が深度 152 まで動き、到達しうる深度の外に出る。
   // ここで見ているのは曲線の形そのもので、強化の実装には依存しない。
-  it('係数が 2.143 に達するのは深度 37 付近', () => {
-    expect(nicotine_drain_rate(36)).toBeLessThan(150 / 100 / 0.7)
-    expect(nicotine_drain_rate(38)).toBeGreaterThan(150 / 100 / 0.7)
+  it('係数が 3.33 に達するのは深度 152 付近', () => {
+    expect(nicotine_drain_rate(151)).toBeLessThan(200 / 100 / 0.6)
+    expect(nicotine_drain_rate(153)).toBeGreaterThan(200 / 100 / 0.6)
   })
 })
 

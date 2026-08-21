@@ -13,7 +13,7 @@ export const meta = {
   yani: 0,
   best_depth: 0,
   // localStorage が使えない環境（プライベートモード等）で false。
-  // メニューが「このセッション限り」の警告を出すために読む
+  // 死亡画面が「このセッション限り」の警告を出すために読む
   persistent: true,
   levels: { lung: 0, tolerance: 0, sniff: 0, power: 0, spare: 0 } as
     Record<meta_upgrade_id_t, number>,
