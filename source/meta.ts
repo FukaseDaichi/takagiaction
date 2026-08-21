@@ -1,5 +1,3 @@
-import { nicotine_stage_edgy, nicotine_stage_withdrawal } from './nicotine'
-
 // ラン間で持ち越す恒久状態と強化テーブル。ラン状態（state.ts）と寿命が違うため
 // 分離する。state.ts と同様に実行時依存を持たない葉モジュールで、
 // Node（Vitest）でモックなしに評価できることが条件。
@@ -8,7 +6,7 @@ export const meta_upgrade_ids = ['lung', 'tolerance', 'sniff', 'power', 'spare']
 export type meta_upgrade_id_t = (typeof meta_upgrade_ids)[number]
 
 export const meta_max_level: Record<meta_upgrade_id_t, number> = {
-  lung: 5, tolerance: 5, sniff: 3, power: 3, spare: 3,
+  lung: 10, tolerance: 10, sniff: 10, power: 10, spare: 5,
 }
 
 export const meta = {
@@ -21,10 +19,10 @@ export const meta = {
     Record<meta_upgrade_id_t, number>,
 }
 
-// コストは段階ごとに倍々: 20/40/80/160/320。3 段の項目は先頭 3 つを使う。
-// 全解放の合計は 1660
+// コストは 15 + 10lv + 5lv²（15〜510）。10 段の項目は 2025、予備（5 段）は 325 で
+// 全解放の合計は 8425。倍々（20 << lv）は 10 段だと最終段 10240 になり破綻する
 export function meta_upgrade_cost(level: number): number {
-  return 20 << level
+  return 15 + 10 * level + 5 * level * level
 }
 
 export function meta_buy(id: meta_upgrade_id_t): boolean {
@@ -42,36 +40,36 @@ export function meta_nicotine_max(): number {
   return 100 + 10 * meta.levels.lung
 }
 
-// 減少速度に掛ける係数。全強化 0.70 は、最大ゲージ 1.5 倍と合わせた実効 2.143 倍が
-// nicotine_drain_rate の √ 式と深度 37 で釣り合う前提の値（gameplay.md 参照）
+// 減少速度に掛ける係数。全強化 0.60 と最大ゲージ 2 倍の実効 3.33 倍が新しい上限
 export function meta_drain_factor(): number {
-  return 1 - 0.06 * meta.levels.tolerance
+  return 1 - 0.04 * meta.levels.tolerance
 }
 
-// shot_interval() に渡す火力係数。3 段で 0.64
+// shot_interval() に渡す火力係数。10 段で 0.50
 export function meta_power_factor(): number {
-  return 1 - 0.12 * meta.levels.power
+  return 1 - 0.05 * meta.levels.power
 }
 
 export function meta_spare_count(): number {
   return meta.levels.spare
 }
 
-// 嗅覚は「追い詰められたときだけ働く救済」。恒久ナビにすると中核の問い
-// （ゲージが尽きる前に喫煙所を見つけられるか）を恒久的に無効化するため、
-// 1 段は離脱症状帯（30% 以下）のみ、2 段以上でそわそわ帯（60% 以下）に緩和
-export function meta_sniff_active(stage: number): boolean {
-  if (meta.levels.sniff === 0) { return false }
-  const threshold = meta.levels.sniff >= 2
-    ? nicotine_stage_edgy
-    : nicotine_stage_withdrawal
-  return stage >= threshold
+// 発動しきい値（ニコチン比率）。Lv1 = 30% から等間隔で Lv10 = 60% まで上がる。
+// 上限を 60% に留めるのは、恒久ナビ化すると中核の問い（ゲージが尽きる前に
+// 喫煙所を見つけられるか）を恒久的に無効化するため（従来設計を維持）
+export function meta_sniff_threshold(level: number): number {
+  return 0.3 + (level - 1) * (0.3 / 9)
 }
 
-// 3 段は方向に加えて距離も出す。効果値の判定はすべてこのモジュールに置く
-// （minimap.ts が meta.levels.sniff を直接読むと、段階の意味が 2 箇所に散る）
+// 嗅覚は「追い詰められたときだけ働く救済」。ratio は state.nicotine / state.nicotine_max
+export function meta_sniff_active(ratio: number): boolean {
+  const level = meta.levels.sniff
+  return level > 0 && ratio <= meta_sniff_threshold(level)
+}
+
+// 最終段は方向に加えて距離も出す。効果値の判定はすべてこのモジュールに置く
 export function meta_sniff_distance(): boolean {
-  return meta.levels.sniff >= 3
+  return meta.levels.sniff >= 10
 }
 
 const meta_storage_key = 'takagi_meta'

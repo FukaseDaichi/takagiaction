@@ -2,7 +2,8 @@ import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { canvas, terminal_el } from './dom'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
-  meta_power_factor, meta_spare_count, meta_upgrade_cost,
+  meta_power_factor, meta_sniff_distance, meta_sniff_threshold,
+  meta_spare_count, meta_upgrade_cost,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { terminal_hide, terminal_show } from './terminal'
@@ -36,12 +37,10 @@ const menu_items: menu_item_t[] = [
   },
   {
     id: 'sniff', name: '嗅覚',
-    describe: (lv) => [
-      '未取得（ゲージ低下時に残り香の方向が分かるようになる）',
-      'ゲージ30%以下で方向',
-      'ゲージ60%以下で方向',
-      'ゲージ60%以下で方向＋距離',
-    ][lv],
+    describe: (lv) => lv === 0
+      ? '未取得（ゲージ低下時に残り香の方向が分かるようになる）'
+      : 'ゲージ' + Math.round(meta_sniff_threshold(lv) * 100) + '%以下で方向' +
+        (meta_sniff_distance() ? '＋距離' : ''),
   },
   {
     id: 'power', name: '火力',

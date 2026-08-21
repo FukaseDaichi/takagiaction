@@ -124,15 +124,15 @@ describe('自機とニコチン段階', () => {
     expect(plasma_count()).toBe(2)
   })
 
-  it('火力強化で射撃間隔が縮む（3 段で 0.064 秒）', () => {
+  it('火力強化で射撃間隔が縮む（3 段で 0.085 秒）', () => {
     meta.levels.power = 3
     keys[key_shoot] = 1
     player._update() // 1 発目
     expect(plasma_count()).toBe(1)
 
-    state.time_elapsed = 0.05
+    state.time_elapsed = 0.07
     player._update()
-    expect(plasma_count()).toBe(1) // 0.064 秒に届かない
+    expect(plasma_count()).toBe(1) // 0.085 秒に届かない
 
     state.time_elapsed = 0.02
     player._update()

@@ -2,12 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
-  meta_sniff_distance, meta_spare_count, meta_upgrade_cost, meta_upgrade_ids,
+  meta_sniff_distance, meta_sniff_threshold, meta_spare_count,
+  meta_upgrade_cost, meta_upgrade_ids,
 } from './meta'
-import {
-  nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
-  nicotine_stage_withdrawal,
-} from './nicotine'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
 function meta_reset(): void {
@@ -30,21 +27,21 @@ function stub_storage(): Record<string, string> {
 describe('強化テーブル', () => {
   beforeEach(meta_reset)
 
-  it('コストは 20/40/80/160/320 の倍々', () => {
-    expect([0, 1, 2, 3, 4].map(meta_upgrade_cost)).toEqual([20, 40, 80, 160, 320])
+  it('コストは 15 + 10lv + 5lv²', () => {
+    expect([0, 1, 2, 9].map(meta_upgrade_cost)).toEqual([15, 30, 55, 510])
   })
 
   it('購入で残高が減りレベルが上がる', () => {
-    meta.yani = 25
+    meta.yani = 20
     expect(meta_buy('lung')).toBe(true)
     expect(meta.yani).toBe(5)
     expect(meta.levels.lung).toBe(1)
   })
 
   it('残高不足なら購入できない', () => {
-    meta.yani = 19
+    meta.yani = 14
     expect(meta_buy('lung')).toBe(false)
-    expect(meta.yani).toBe(19)
+    expect(meta.yani).toBe(14)
     expect(meta.levels.lung).toBe(0)
   })
 
@@ -55,42 +52,42 @@ describe('強化テーブル', () => {
     expect(meta.yani).toBe(9999)
   })
 
-  it('全解放の合計コストは 1660', () => {
+  it('全解放の合計コストは 8425', () => {
     let total = 0
     for (const id of meta_upgrade_ids) {
       for (let level = 0; level < meta_max_level[id]; level++) {
         total += meta_upgrade_cost(level)
       }
     }
-    expect(total).toBe(1660)
+    expect(total).toBe(8425)
   })
 })
 
 describe('強化の効果値', () => {
   beforeEach(meta_reset)
 
-  it('肺活量: 最大ゲージは 100 + 10/段、全強化で 150', () => {
+  it('肺活量: 最大ゲージは 100 + 10/段、全強化で 200', () => {
     expect(meta_nicotine_max()).toBe(100)
-    meta.levels.lung = 5
-    expect(meta_nicotine_max()).toBe(150)
+    meta.levels.lung = 10
+    expect(meta_nicotine_max()).toBe(200)
   })
 
-  it('耐性: 減少係数は 1 − 0.06/段、全強化で 0.70', () => {
+  it('耐性: 減少係数は 1 − 0.04/段、全強化で 0.60', () => {
     expect(meta_drain_factor()).toBeCloseTo(1, 6)
-    meta.levels.tolerance = 5
-    expect(meta_drain_factor()).toBeCloseTo(0.7, 6)
+    meta.levels.tolerance = 10
+    expect(meta_drain_factor()).toBeCloseTo(0.6, 6)
   })
 
-  it('火力: 射撃間隔係数は 1 − 0.12/段、全強化で 0.64', () => {
+  it('火力: 射撃間隔係数は 1 − 0.05/段、全強化で 0.50', () => {
     expect(meta_power_factor()).toBeCloseTo(1, 6)
-    meta.levels.power = 3
-    expect(meta_power_factor()).toBeCloseTo(0.64, 6)
+    meta.levels.power = 10
+    expect(meta_power_factor()).toBeCloseTo(0.5, 6)
   })
 
   it('予備の一本: 使用可能回数はレベルと同数', () => {
     expect(meta_spare_count()).toBe(0)
-    meta.levels.spare = 2
-    expect(meta_spare_count()).toBe(2)
+    meta.levels.spare = 5
+    expect(meta_spare_count()).toBe(5)
   })
 })
 
@@ -98,29 +95,28 @@ describe('嗅覚の発動条件', () => {
   beforeEach(meta_reset)
 
   it('未購入では発動しない', () => {
-    expect(meta_sniff_active(nicotine_stage_limit)).toBe(false)
+    expect(meta_sniff_active(0)).toBe(false)
   })
 
-  it('1 段は離脱症状帯（30% 以下）のみ', () => {
+  it('1 段はゲージ 30% 以下で発動する', () => {
     meta.levels.sniff = 1
-    expect(meta_sniff_active(nicotine_stage_normal)).toBe(false)
-    expect(meta_sniff_active(nicotine_stage_edgy)).toBe(false)
-    expect(meta_sniff_active(nicotine_stage_withdrawal)).toBe(true)
-    expect(meta_sniff_active(nicotine_stage_limit)).toBe(true)
+    expect(meta_sniff_active(0.31)).toBe(false)
+    expect(meta_sniff_active(0.3)).toBe(true)
+    expect(meta_sniff_active(0)).toBe(true)
   })
 
-  it('2 段以上はそわそわ帯（60% 以下）に緩和される', () => {
-    meta.levels.sniff = 2
-    expect(meta_sniff_active(nicotine_stage_normal)).toBe(false)
-    expect(meta_sniff_active(nicotine_stage_edgy)).toBe(true)
-    meta.levels.sniff = 3
-    expect(meta_sniff_active(nicotine_stage_edgy)).toBe(true)
+  it('しきい値は等間隔で上がり、10 段で 60% になる', () => {
+    expect(meta_sniff_threshold(1)).toBeCloseTo(0.3, 6)
+    expect(meta_sniff_threshold(10)).toBeCloseTo(0.6, 6)
+    meta.levels.sniff = 10
+    expect(meta_sniff_active(0.6)).toBe(true)
+    expect(meta_sniff_active(0.61)).toBe(false)
   })
 
-  it('距離表示は 3 段からで、2 段では出ない', () => {
-    meta.levels.sniff = 2
+  it('距離表示は 10 段のみ', () => {
+    meta.levels.sniff = 9
     expect(meta_sniff_distance()).toBe(false)
-    meta.levels.sniff = 3
+    meta.levels.sniff = 10
     expect(meta_sniff_distance()).toBe(true)
   })
 })

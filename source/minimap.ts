@@ -34,7 +34,7 @@ export function minimap_hide(): void {
 
 export function minimap_update(): void {
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
-  minimap_sniff(stage)
+  minimap_sniff()
   minimap_reveal(stage)
   minimap_draw()
 }
@@ -47,13 +47,16 @@ function minimap_set_pixel(index: number, r: number, g: number, b: number): void
   minimap_pixels.data[p + 3] = 255
 }
 
-function minimap_sniff(stage: number): void {
+function minimap_sniff(): void {
   // state.game_running: run_end() 後も requestAnimationFrame(game_tick) は
   // 回り続け、minimap_update() は無条件に呼ばれる。ここで打ち切らないと、
   // minimap_hide() が隠した直後の 1 フレームで sniff_el.style.display を
   // 'block' に戻し、結果画面の上に残り香表示が復活してしまう
   // （entity-smoking-area.ts / entity-exit.ts の state.game_running と同じ理由）。
-  if (!state.game_running || !meta_sniff_active(stage)) {
+  if (
+    !state.game_running ||
+    !meta_sniff_active(state.nicotine / state.nicotine_max)
+  ) {
     sniff_result = null
     sniff_timer = 0
     sniff_el.style.display = 'none'
@@ -74,7 +77,7 @@ function minimap_sniff(stage: number): void {
     sniff_result = sniff_find(level_data, player.x >> 3, player.z >> 3, targets)
   }
 
-  // 3 段: 距離も表示する（1 タイル = 1m と読む）
+  // 10 段: 距離も表示する（1 タイル = 1m と読む）
   if (sniff_result && meta_sniff_distance()) {
     sniff_el.textContent = '残り香 ' + sniff_result.dist + 'm'
     sniff_el.style.display = 'block'
