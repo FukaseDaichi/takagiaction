@@ -70,6 +70,8 @@ describe('喫煙所', () => {
     state.smoking = 0
     state.exit_open = 0
     state.game_running = 1
+    state.smoke_count = 0
+    state.dummy_count = 0
     mocks.notices.length = 0
     mocks.monologue.length = 0
     mocks.blocks.length = 0
@@ -380,5 +382,20 @@ describe('喫煙所', () => {
     tick(area, player, 0.5)
     expect(mocks.monologue).toEqual(['interrupt'])
     expect(mocks.notices.length).toBe(0) // ターミナルには出さない
+  })
+
+  it('一服完了で喫煙回数が増える', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) }
+    expect(state.smoke_count).toBe(1)
+  })
+
+  it('ダミーを踏むとダミー踏み数が増え、同じダミーは二重に数えない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    tick(area, player, 0.5)
+    tick(area, player, 0.5)
+    expect(state.dummy_count).toBe(1)
+    expect(state.smoke_count).toBe(0) // ダミーは一服に数えない
   })
 })

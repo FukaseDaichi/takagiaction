@@ -59,6 +59,7 @@ export class entity_player_t extends entity_t {
       keys[key_spare] = 0
       if (!smoking && state.game_running && state.spares_left > 0) {
         state.spares_left--
+        state.smoke_count++
         state.nicotine = Math.min(
           state.nicotine_max, state.nicotine + state.nicotine_max * 0.5,
         )
@@ -118,6 +119,10 @@ export class entity_player_t extends entity_t {
   _receive_withdrawal_damage(): void {
     audio_play(audio_sfx_hurt)
     this.h -= 1
-    if (this.h <= 0) { this._kill() }
+    if (this.h <= 0) {
+      // 死因の記録は _kill() より前。run_end() がこの値を死亡画面に渡す
+      state.death_cause = 1
+      this._kill()
+    }
   }
 }

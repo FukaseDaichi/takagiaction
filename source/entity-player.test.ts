@@ -209,6 +209,21 @@ describe('ニコチン切れの継続ダメージ', () => {
     expect(player.z).toBe(z_alive + 5)
     expect(player.y).toBe(10)
   })
+
+  it('ニコチン切れの継続ダメージで死ぬと death_cause が立つ', () => {
+    state.death_cause = 0
+    player.h = 1
+    player._receive_withdrawal_damage()
+    expect(state.death_cause).toBe(1)
+  })
+
+  it('死なない離脱ダメージでは death_cause は立たない', () => {
+    state.death_cause = 0
+    player.h = 3
+    player._receive_withdrawal_damage()
+    expect(state.death_cause).toBe(0)
+    expect(player.h).toBe(2)
+  })
 })
 
 describe('予備の一本', () => {

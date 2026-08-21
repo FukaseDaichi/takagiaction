@@ -151,6 +151,7 @@ export class entity_smoking_area_t extends entity_t {
   private _complete(): void {
     const player = state.entity_player!
     this._done = true
+    state.smoke_count++
     state.nicotine = state.nicotine_max
     player.h = Math.min(player.h + 1, 5)
     state.exit_open = 1
@@ -163,6 +164,7 @@ export class entity_smoking_area_t extends entity_t {
   // 実質ゼロ。回復ではなくペナルティとして設計されている。
   private _take_dummy(): void {
     this._done = true
+    state.dummy_count++
     state.nicotine = Math.min(
       state.nicotine_max,
       state.nicotine + state.nicotine_max * 0.05,

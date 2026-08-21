@@ -32,6 +32,10 @@ export const state = {
   kills: 0,
   yani_run: 0, // このランで得たヤニ。run_end() が meta.yani に合算する
   spares_left: 0, // 予備の一本の残数。run_start() が強化レベルから設定する
+  run_time: 0, // このランの経過秒数。game_tick が game_running 中のみ加算する
+  smoke_count: 0, // 一服の回数。喫煙所での完了と予備の一本の使用で 1 ずつ増える
+  dummy_count: 0, // 踏んだダミーの数。_take_dummy は _done ガードで同一個体 1 度しか走らない
+  death_cause: 0, // 0 = 敵、1 = ニコチン切れ。_receive_withdrawal_damage が死亡時に立てる
 
   entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],

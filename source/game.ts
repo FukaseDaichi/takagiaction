@@ -43,6 +43,10 @@ export function run_start(): void {
   state.depth = 0
   state.kills = 0
   state.yani_run = 0
+  state.run_time = 0
+  state.smoke_count = 0
+  state.dummy_count = 0
+  state.death_cause = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
@@ -177,6 +181,9 @@ function game_tick(): void {
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
   state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
+
+  // リザルト表示中は生存時間に数えない
+  if (state.game_running) { state.run_time += state.time_elapsed }
 
   // 非常口の通過演出が終わったら降下する。予約の実体は state.descend_timer で、
   // terminal の表示チェーンから独立しているため、演出中に別の通知が出ても
