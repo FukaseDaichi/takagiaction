@@ -40,9 +40,8 @@ interface upgrade_row_t {
   describe: () => string
 }
 
-// 係数の百分率は Math.round を通す（耐性の全強化は 1 - meta_drain_factor() が
-// 浮動小数の丸め誤差で 0.30000000000000004 になり、100 倍すると
-// 30.000000000000004 と表示されてしまう）
+// 係数の百分率は Math.round を通す（耐性 Lv8 は 1 - meta_drain_factor() が
+// 浮動小数の丸め誤差を持ち、100 倍すると 32.00000000000001 になってしまう）
 const upgrade_rows: upgrade_row_t[] = [
   {
     id: 'lung', name: '肺活量', icon: icon_lung_url, color: '#3ac6f0',
