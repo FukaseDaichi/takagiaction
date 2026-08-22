@@ -1,5 +1,6 @@
 import { audio_play, audio_sfx_hit } from './audio'
 import { entity_t } from './entity'
+import { entity_drone_t } from './entity-drone'
 import { entity_sentry_t } from './entity-sentry'
 import { entity_spider_t } from './entity-spider'
 import { push_light } from './renderer'
@@ -21,7 +22,11 @@ export class entity_plasma_t extends entity_t {
   }
 
   override _check(other: entity_t): void {
-    if (other instanceof entity_spider_t || other instanceof entity_sentry_t) {
+    if (
+      other instanceof entity_spider_t ||
+      other instanceof entity_sentry_t ||
+      other instanceof entity_drone_t
+    ) {
       audio_play(audio_sfx_hit)
       other._receive_damage(this, 1)
       this._kill()

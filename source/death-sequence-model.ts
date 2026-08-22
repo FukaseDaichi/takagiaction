@@ -17,8 +17,10 @@ export const death_tape_stop_duration = 1.5
 
 const notice_at = 1.2
 const lift_at = 1.8
-const smoke_first_at = 0.2
-const smoke_interval = 0.4
+// 魂の煙が出る時刻。0.2 から 0.4 秒ごと、持ち上げの 1.8 秒まで。時刻を式
+// （0.2 + 0.4n）から求めると 0.6 と 1.4 が二進で表せず 1 フレーム遅れるので、
+// 数え上げではなくこの表と直接比較する
+const smoke_times = [0.2, 0.6, 1.0, 1.4, lift_at]
 
 // 死体の高さ。倒れた姿勢の 10 から、持ち上げ開始後に 60 まで直線で上がる
 const body_y_rest = 10
@@ -35,16 +37,10 @@ export interface death_beats_t {
   done: boolean // シーケンス終了（run_end を呼ぶ）
 }
 
-// (before, after] に含まれる煙の湧き時刻の数。持ち上げ開始後は湧かない
-function smoke_count_until(t: number): number {
-  const capped = Math.min(t, lift_at)
-  if (capped < smoke_first_at) { return 0 }
-  return Math.floor((capped - smoke_first_at) / smoke_interval) + 1
-}
-
 export function death_beats(before: number, after: number): death_beats_t {
   return {
-    smoke: smoke_count_until(after) - smoke_count_until(before),
+    // (before, after] に入った湧き時刻の数。フレームが粗くても取りこぼさない
+    smoke: smoke_times.filter((t) => before < t && after >= t).length,
     notice: before < notice_at && after >= notice_at,
     done: before < death_duration && after >= death_duration,
   }

@@ -3,6 +3,7 @@ import { death_screen_show } from './death-screen'
 import {
   death_beats, death_body_y, death_drone_y,
 } from './death-sequence-model'
+import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
@@ -168,6 +169,7 @@ function load_level(depth: number): void {
   for (const p of layout.sentries) { new entity_sentry_t(p.x * 8, 0, p.z * 8, 5, 32) }
   for (const p of layout.health) { new entity_health_t(p.x * 8, 0, p.z * 8, 5, 31) }
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
+  for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
 
   const player = state.entity_player!
   camera.x = -player.x
@@ -263,6 +265,15 @@ function game_tick(): void {
     limit_damage_timer = 0
   }
 
+  // 死体は当たり判定から外す。相手側の _check は「entity_player_t かどうか」
+  // だけを見るので、死体のままでも回復パックを拾い、ヤニを回収し、喫煙所に
+  // 触れてしまう。死亡画面は HP と獲得ヤニをそのまま出すため、死後に動くと
+  // 「HP 1 で死亡」や死後に稼いだヤニが表示される。死体が消えるのは次の
+  // load_level なので、シーケンス中（dying）に加えてリザルト表示中
+  // （game_running = 0）も外す。除外はここ 1 か所で行う
+  // （各エンティティ側に足すと同じ判定が 5 つに散る）
+  const corpse = state.dying || !state.game_running ? player : null
+
   // update and render entities
   const entities = state.entities
   for (let i = 0; i < entities.length; i++) {
@@ -273,6 +284,7 @@ function game_tick(): void {
     // check for collisions between entities - it's quadratic and nobody cares \o/
     for (let j = i + 1; j < entities.length; j++) {
       const e2 = entities[j]
+      if (e1 === corpse || e2 === corpse) { continue }
       if (!(
         e1.x >= e2.x + 9 ||
         e1.x + 9 <= e2.x ||

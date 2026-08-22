@@ -108,9 +108,12 @@ export class entity_player_t extends entity_t {
   // 死＝死亡シーケンスの開始（docs/gameplay.md「死亡シーケンス」）。
   // super._kill() は呼ばない — _dead にするとフレーム末尾でエンティティから
   // 除去されて死体が消える。run_end() は game_tick が 3 秒後に呼ぶ。
-  // state.dying が二重呼び出しの遮断も兼ねる（二重に走ると姿勢がもう一段跳ねる）
+  // 一度死んだらもう死なない: state.dying が二重呼び出しを遮断し（二重に走ると
+  // 姿勢がもう一段跳ねる）、game_running がリザルト表示中の再開を止める。
+  // 死体は load_level まで残るので、止めないと敵に押されるたびシーケンスが
+  // 走り直し、表示中のリザルトに通知と BGM の落としが割り込む
   protected override _kill(): void {
-    if (state.dying) { return }
+    if (state.dying || !state.game_running) { return }
     state.dying = 1
     state.death_elapsed = 0
     this.y = 10
@@ -121,8 +124,9 @@ export class entity_player_t extends entity_t {
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
-    // 死亡シーケンス中の死体は傷つかない（敵が乗ってきても hurt 音を鳴らさない）
-    if (state.dying) { return }
+    // 死体は傷つかない（敵が乗ってきても hurt 音を鳴らさない）。シーケンス中も
+    // リザルト表示中も、死体が消えるのは次のフロアを読み込むときだけ
+    if (state.dying || !state.game_running) { return }
     if (this._last_damage < 0) {
       audio_play(audio_sfx_hurt)
       super._receive_damage(from, amount)

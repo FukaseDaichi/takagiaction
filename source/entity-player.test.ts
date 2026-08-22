@@ -178,6 +178,7 @@ describe('ニコチン切れの継続ダメージ', () => {
     state.smoking = 0
     state.dying = 0
     state.death_elapsed = 0
+    state.game_running = 1 // 死体は傷つかない。ラン中であることが被弾の前提
     for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
     player = new entity_player_t(64, 0, 64, 5, 18)
     state.entity_player = player

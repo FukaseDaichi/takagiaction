@@ -33,6 +33,19 @@ describe('death_beats: ビート発火', () => {
     expect(beats.notice).toBe(true)
     expect(beats.smoke).toBe(1) // 1.4
   })
+
+  // 0.2 + 0.4n を割り算で求めると、0.6 と 1.4 が二進で表せず 1 フレーム遅れる
+  it('各回の煙はちょうどその時刻に出る', () => {
+    expect(death_beats(0.15, 0.2).smoke).toBe(1)
+    expect(death_beats(0.55, 0.6).smoke).toBe(1)
+    expect(death_beats(0.95, 1.0).smoke).toBe(1)
+    expect(death_beats(1.35, 1.4).smoke).toBe(1)
+    expect(death_beats(1.75, 1.8).smoke).toBe(1)
+  })
+
+  it('煙は全部で 5 回', () => {
+    expect(death_beats(0, death_duration).smoke).toBe(5)
+  })
 })
 
 describe('death_body_y: 死体の高さ', () => {
