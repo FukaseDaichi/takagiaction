@@ -200,12 +200,26 @@ export function bfs_distances(tiles: Uint8Array, start: tile_pos_t): Int32Array 
   return dist
 }
 
-// 深度あたりの敵の総数。既存の「床タイルごとに random_int(0, 16 - id*2) == 0」は
-// 深度 8 で当選率 100%、深度 9 以降で負のレンジになり当選率が非単調に振れる。
-// 総数で管理すれば単調性も上限も保証できる。上限があること自体が要件で、
-// game.ts のエンティティ衝突判定は O(n²)。
-export function enemy_budget(depth: number): number {
-  return Math.min(30 + depth * 4, 100)
+// 満寸のフロアの床タイル数（実測平均）。敵の総数を按分する基準。
+export const reference_floor_tiles = 1090
+
+// 総数の上限。game.ts のエンティティ衝突判定は O(n²) なので、上限がないと
+// フロアが進むほどフレームレートが落ちる。上限があること自体が要件。
+const enemy_count_max = 100
+
+// 敵の総数。既存の「床タイルごとに random_int(0, 16 - id*2) == 0」は深度 8 で
+// 当選率 100%、深度 9 以降で負のレンジになり当選率が非単調に振れる。
+// 総数で管理すれば単調性も上限も保証できる。
+//
+// 床タイル数で按分するのは、フロアの広さが深度で開くため
+// （level_bounds_side）。体数を深度だけから決めると、狭い浅い層ほど
+// 敵密度が上がり、広さを絞った意味が消える。
+//
+// 上限は按分のあとに掛ける。先に掛けると、床タイル数が基準を上回るフロアで
+// 按分が上限を押し上げ、100 を超えうる。
+export function enemy_count(depth: number, floor_tiles: number): number {
+  const scaled = (30 + depth * 4) * floor_tiles / reference_floor_tiles
+  return Math.min(Math.round(scaled), enemy_count_max)
 }
 
 export function sentry_count(depth: number): number {
@@ -310,10 +324,16 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   }
 
   // 湧き先の候補。目標地点は直前に壁へ変えたのでここで自然に除外される。
+  // 床タイル数も同じ走査で数える（敵の総数の按分に使う）。目標地点を壁へ
+  // 変えたあとに数えるので、enemy_count が見る床の数と実際の床が一致する。
   const spawnable: number[] = []
+  let floor_tiles = 0
   for (let i = 0; i < dist.length; i++) {
     const t = tiles[i]
-    if (dist[i] >= spawn_min_distance && t > 0 && t < 8) { spawnable.push(i) }
+    if (t > 0 && t < 8) {
+      floor_tiles++
+      if (dist[i] >= spawn_min_distance) { spawnable.push(i) }
+    }
   }
 
   // 候補から重複なく取り出す。候補が尽きたら取れた分で打ち切る。
@@ -329,7 +349,7 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   }
 
   const sentries = take(sentry_count(depth))
-  const spiders = take(enemy_budget(depth) - sentries.length)
+  const spiders = take(enemy_count(depth, floor_tiles) - sentries.length)
   const health = take(random_int(2, 4))
   const yani = take(random_int(1, 3)) // 床への散在: 1 フロアあたり 1〜3（設計書）
   // 清掃ドローンは「まれに」= 1/4 のフロアに 1 体。敵予算には数えない（非武装）

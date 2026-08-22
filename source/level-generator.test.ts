@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  generate_level, level_bounds_side, level_vert_cost, enemy_budget,
-  room_count_range, sentry_count,
+  enemy_count, generate_level, level_bounds_side, level_vert_cost,
+  reference_floor_tiles, room_count_range, sentry_count,
 } from './level-generator'
 import type { level_layout_t, tile_pos_t } from './level-generator'
 import { level_height, level_width } from './state'
@@ -373,16 +373,29 @@ describe('敵の総数', () => {
   // レビュー A-3: 既存の式は深度 8 で当選率 100%、深度 9 以降で非単調になる
   it('深度が上がると単調非減少で、上限で頭打ちになる', () => {
     for (let depth = 1; depth < 200; depth++) {
-      expect(enemy_budget(depth + 1)).toBeGreaterThanOrEqual(enemy_budget(depth))
+      expect(enemy_count(depth + 1, reference_floor_tiles))
+        .toBeGreaterThanOrEqual(enemy_count(depth, reference_floor_tiles))
       expect(sentry_count(depth + 1)).toBeGreaterThanOrEqual(sentry_count(depth))
     }
-    expect(enemy_budget(1000)).toBe(100)
+    expect(enemy_count(1000, reference_floor_tiles)).toBe(100)
     expect(sentry_count(1000)).toBe(10)
   })
 
-  it('深度 1 は敵 34 体、うちセントリー 1 体', () => {
-    expect(enemy_budget(1)).toBe(34)
+  it('満寸のフロアでは深度 1 が 34 体、うちセントリー 1 体', () => {
+    expect(enemy_count(1, reference_floor_tiles)).toBe(34)
     expect(sentry_count(1)).toBe(1)
+  })
+
+  it('床タイル数に比例する', () => {
+    expect(enemy_count(1, reference_floor_tiles / 2)).toBe(17)
+    expect(enemy_count(10, reference_floor_tiles / 2)).toBe(35)
+  })
+
+  // 上限は按分のあとに掛ける。先に掛けると、床タイル数が基準を上回るフロアで
+  // 按分が上限を押し上げ、100 を超えうる。上限は O(n²) の衝突判定を守る要件。
+  it('床タイル数が基準を上回っても上限 100 を超えない', () => {
+    expect(enemy_count(30, reference_floor_tiles * 2)).toBe(100)
+    expect(enemy_count(200, reference_floor_tiles * 10)).toBe(100)
   })
 })
 
@@ -415,14 +428,33 @@ describe('generate_level: 配置', () => {
     }
   }, 60000)
 
-  it('敵の総数は予算を超えない', () => {
+  it('敵の総数は床タイル数から決まる予算を超えない', () => {
     for (let seed = 1; seed <= 200; seed++) {
       for (const depth of [1, 10, 30]) {
         const layout = generate_level(depth, seed)
+        let floor_tiles = 0
+        for (const t of layout.tiles) { if (t > 0 && t < 8) { floor_tiles++ } }
         expect(layout.spiders.length + layout.sentries.length)
-          .toBeLessThanOrEqual(enemy_budget(depth))
+          .toBeLessThanOrEqual(enemy_count(depth, floor_tiles))
         expect(layout.sentries.length).toBeLessThanOrEqual(sentry_count(depth))
       }
+    }
+  }, 60000)
+
+  // フロアを狭めたぶん体数を減らさないと、浅い層ほど敵密度が上がって
+  // 難易度緩和にならない（狭くする前の深度 1 は 1090 タイルに 34 体 = 1/32）
+  it('敵の密度は狭くする前と変わらない', () => {
+    for (const depth of [1, 5, 10]) {
+      let enemies = 0
+      let floors = 0
+      for (let seed = 1; seed <= 100; seed++) {
+        const layout = generate_level(depth, seed)
+        enemies += layout.spiders.length + layout.sentries.length
+        for (const t of layout.tiles) { if (t > 0 && t < 8) { floors++ } }
+      }
+      const before = enemy_count(depth, reference_floor_tiles) / reference_floor_tiles
+      expect(enemies / floors).toBeGreaterThan(before * 0.95)
+      expect(enemies / floors).toBeLessThan(before * 1.05)
     }
   }, 60000)
 
