@@ -1,49 +1,47 @@
-import { meta_max_level, meta_upgrade_cost, meta_upgrade_ids } from './meta'
-import type { meta_upgrade_id_t } from './meta'
+import {
+  nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_withdrawal,
+} from './nicotine'
 
-// HUD の表示ロジック。DOM を触らない純関数のみを置き、Node（Vitest）で
+// HUD の表示条件。DOM を触らない純関数のみを置き、Node（Vitest）で
 // モックなしに評価できることが条件（death-screen-model.ts と同じ扱い）。
+//
+// HUD の設計は「安全なときは黙り、危険が近づくほど喋る」。常設はタバコ（ゲージ）と
+// ミニマップだけで、他は判断が要る瞬間だけ現れる。**表示されていること自体が警告**
+// なので、ラベルを付けずに済む。何が出るかの判断はすべてこのモジュールに集める。
 
-export interface objective_t {
-  title: string
-  note: string
+// 百分率。通常帯（60% 超）では出さない。一服中は通常帯でも出して、回復量を
+// 数字で見せる（一服は 2.5 秒の固定時間で、その間プレイヤーに操作権がない）
+export function hud_percent_visible(stage: number, smoking: number): boolean {
+  return stage >= nicotine_stage_edgy || smoking !== 0
 }
 
-// 「次にやること」。事実と指示だけを書く（感情は monologue が担う、docs/story.md）。
-// 引数は state.smoking / state.exit_open と同じ 0 / 1。
-export function hud_objective(smoking: number, exit_open: number): objective_t {
-  if (smoking) {
-    return { title: 'そのまま 吸い続ける', note: '離れると中断する' }
-  }
-  if (!exit_open) {
-    return { title: '喫煙所を探して 一服する', note: '一服すると非常口が開きます' }
-  }
-  return { title: '非常口から 次の階へ', note: 'ミニマップの緑印が出口です' }
+// 予備の一本の [E]。離脱症状帯に入ったら「いま使え」の合図として点灯する
+export function hud_spare_urgent(stage: number): boolean {
+  return stage >= nicotine_stage_withdrawal
 }
 
-export interface yani_progress_t {
-  cost: number // 次に買える最安の強化コスト。0 = 全項目 MAX（目標なし）
-  remain: number // 目標まで足りないヤニ。届いていれば 0
-  ratio: number // ゲージの塗り 0..1
+// 満タンに戻ってから HP を隠すまでの猶予（秒）。即座に消すと、回復した瞬間に
+// 目的の表示が消えて「回復できたのか」の確認ができない
+export const hp_reveal_hold = 3
+
+export interface hp_reveal_t {
+  visible: boolean
+  hold: number // 残り猶予（秒）。0 で非表示に落ちる
 }
 
-// 「次の強化まで」の目標額。最安の強化を目標に置くのは、闇サイトで実際に
-// 次の一手として選べる金額がそれだからで、深度を伸ばす動機に直結する。
-// levels は meta.levels（呼び出し側から渡してこのモジュールを純粋に保つ）。
-export function hud_yani_progress(
-  yani: number, levels: Record<meta_upgrade_id_t, number>,
-): yani_progress_t {
-  let cost = 0
-  for (const id of meta_upgrade_ids) {
-    const level = levels[id]
-    if (level >= meta_max_level[id]) { continue }
-    const c = meta_upgrade_cost(level)
-    if (cost === 0 || c < cost) { cost = c }
+export function hp_reveal_idle(): hp_reveal_t {
+  return { visible: false, hold: 0 }
+}
+
+// 削られている間と限界帯では出し続け、満タンに戻ったら hp_reveal_hold 秒で消す。
+// 限界帯を条件に含めるのは、ゲージ 0% では次に減るのが HP そのものだから
+// （2 秒ごとに 1 減る、docs/gameplay.md）。最初の被弾を待つと手遅れになる。
+export function hp_reveal_step(
+  prev: hp_reveal_t, hp: number, hp_max: number, stage: number, dt: number,
+): hp_reveal_t {
+  if (hp < hp_max || stage === nicotine_stage_limit) {
+    return { visible: true, hold: hp_reveal_hold }
   }
-  if (cost === 0) { return { cost: 0, remain: 0, ratio: 1 } }
-  return {
-    cost,
-    remain: Math.max(0, cost - yani),
-    ratio: Math.min(1, yani / cost),
-  }
+  const hold = prev.hold - dt
+  return hold > 0 ? { visible: true, hold } : { visible: false, hold: 0 }
 }
