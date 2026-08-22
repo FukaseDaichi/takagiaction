@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
-  meta_sniff_distance, meta_sniff_threshold, meta_spare_count,
-  meta_speed_factor, meta_upgrade_ids, meta_upgrade_price,
+  meta_sniff_distance, meta_sniff_exit, meta_sniff_loot, meta_sniff_path,
+  meta_sniff_threshold, meta_spare_count, meta_speed_factor,
+  meta_upgrade_ids, meta_upgrade_price,
 } from './meta'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
@@ -112,16 +113,22 @@ describe('強化の効果値', () => {
     expect(meta_power_factor(1)).toBeCloseTo(0.95, 6)
     expect(meta_speed_factor(10)).toBeCloseTo(1.5625, 6)
     expect(meta_spare_count(3)).toBe(3)
-    expect(meta_sniff_distance(10)).toBe(true)
-    expect(meta_sniff_distance(9)).toBe(false)
+    expect(meta_sniff_distance(3)).toBe(true)
+    expect(meta_sniff_distance(2)).toBe(false)
   })
 })
 
-describe('嗅覚の発動条件', () => {
+describe('嗅覚の段ごとの効果', () => {
   beforeEach(meta_reset)
 
   it('未購入では発動しない', () => {
     expect(meta_sniff_active(0)).toBe(false)
+  })
+
+  it('しきい値は 30% と 60% の 2 値（ニコチン段階の境界）', () => {
+    expect(meta_sniff_threshold(1)).toBeCloseTo(0.3, 6)
+    expect(meta_sniff_threshold(2)).toBeCloseTo(0.6, 6)
+    expect(meta_sniff_threshold(5)).toBeCloseTo(0.6, 6)
   })
 
   it('1 段はゲージ 30% 以下で発動する', () => {
@@ -131,19 +138,36 @@ describe('嗅覚の発動条件', () => {
     expect(meta_sniff_active(0)).toBe(true)
   })
 
-  it('しきい値は等間隔で上がり、10 段で 60% になる', () => {
-    expect(meta_sniff_threshold(1)).toBeCloseTo(0.3, 6)
-    expect(meta_sniff_threshold(10)).toBeCloseTo(0.6, 6)
-    meta.levels.sniff = 10
-    expect(meta_sniff_active(0.6)).toBe(true)
+  it('2 段からはゲージ 60% 以下で発動する', () => {
+    meta.levels.sniff = 2
     expect(meta_sniff_active(0.61)).toBe(false)
+    expect(meta_sniff_active(0.6)).toBe(true)
   })
 
-  it('距離表示は 10 段のみ', () => {
-    meta.levels.sniff = 9
-    expect(meta_sniff_distance()).toBe(false)
-    meta.levels.sniff = 10
+  it('経路方向と距離は 3 段から', () => {
+    expect(meta_sniff_path(2)).toBe(false)
+    expect(meta_sniff_path(3)).toBe(true)
+    expect(meta_sniff_distance(2)).toBe(false)
+    expect(meta_sniff_distance(3)).toBe(true)
+  })
+
+  it('非常口は 4 段から', () => {
+    expect(meta_sniff_exit(3)).toBe(false)
+    expect(meta_sniff_exit(4)).toBe(true)
+  })
+
+  it('ヤニと清掃ドローンの点灯は 5 段から', () => {
+    expect(meta_sniff_loot(4)).toBe(false)
+    expect(meta_sniff_loot(5)).toBe(true)
+  })
+
+  it('解放 getter は既定で現在の段を読む', () => {
+    expect(meta_sniff_path()).toBe(false)
+    meta.levels.sniff = 5
+    expect(meta_sniff_path()).toBe(true)
     expect(meta_sniff_distance()).toBe(true)
+    expect(meta_sniff_exit()).toBe(true)
+    expect(meta_sniff_loot()).toBe(true)
   })
 })
 
@@ -191,13 +215,15 @@ describe('保存と読み込み', () => {
   it('範囲外の値は最大レベルに丸める', () => {
     const store = stub_storage()
     store['takagi_meta'] = JSON.stringify({
-      yani: -5, best_depth: 3.7, levels: { lung: 99, sniff: 2 },
+      yani: -5, best_depth: 3.7, levels: { lung: 99, sniff: 10, tolerance: 2 },
     })
     meta_load()
     expect(meta.yani).toBe(0)
     expect(meta.best_depth).toBe(3)
     expect(meta.levels.lung).toBe(meta_max_level.lung)
-    expect(meta.levels.sniff).toBe(2)
+    // 嗅覚が 10 段だった時代の保存データは 5 に丸まる（移行処理は置かない）
+    expect(meta.levels.sniff).toBe(5)
+    expect(meta.levels.tolerance).toBe(2)
     expect(meta.levels.power).toBe(0)
   })
 })

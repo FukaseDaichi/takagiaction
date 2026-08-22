@@ -76,22 +76,44 @@ export function meta_spare_count(level = meta.levels.spare): number {
   return level
 }
 
-// 発動しきい値（ニコチン比率）。Lv1 = 30% から等間隔で Lv10 = 60% まで上がる。
-// 上限を 60% に留めるのは、恒久ナビ化すると中核の問い（ゲージが尽きる前に
-// 喫煙所を見つけられるか）を恒久的に無効化するため（従来設計を維持）
+// 発動しきい値（ニコチン比率）。Lv1 = 30%、Lv2 以降 = 60%。どちらもニコチン
+// 段階の境界そのもの（nicotine.ts の nicotine_withdrawal_ratio /
+// nicotine_edgy_ratio）で、「離脱症状になったら」「そわそわし始めたら」と
+// 1 文で言える。上限を 60% に留めるのは、恒久ナビ化すると中核の問い
+// （ゲージが尽きる前に喫煙所を見つけられるか）を恒久的に無効化するため
 export function meta_sniff_threshold(level: number): number {
-  return 0.3 + (level - 1) * (0.3 / 9)
+  return level >= 2 ? 0.6 : 0.3
 }
 
-// 嗅覚は「追い詰められたときだけ働く救済」。ratio は state.nicotine / state.nicotine_max
+// 生存系（残り香・非常口）の方向は「追い詰められたときだけ働く救済」。
+// ratio は state.nicotine / state.nicotine_max。
+// 収入系（meta_sniff_loot）はこの判定を通さない
 export function meta_sniff_active(ratio: number): boolean {
   const level = meta.levels.sniff
   return level > 0 && ratio <= meta_sniff_threshold(level)
 }
 
-// 最終段は方向に加えて距離も出す。効果値の判定はすべてこのモジュールに置く
+// Lv3: 光跡が経路方向（BFS の第一歩）になり、距離も出る。どちらも同じ BFS の
+// 情報を読めるようになったこと 1 つの解放なので、同じ段に置く
+export function meta_sniff_path(level = meta.levels.sniff): boolean {
+  return level >= 3
+}
+
 export function meta_sniff_distance(level = meta.levels.sniff): boolean {
-  return level >= 10
+  return level >= 3
+}
+
+// Lv4: 開通済みの非常口も嗅ぐ。一服後に非常口を探して歩き回りゲージが再び
+// 落ちた局面では目標リストが空になり、それまで嗅覚が沈黙していた
+export function meta_sniff_exit(level = meta.levels.sniff): boolean {
+  return level >= 4
+}
+
+// Lv5: ヤニと清掃ドローンがミニマップに点灯する。しきい値を持たないのは、
+// 追い詰められている最中に拾いに行く余裕がなく狩りの道具にならないため。
+// 中核の問いを握っているのは喫煙所への方向だけなので、常時でも触れない
+export function meta_sniff_loot(level = meta.levels.sniff): boolean {
+  return level >= 5
 }
 
 const meta_storage_key = 'takagi_meta'
