@@ -259,6 +259,7 @@ export const sound_lighter: SonantInstrument = {
 }
 
 // 深い吐息。立ち上がりの遅い柔らかいノイズをローパスで丸める
+// パラメータは初期値のまま。試聴による調整はまだ行っていない
 export const sound_exhale: SonantInstrument = {
   osc1_oct: 5,
   osc1_det: 0,
@@ -292,6 +293,7 @@ export const sound_exhale: SonantInstrument = {
 }
 
 // 遠くの防災扉の駆動音。低い持続音 + わずかなノイズをローパスでくぐもらせる
+// パラメータは初期値のまま。試聴による調整はまだ行っていない
 export const sound_door: SonantInstrument = {
   osc1_oct: 4,
   osc1_det: 0,

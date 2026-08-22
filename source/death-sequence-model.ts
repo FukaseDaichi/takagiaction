@@ -47,8 +47,15 @@ export function death_beats(before: number, after: number): death_beats_t {
   }
 }
 
+// 持ち上げ開始（lift_at）から終端（death_duration）までの経過を 0〜1 に正規化した
+// 進捗。死体の上昇（death_body_y）と白フェード（death_fade_opacity）は
+// 「同じ速さで進む」のが意図なので、この 1 つを両方から呼んで揃える
+function lift_progress(elapsed: number): number {
+  return Math.max(0, Math.min(1, (elapsed - lift_at) / (death_duration - lift_at)))
+}
+
 export function death_body_y(elapsed: number): number {
-  const progress = Math.max(0, Math.min(1, (elapsed - lift_at) / (death_duration - lift_at)))
+  const progress = lift_progress(elapsed)
   return body_y_rest + (body_y_lifted - body_y_rest) * progress
 }
 
@@ -59,7 +66,8 @@ export function death_drone_y(elapsed: number): number | null {
 }
 
 // 白フェード。持ち上げ開始から終端へ直線で 0 → 1。「降りてきた白い光に
-// 包まれて運ばれた」の完結で、機体を描かない表現（上記）は変えない
+// 包まれて運ばれた」の完結で、機体を描かない表現（上記）は変えない。
+// 進捗の式は死体の上昇（death_body_y）と共有（lift_progress 参照）
 export function death_fade_opacity(elapsed: number): number {
-  return Math.max(0, Math.min(1, (elapsed - lift_at) / (death_duration - lift_at)))
+  return lift_progress(elapsed)
 }

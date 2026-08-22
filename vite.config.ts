@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   // GitHub Pages のプロジェクトページは /takagiaction/ 配下で配信されるため相対パスにする
@@ -10,5 +10,13 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+  },
+  test: {
+    // vitest 標準の除外（configDefaults.exclude）は .claude/ を含まないため、
+    // .claude/worktrees/ 配下にロックされたまま残る過去の feature worktree の
+    // テストまで二重に拾ってしまう。ここで明示的に除外する。
+    // test.exclude は標準の除外を追加ではなく丸ごと上書きするので、
+    // configDefaults.exclude を展開して失わないようにする
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 })

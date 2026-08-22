@@ -525,4 +525,29 @@ describe('喫煙所', () => {
     expect(mocks.sounds).not.toContain('beep')
     expect(mocks.sounds).not.toContain('door')
   })
+
+  // game_tick の corpse 除外（entities ループの開始前に 1 度だけ計算）は、
+  // ループの途中で state.dying が立つケースまでは遡れない。load_level は
+  // 自機を先頭・本物の喫煙所を 2 番目に積むため、蜘蛛との衝突より先に
+  // (0, 1) の衝突判定が評価されて _touching が立ってしまってから、
+  // 自機が死ぬ（docs/gameplay.md「死亡シーケンス」）。そのため _touching を
+  // 消費する _render() 側で state.dying を直接読む必要がある。
+  // idle() は _check を呼ばず _touching を立てないため、この経路は
+  // tick() でしか再現できない。
+  it('死亡シーケンス中に被弾しても一服の中断セリフを出さず、ロックも残さない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.5) // 生存中に一服を開始（_hp_mark = 5）
+    expect(state.smoking).toBe(1)
+
+    // 蜘蛛の接触ダメージで自機が死んだのと同じフレームを模す
+    player.h = 4
+    state.dying = 1
+    tick(area, player, 0.5)
+
+    expect(mocks.monologue).toEqual([]) // 死亡演出中に中断のセリフを出さない
+    expect(state.smoking).toBe(0) // ロックも解放される
+  })
 })
