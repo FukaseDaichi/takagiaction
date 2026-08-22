@@ -7,7 +7,7 @@ export const meta_upgrade_ids =
 export type meta_upgrade_id_t = (typeof meta_upgrade_ids)[number]
 
 export const meta_max_level: Record<meta_upgrade_id_t, number> = {
-  lung: 10, tolerance: 10, sniff: 10, leg: 10, power: 10, spare: 5,
+  lung: 10, tolerance: 10, sniff: 5, leg: 10, power: 10, spare: 5,
 }
 
 export const meta = {
@@ -20,16 +20,27 @@ export const meta = {
     Record<meta_upgrade_id_t, number>,
 }
 
-// コストは 15 + 10lv + 5lv²（15〜510）。10 段の項目は 2025、予備（5 段）は 325 で
-// 全解放の合計は 10450。倍々（20 << lv）は 10 段だと最終段 10240 になり破綻する
-export function meta_upgrade_cost(level: number): number {
+// 全トラック共通の価格曲線（15/30/55/90/135/190/255/330/415/510）。
+// 倍々（20 << lv）は 10 段だと最終段 10240 になり破綻する
+function meta_upgrade_cost(level: number): number {
   return 15 + 10 * level + 5 * level * level
+}
+
+// 段の価格。嗅覚だけ共通曲線を 1 段飛ばしでサンプルして 15/55/135/255/415
+// （合計 875）にする。段ごとに機能が解放される 5 段トラックなので、曲線
+// どおりの合計 325 では全トラック中で最安になってしまう。曲線そのものは
+// 1 本のままで、サンプリング位置だけを変える。
+// 10 段の項目 1 本が 2025、予備（5 段）が 325、全解放の合計は 9300
+export function meta_upgrade_price(
+  id: meta_upgrade_id_t, level: number,
+): number {
+  return meta_upgrade_cost(level * (id === 'sniff' ? 2 : 1))
 }
 
 export function meta_buy(id: meta_upgrade_id_t): boolean {
   const level = meta.levels[id]
   if (level >= meta_max_level[id]) { return false }
-  const cost = meta_upgrade_cost(level)
+  const cost = meta_upgrade_price(id, level)
   if (meta.yani < cost) { return false }
   meta.yani -= cost
   meta.levels[id]++

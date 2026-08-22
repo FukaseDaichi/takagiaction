@@ -7,7 +7,7 @@ import type { run_result_t } from './death-screen-model'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
   meta_power_factor, meta_sniff_distance, meta_sniff_threshold,
-  meta_spare_count, meta_speed_factor, meta_upgrade_cost,
+  meta_spare_count, meta_speed_factor, meta_upgrade_price,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { nicotine_stage_normal, player_speed } from './nicotine'
@@ -215,7 +215,7 @@ function render(): void {
     const level = meta.levels[row.id]
     const max = meta_max_level[row.id]
     const maxed = level >= max
-    const cost = meta_upgrade_cost(level)
+    const cost = meta_upgrade_price(row.id, level)
     let pips = ''
     for (let p = 0; p < max; p++) {
       pips += '<i class="' + (p < level ? 'on' : '') + '"></i>'

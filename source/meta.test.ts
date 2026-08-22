@@ -3,7 +3,7 @@ import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
   meta_sniff_distance, meta_sniff_threshold, meta_spare_count,
-  meta_speed_factor, meta_upgrade_cost, meta_upgrade_ids,
+  meta_speed_factor, meta_upgrade_ids, meta_upgrade_price,
 } from './meta'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
@@ -27,8 +27,18 @@ function stub_storage(): Record<string, string> {
 describe('強化テーブル', () => {
   beforeEach(meta_reset)
 
-  it('コストは 15 + 10lv + 5lv²', () => {
-    expect([0, 1, 2, 9].map(meta_upgrade_cost)).toEqual([15, 30, 55, 510])
+  it('嗅覚以外は共通曲線 15 + 10lv + 5lv² そのもの', () => {
+    expect([0, 1, 2, 9].map((level) => meta_upgrade_price('lung', level)))
+      .toEqual([15, 30, 55, 510])
+  })
+
+  it('嗅覚は共通曲線を 1 段飛ばしでサンプルする', () => {
+    expect([0, 1, 2, 3, 4].map((level) => meta_upgrade_price('sniff', level)))
+      .toEqual([15, 55, 135, 255, 415])
+  })
+
+  it('嗅覚は 5 段', () => {
+    expect(meta_max_level.sniff).toBe(5)
   })
 
   it('購入で残高が減りレベルが上がる', () => {
@@ -52,14 +62,14 @@ describe('強化テーブル', () => {
     expect(meta.yani).toBe(9999)
   })
 
-  it('全解放の合計コストは 10450', () => {
+  it('全解放の合計コストは 9300', () => {
     let total = 0
     for (const id of meta_upgrade_ids) {
       for (let level = 0; level < meta_max_level[id]; level++) {
-        total += meta_upgrade_cost(level)
+        total += meta_upgrade_price(id, level)
       }
     }
-    expect(total).toBe(10450)
+    expect(total).toBe(9300)
   })
 })
 
