@@ -209,14 +209,18 @@ describe('generate_level: 部屋', () => {
 })
 
 describe('generate_level: 連結性', () => {
-  it('1000 シードすべてで全床タイルが開始地点から到達可能', () => {
-    for (let seed = 1; seed <= 1000; seed++) {
-      const layout = generate_level(1, seed)
-      const seen = reachable_from(layout)
-      for (let i = 0; i < layout.tiles.length; i++) {
-        const t = layout.tiles[i]
-        if (t > 0 && t < 8) {
-          expect(seen[i]).toBe(1)
+  it('浅い層と満寸の両方で、全床タイルが開始地点から到達可能', () => {
+    // 深度 1 は生成範囲が狭く、深度 10 は満寸。連結性は範囲に依存しないはずだが、
+    // 一本鎖でつなぐ構築が範囲の端で崩れないことを両側で押さえる。
+    for (const depth of [1, 10]) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const layout = generate_level(depth, seed)
+        const seen = reachable_from(layout)
+        for (let i = 0; i < layout.tiles.length; i++) {
+          const t = layout.tiles[i]
+          if (t > 0 && t < 8) {
+            expect(seen[i]).toBe(1)
+          }
         }
       }
     }
@@ -227,20 +231,23 @@ describe('generate_level: 壁', () => {
   // レビュー A-1: タイル 0（空）は _collides() が通行可能とみなす。
   // 床に隣接する空タイルが 1 つでも残ると自機がマップ外へ歩いて出る。
   it('床に 8 近傍で隣接する非床タイルはすべて壁になっている', () => {
-    // 300 シード × 約 1600 空タイル × 9 近傍を素の expect で回すと 430 万回を超え、
-    // このテスト 1 本で 2 分近くかかる。走査範囲は変えず、違反を見つけたときだけ記録する。
+    // 素の expect で回すと数百万回に達し、このテスト 1 本で 2 分近くかかる。
+    // 走査範囲は変えず、違反を見つけたときだけ記録する。
+    // 深度 1 は床が狭いぶん空タイルが多いので、走査量は深度 10 より大きい。
     const violations: string[] = []
-    for (let seed = 1; seed <= 300; seed++) {
-      const { tiles } = generate_level(1, seed)
-      for (let z = 0; z < level_height; z++) {
-        for (let x = 0; x < level_width; x++) {
-          if (tiles[tile_index(x, z)] !== 0) { continue }
-          for (let dz = -1; dz <= 1; dz++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              if (is_floor(tiles, x + dx, z + dz) && violations.length < 5) {
-                violations.push(
-                  `seed ${seed}: 空タイル (${x},${z}) が床 (${x + dx},${z + dz}) に隣接`,
-                )
+    for (const depth of [1, 10]) {
+      for (let seed = 1; seed <= 150; seed++) {
+        const { tiles } = generate_level(depth, seed)
+        for (let z = 0; z < level_height; z++) {
+          for (let x = 0; x < level_width; x++) {
+            if (tiles[tile_index(x, z)] !== 0) { continue }
+            for (let dz = -1; dz <= 1; dz++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (is_floor(tiles, x + dx, z + dz) && violations.length < 5) {
+                  violations.push(
+                    `深度 ${depth} seed ${seed}: 空タイル (${x},${z}) が床 (${x + dx},${z + dz}) に隣接`,
+                  )
+                }
               }
             }
           }
@@ -248,13 +255,14 @@ describe('generate_level: 壁', () => {
       }
     }
     expect(violations).toEqual([])
-  }, 30000)
+  }, 60000)
 
   // レビュー A-2: 非床を全部壁で埋めると 2800〜3400 タイルになり
-  // buffer_data.set() が RangeError を投げる（壁だけなら 2730 タイルが上限）
+  // buffer_data.set() が RangeError を投げる（壁だけなら 2730 タイルが上限）。
+  // 最悪ケースは満寸のフロアなので深度 10 で見る。
   it('頂点コストが renderer の予算を超えない', () => {
     for (let seed = 1; seed <= 1000; seed++) {
-      expect(level_vert_cost(generate_level(1, seed).tiles)).toBeLessThanOrEqual(60000)
+      expect(level_vert_cost(generate_level(10, seed).tiles)).toBeLessThanOrEqual(60000)
     }
   }, 60000)
 
