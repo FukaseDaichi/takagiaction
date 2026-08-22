@@ -4,7 +4,7 @@ import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
 import { run_end } from './game'
 import { key_down, key_left, key_right, key_shoot, key_spare, key_up, keys } from './input'
-import { meta_power_factor } from './meta'
+import { meta_power_factor, meta_speed_factor } from './meta'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
 } from './nicotine'
@@ -28,7 +28,7 @@ export class entity_player_t extends entity_t {
     const stage = nicotine_stage(state.nicotine, state.nicotine_max)
     const smoking = state.smoking === 1
     // 一服中は移動も射撃もできない。無敵にはしない
-    const speed = smoking ? 0 : player_speed(stage)
+    const speed = smoking ? 0 : player_speed(stage, meta_speed_factor())
 
     // movement
     t.ax = keys[key_left] ? -speed : keys[key_right] ? speed : 0

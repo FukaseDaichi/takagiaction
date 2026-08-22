@@ -7,10 +7,10 @@ import type { run_result_t } from './death-screen-model'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
   meta_power_factor, meta_sniff_distance, meta_sniff_threshold,
-  meta_spare_count, meta_upgrade_cost,
+  meta_spare_count, meta_speed_factor, meta_upgrade_cost,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
-import { player_hp_max } from './state'
+import { nicotine_stage_normal, player_speed } from './nicotine'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
 import './death-screen.css'
 
@@ -22,12 +22,12 @@ import icon_brain_url from '../m/ui/icon-brain.webp'
 import icon_nose_url from '../m/ui/icon-nose.webp'
 import icon_bullet_url from '../m/ui/icon-bullet.webp'
 import icon_cig_url from '../m/ui/icon-cig.webp'
+import icon_leg_url from '../m/ui/icon-leg.webp'
 import stat_depth_url from '../m/ui/icon-stat-depth.webp'
 import stat_time_url from '../m/ui/icon-stat-time.webp'
 import stat_kills_url from '../m/ui/icon-stat-kills.webp'
 import stat_smoke_url from '../m/ui/icon-stat-smoke.webp'
 import stat_dummy_url from '../m/ui/icon-stat-dummy.webp'
-import item_spare_url from '../m/ui/item-spare.webp'
 
 // 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。
 // result = null は初回起動モード（記録と状態パネルを隠す）。
@@ -37,8 +37,11 @@ interface upgrade_row_t {
   name: string
   icon: string
   color: string
-  // 現在レベルまでの累積効果。式は meta.ts の getter から引く
-  describe: () => string
+  flavor: string // 種別の一言。名前の隣に小さく出す
+  stat: string // 効果のラベル。「現在値 → 次の段の値」の前に置く
+  // 任意の段での効果値。現在値と次段プレビューの両方をこれで出す。
+  // 式は meta.ts の getter（段数引数）から引き、画面側に書き写さない
+  value: (level: number) => string
 }
 
 // 係数の百分率は Math.round を通す（耐性 Lv8 は 1 - meta_drain_factor() が
@@ -46,31 +49,39 @@ interface upgrade_row_t {
 const upgrade_rows: upgrade_row_t[] = [
   {
     id: 'lung', name: '肺活量', icon: icon_lung_url, color: '#3ac6f0',
-    describe: () => '吸い方の訓練。最大ゲージ ' + meta_nicotine_max() + '。',
+    flavor: '吸い方の訓練', stat: '最大ゲージ',
+    value: (level) => String(meta_nicotine_max(level)),
   },
   {
     id: 'tolerance', name: 'ニコチン耐性', icon: icon_brain_url, color: '#a86df0',
-    describe: () =>
-      '我慢の訓練。減少速度 -' + Math.round((1 - meta_drain_factor()) * 100) + '%。',
+    flavor: '我慢の訓練', stat: '減少速度',
+    value: (level) => '-' + Math.round((1 - meta_drain_factor(level)) * 100) + '%',
   },
   {
     id: 'sniff', name: '嗅覚', icon: icon_nose_url, color: '#3af08a',
-    describe: () => meta.levels.sniff === 0
-      ? '利き煙草。ゲージ低下時に残り香の方向が分かるようになる。'
-      : '利き煙草。ゲージ' +
-        Math.round(meta_sniff_threshold(meta.levels.sniff) * 100) +
-        '%以下で方向' + (meta_sniff_distance() ? '＋距離' : '') + '。',
+    flavor: '利き煙草。ゲージ低下時に残り香の方向が分かる', stat: '発動',
+    value: (level) => level === 0
+      ? 'なし'
+      : 'ゲージ' + Math.round(meta_sniff_threshold(level) * 100) + '%以下' +
+        (meta_sniff_distance(level) ? '＋距離' : ''),
+  },
+  {
+    id: 'leg', name: '脚力', icon: icon_leg_url, color: '#f0568c',
+    // 百分率ではなく速度そのものを出す（肺活量の「最大ゲージ 130」と同じ流儀）。
+    // 基礎値 128 を書き写さないため player_speed() から引く
+    flavor: '逃げ足の訓練', stat: '移動速度',
+    value: (level) =>
+      String(Math.round(player_speed(nicotine_stage_normal, meta_speed_factor(level)))),
   },
   {
     id: 'power', name: '火力', icon: icon_bullet_url, color: '#f0932a',
-    describe: () =>
-      '闇サイトから届く物資。射撃間隔 -' +
-      Math.round((1 - meta_power_factor()) * 100) + '%。',
+    flavor: '闇サイトから届く物資', stat: '射撃間隔',
+    value: (level) => '-' + Math.round((1 - meta_power_factor(level)) * 100) + '%',
   },
   {
     id: 'spare', name: '予備の一本', icon: icon_cig_url, color: '#f0c93a',
-    describe: () =>
-      '闇サイトから届く物資。浅く吸う煙草を' + meta_spare_count() + '本持てる [E]。',
+    flavor: '闇サイトから届く物資。浅く吸える [E]', stat: '所持数',
+    value: (level) => meta_spare_count(level) + '本',
   },
 ]
 
@@ -178,26 +189,19 @@ function render(): void {
       record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所') +
       '</div>'
 
+    // 体調は死因の説明であって購入判断には効かない。HP やニコチン残量の数値は
+    // 吸いたい気持ち（残量比の逆数）と同じ事実の言い換えなので出さない
     const message = death_message(r.death_cause)
     const condition = condition_texts(r.nicotine_ratio)
     const craving_percent = Math.round(condition.craving_ratio * 100)
     left += '<div class="ds-status">' +
       '<div class="ds-death-message">' + message[0] + '<br>' + message[1] + '</div>' +
-      '<div>' +
-      '<div class="ds-gauge-row">♥ HP ' + blocks(r.hp, player_hp_max) +
-      '<b>' + r.hp + ' / ' + player_hp_max + '</b></div>' +
-      '<div class="ds-gauge-row">ニコチン<b>' +
-      Math.round(r.nicotine_ratio * 100) + '%</b></div>' +
-      '</div>' +
       '<img src="' + body_url + '" alt="">' +
       '<div>' +
-      '<div class="ds-gauge-row">手の震え<b>' + condition.tremor + '</b></div>' +
-      '<div class="ds-gauge-row">集中力<b>' + condition.focus + '</b></div>' +
-      // 15 ブロックの帯は 1 行に収まらない。ラベルを要素に包むのは、
-      // 裸のテキストノードだと CSS で行を占有させられないため
-      '<div class="ds-gauge-row ds-craving">' +
-      '<span class="ds-craving-label">吸いたい気持ち</span>' +
-      blocks(Math.round(condition.craving_ratio * 15), 15) +
+      '<div class="ds-cond-line">手の震え<b>' + condition.tremor + '</b>' +
+      '集中力<b>' + condition.focus + '</b></div>' +
+      '<div class="ds-gauge-row">吸いたい気持ち' +
+      blocks(Math.round(condition.craving_ratio * 10), 10) +
       '<b>' + (craving_percent >= 100 ? 'MAX' : craving_percent + '%') + '</b></div>' +
       '</div>' +
       '</div>'
@@ -216,11 +220,20 @@ function render(): void {
     for (let p = 0; p < max; p++) {
       pips += '<i class="' + (p < level ? 'on' : '') + '"></i>'
     }
+    // 効果行は「現在値 → 次の段の値」。次の値だけ行の色で光らせて、
+    // 買うと何が変わるかをこの 1 行で読めるようにする。最大段は現在値のみ
+    const stat = '<div class="ds-row-stat">' + row.stat +
+      ' <b>' + row.value(level) + '</b>' +
+      (maxed
+        ? ''
+        : '<span class="ds-arrow">→</span><b class="ds-next" style="color:' +
+          row.color + '">' + row.value(level + 1) + '</b>') +
+      '</div>'
     rows += '<div class="ds-row' + (selected === i ? ' selected' : '') + '">' +
       '<img src="' + row.icon + '" alt="">' +
       '<div><div class="ds-row-name" style="color:' + row.color + '">' +
-      row.name + '</div>' +
-      '<div class="ds-row-desc">' + row.describe() + '</div></div>' +
+      row.name + '<small>' + row.flavor + '</small></div>' +
+      stat + '</div>' +
       '<div class="ds-row-right">' +
       '<div class="ds-row-level">Lv. ' + level + ' / ' + max +
       '<div class="ds-pips" style="color:' + row.color + '">' + pips + '</div></div>' +
@@ -235,47 +248,30 @@ function render(): void {
       '</div></div>'
   }
 
-  const right = '<div class="ds-yani">' +
-    '<div class="ds-yani-amount">ヤニ（残高）: ' + meta.yani + '</div>' +
-    '<div class="ds-yani-note">ヤニは闇サイトに送ると見返りが届く。</div>' +
+  // meta.best_depth は未プレイ時 0 のため、1 で底上げして「推奨深度: 0F+」を避ける
+  const recommended = Math.max(meta.best_depth, 1)
+  const descend_label = dead ? '地下へ戻る' : '地下へ潜る'
+  const right = '<div class="ds-shop">' +
+    '<div><div class="ds-shop-title">闇サイト</div>' +
+    '<div class="ds-shop-sub">ヤニを送ると訓練と物資が届く。</div>' +
     (meta.persistent
       ? ''
       : '<div class="ds-warning">警告: ストレージ利用不可。強化はこのセッション限りで消える</div>') +
     '</div>' +
-    '<div class="ds-upgrades-head">恒久強化（闇サイトの訓練・物資）</div>' +
-    rows
-
-  const spares = meta_spare_count()
-  let slots = ''
-  if (spares > 0) {
-    slots += '<div class="ds-slot"><img src="' + item_spare_url +
-      '" alt=""><b>×' + spares + '</b></div>'
-  }
-  // 見本に合わせてスロットは常に 5 枠
-  for (let i = spares > 0 ? 1 : 0; i < 5; i++) {
-    slots += '<div class="ds-slot">EMPTY</div>'
-  }
-
-  // meta.best_depth は未プレイ時 0 のため、1 で底上げして「推奨深度: 0F+」を避ける
-  const recommended = Math.max(meta.best_depth, 1)
-  const bottom = '<div class="ds-panel ds-next">' +
-    '<img src="' + door_url + '" alt="">' +
-    '<div><div class="ds-next-title">次の潜入準備</div>' +
-    '<div class="ds-next-depth">推奨深度: ' + recommended + 'F+</div>' +
-    '<div class="ds-next-note">次はもっと深く、もっといい一服を。</div></div>' +
+    '<div class="ds-shop-balance">ヤニ残高<b>' + meta.yani + '</b></div>' +
     '</div>' +
-    '<div class="ds-panel ds-items"><div class="ds-panel-title">所持アイテム</div>' +
-    slots + '</div>' +
+    rows +
     '<button class="ds-descend' + (selected === upgrade_rows.length ? ' selected' : '') + '">' +
-    (dead ? '地下へ戻る' : '地下へ潜る') +
-    '<small>また煙草を探しに行く</small></button>'
+    '<img src="' + door_url + '" alt="">' +
+    '<span>' + descend_label +
+    '<small>推奨深度 ' + recommended + 'F+ ・ また煙草を探しに行く</small></span>' +
+    '</button>'
 
   root!.innerHTML =
     '<div class="ds-main"><div class="ds-left">' + left + '</div>' +
     '<div class="ds-right">' + right + '</div></div>' +
-    '<div class="ds-bottom">' + bottom + '</div>' +
     '<div class="ds-footer"><span>◀ ▶ 強化選択</span><span>[Enter] 強化する</span>' +
-    '<span>[Tab] 項目切替</span><span>[Esc] 地下へ戻る</span></div>'
+    '<span>[Tab] 項目切替</span><span>[Esc] ' + descend_label + '</span></div>'
 
   root!.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach((button) => {
     button.onclick = () => buy(button.dataset.buy as meta_upgrade_id_t)

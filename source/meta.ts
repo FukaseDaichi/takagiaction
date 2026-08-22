@@ -2,11 +2,12 @@
 // 分離する。state.ts と同様に実行時依存を持たない葉モジュールで、
 // Node（Vitest）でモックなしに評価できることが条件。
 
-export const meta_upgrade_ids = ['lung', 'tolerance', 'sniff', 'power', 'spare'] as const
+export const meta_upgrade_ids =
+  ['lung', 'tolerance', 'sniff', 'leg', 'power', 'spare'] as const
 export type meta_upgrade_id_t = (typeof meta_upgrade_ids)[number]
 
 export const meta_max_level: Record<meta_upgrade_id_t, number> = {
-  lung: 10, tolerance: 10, sniff: 10, power: 10, spare: 5,
+  lung: 10, tolerance: 10, sniff: 10, leg: 10, power: 10, spare: 5,
 }
 
 export const meta = {
@@ -15,12 +16,12 @@ export const meta = {
   // localStorage が使えない環境（プライベートモード等）で false。
   // 死亡画面が「このセッション限り」の警告を出すために読む
   persistent: true,
-  levels: { lung: 0, tolerance: 0, sniff: 0, power: 0, spare: 0 } as
+  levels: { lung: 0, tolerance: 0, sniff: 0, leg: 0, power: 0, spare: 0 } as
     Record<meta_upgrade_id_t, number>,
 }
 
 // コストは 15 + 10lv + 5lv²（15〜510）。10 段の項目は 2025、予備（5 段）は 325 で
-// 全解放の合計は 8425。倍々（20 << lv）は 10 段だと最終段 10240 になり破綻する
+// 全解放の合計は 10450。倍々（20 << lv）は 10 段だと最終段 10240 になり破綻する
 export function meta_upgrade_cost(level: number): number {
   return 15 + 10 * level + 5 * level * level
 }
@@ -36,22 +37,32 @@ export function meta_buy(id: meta_upgrade_id_t): boolean {
   return true
 }
 
-export function meta_nicotine_max(): number {
-  return 100 + 10 * meta.levels.lung
+// 効果 getter はすべて段数を引数で受けられる（既定は現在の段）。死亡画面が
+// 「現在値 → 次の段の値」を出すために level + 1 を渡して呼ぶ
+
+export function meta_nicotine_max(level = meta.levels.lung): number {
+  return 100 + 10 * level
 }
 
 // 減少速度に掛ける係数。全強化 0.60 と最大ゲージ 2 倍の実効 3.33 倍が新しい上限
-export function meta_drain_factor(): number {
-  return 1 - 0.04 * meta.levels.tolerance
+export function meta_drain_factor(level = meta.levels.tolerance): number {
+  return 1 - 0.04 * level
 }
 
 // shot_interval() に渡す火力係数。10 段で 0.50
-export function meta_power_factor(): number {
-  return 1 - 0.05 * meta.levels.power
+export function meta_power_factor(level = meta.levels.power): number {
+  return 1 - 0.05 * level
 }
 
-export function meta_spare_count(): number {
-  return meta.levels.spare
+// player_speed() に渡す移動速度係数。10 段で 1.5625（速度 128 → 200）。
+// Lv4（156.8）で清掃ドローンの逃走終端速度（150）を追い越す。素の足では
+// 追いつけないドローン狩りを解禁する投資として意図した強化（docs/gameplay.md）
+export function meta_speed_factor(level = meta.levels.leg): number {
+  return 1 + 0.05625 * level
+}
+
+export function meta_spare_count(level = meta.levels.spare): number {
+  return level
 }
 
 // 発動しきい値（ニコチン比率）。Lv1 = 30% から等間隔で Lv10 = 60% まで上がる。
@@ -68,8 +79,8 @@ export function meta_sniff_active(ratio: number): boolean {
 }
 
 // 最終段は方向に加えて距離も出す。効果値の判定はすべてこのモジュールに置く
-export function meta_sniff_distance(): boolean {
-  return meta.levels.sniff >= 10
+export function meta_sniff_distance(level = meta.levels.sniff): boolean {
+  return level >= 10
 }
 
 const meta_storage_key = 'takagi_meta'

@@ -3,7 +3,7 @@ import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
   meta_sniff_distance, meta_sniff_threshold, meta_spare_count,
-  meta_upgrade_cost, meta_upgrade_ids,
+  meta_speed_factor, meta_upgrade_cost, meta_upgrade_ids,
 } from './meta'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
@@ -52,14 +52,14 @@ describe('強化テーブル', () => {
     expect(meta.yani).toBe(9999)
   })
 
-  it('全解放の合計コストは 8425', () => {
+  it('全解放の合計コストは 10450', () => {
     let total = 0
     for (const id of meta_upgrade_ids) {
       for (let level = 0; level < meta_max_level[id]; level++) {
         total += meta_upgrade_cost(level)
       }
     }
-    expect(total).toBe(8425)
+    expect(total).toBe(10450)
   })
 })
 
@@ -84,10 +84,26 @@ describe('強化の効果値', () => {
     expect(meta_power_factor()).toBeCloseTo(0.5, 6)
   })
 
+  it('脚力: 移動速度係数は 1 + 0.05625/段、全強化で 1.5625（速度 200）', () => {
+    expect(meta_speed_factor()).toBeCloseTo(1, 6)
+    meta.levels.leg = 10
+    expect(meta_speed_factor()).toBeCloseTo(1.5625, 6)
+  })
+
   it('予備の一本: 使用可能回数はレベルと同数', () => {
     expect(meta_spare_count()).toBe(0)
     meta.levels.spare = 5
     expect(meta_spare_count()).toBe(5)
+  })
+
+  it('効果 getter は段数引数で任意の段の値を返す（次段プレビュー用）', () => {
+    expect(meta_nicotine_max(4)).toBe(140)
+    expect(meta_drain_factor(2)).toBeCloseTo(0.92, 6)
+    expect(meta_power_factor(1)).toBeCloseTo(0.95, 6)
+    expect(meta_speed_factor(10)).toBeCloseTo(1.5625, 6)
+    expect(meta_spare_count(3)).toBe(3)
+    expect(meta_sniff_distance(10)).toBe(true)
+    expect(meta_sniff_distance(9)).toBe(false)
   })
 })
 

@@ -92,7 +92,6 @@ export function run_end(): void {
     dummy_count: state.dummy_count,
     death_cause: state.death_cause,
     nicotine_ratio: state.nicotine / state.nicotine_max,
-    hp: Math.max(0, state.entity_player!.h),
   }, run_start)
 }
 

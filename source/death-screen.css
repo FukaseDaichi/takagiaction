@@ -8,8 +8,8 @@
   position: fixed;
   inset: 0;
   display: none;
-  grid-template-rows: 1fr auto auto;
-  gap: 1vw;
+  grid-template-rows: 1fr auto;
+  gap: 0.8vw;
   padding: 1.2vw 1.5vw;
   box-sizing: border-box;
   background:
@@ -22,7 +22,7 @@
 }
 #ds .ds-main { display: grid; grid-template-columns: 52fr 48fr; gap: 1.5vw; min-height: 0; }
 #ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; }
-/* 見本ではイラストが左半分の背景で、記録と状態パネルがその上に浮く */
+/* イラストが左半分の背景で、記録と状態パネルがその上に浮く */
 #ds .ds-left-body {
   position: relative;
   flex: 1;
@@ -72,120 +72,117 @@
   image-rendering: auto;
 }
 
-/* 状態パネル（赤）。死亡モードのみ表示 */
+/* 状態パネル（赤）。死亡モードのみ表示。死因の説明に徹し、
+   体の絵＋体調 3 行だけの帯にする（残量の数値表示は持たない） */
 #ds .ds-status {
   /* position: relative は .ds-record と同じ理由（.ds-hero の下に隠れないため） */
   position: relative;
-  margin-top: auto; /* 見本どおりイラストの下端に貼り付ける */
+  margin-top: auto; /* イラストの下端に貼り付ける */
   border: 1px solid #b3271e;
   border-radius: 0.4vw;
   background: rgba(30, 5, 3, 0.88);
   box-shadow: 0 0 16px rgba(255, 60, 40, 0.25), inset 0 0 20px rgba(255, 60, 40, 0.15);
   color: #ff6b5e;
-  padding: 0.8vw 1vw;
+  padding: 0.7vw 1vw;
   display: grid;
-  grid-template-columns: 1.2fr auto 1.3fr;
-  gap: 0.8vw;
+  grid-template-columns: auto 1fr;
+  gap: 0.4vw 1vw;
   align-items: center;
 }
 #ds .ds-death-message { font-size: 1.25vw; font-weight: bold; line-height: 1.5; grid-column: 1 / -1; }
-#ds .ds-status img { height: 7vw; }
-/* ラベルは折り返さず、入り切らないブロック帯だけを次の行に落とす
-   （「吸いたい気持ち」の 15 ブロックは 1 行に収まらない） */
+#ds .ds-status img { height: 6vw; }
 #ds .ds-gauge-row {
-  display: flex; flex-wrap: wrap; align-items: center;
-  gap: 0.2vw 0.6vw; font-size: 1vw; margin: 0.3vw 0;
+  display: flex; align-items: center;
+  gap: 0.6vw; font-size: 1vw; margin: 0.3vw 0;
   white-space: nowrap;
 }
-#ds .ds-gauge-row b { margin-left: auto; }
+#ds .ds-gauge-row b { margin-left: 0.2vw; }
+/* 体調 2 項目は 1 行に並べ、値はラベルの直後に置く（右端まで飛ばさない） */
+#ds .ds-cond-line { font-size: 1vw; margin: 0.3vw 0; white-space: nowrap; }
+#ds .ds-cond-line b { color: #ffb3ab; margin: 0 1.6vw 0 0.6vw; }
+#ds .ds-cond-line b:last-child { margin-right: 0; }
 #ds .ds-blocks { display: flex; flex-shrink: 0; gap: 0.15vw; }
-/* 吸いたい気持ちだけは 15 ブロックあり、見本どおり帯と MAX をラベルの下に落とす */
-#ds .ds-craving-label { flex: 0 0 100%; }
-#ds .ds-craving .ds-blocks { flex: 1 1 auto; }
 #ds .ds-blocks i {
   width: 0.8vw; height: 0.9vw;
   background: #ff3b30; box-shadow: 0 0 5px #f33;
 }
 #ds .ds-blocks i.off { background: #4a1310; box-shadow: none; }
 
-#ds .ds-right { display: flex; flex-direction: column; gap: 0.7vw; min-height: 0; }
-#ds .ds-yani {
+/* 右列は「残高 → 強化 6 行 → 地下へ戻る」の一本道 */
+#ds .ds-right { display: flex; flex-direction: column; gap: 0.6vw; min-height: 0; }
+#ds .ds-shop {
   border: 1px solid #b3271e;
   border-radius: 0.4vw;
   background: rgba(25, 8, 4, 0.85);
-  padding: 0.6vw 1vw;
+  padding: 0.5vw 1vw;
+  display: flex; align-items: center; justify-content: space-between; gap: 1vw;
 }
-#ds .ds-yani-amount { color: #ffaa2b; font-size: 1.9vw; font-weight: bold; text-shadow: 0 0 10px #f70; }
-#ds .ds-yani-note { color: #e8c9a8; font-size: 0.95vw; margin-top: 0.2vw; }
-#ds .ds-warning { color: #ff6b5e; font-size: 0.95vw; margin-top: 0.2vw; }
-#ds .ds-upgrades-head { color: #ffaa2b; font-size: 1.3vw; font-weight: bold; }
+#ds .ds-shop-title { color: #ff6b5e; font-size: 1.3vw; font-weight: bold; letter-spacing: 0.08em; }
+#ds .ds-shop-sub { color: #e8c9a8; font-size: 0.9vw; margin-top: 0.15vw; }
+#ds .ds-warning { color: #ff6b5e; font-size: 0.9vw; margin-top: 0.15vw; }
+#ds .ds-shop-balance { color: #e8c9a8; font-size: 1vw; text-align: right; white-space: nowrap; }
+#ds .ds-shop-balance b {
+  display: block; color: #ffaa2b; font-size: 1.9vw; line-height: 1.1;
+  text-shadow: 0 0 10px #f70;
+}
 
 #ds .ds-row {
   display: grid;
-  grid-template-columns: 4vw 1fr auto;
-  gap: 0.8vw;
+  grid-template-columns: 3vw 1fr auto;
+  gap: 0.7vw;
   align-items: center;
-  flex: 1 0 auto; /* 5 行で右列を埋める。見本の行の高さはこれで決まる */
+  flex: 1 0 auto; /* 6 行で右列を埋める。行の高さはこれで決まる */
   border: 1px solid #2e6b4f;
   border-radius: 0.4vw;
   background: rgba(8, 22, 14, 0.85);
-  padding: 0.55vw 0.8vw;
+  padding: 0.4vw 0.7vw;
 }
 #ds .ds-row.selected { border-color: #ffaa2b; box-shadow: 0 0 10px rgba(255, 170, 43, 0.5); }
-#ds .ds-row img { width: 3.4vw; height: 3.4vw; }
-#ds .ds-row-name { font-weight: bold; font-size: 1.2vw; }
-#ds .ds-row-desc { font-size: 0.95vw; color: #9cc4aa; }
+#ds .ds-row img { width: 2.8vw; height: 2.8vw; }
+#ds .ds-row-name { font-weight: bold; font-size: 1.1vw; }
+#ds .ds-row-name small { color: #9cc4aa; font-weight: normal; font-size: 0.85vw; margin-left: 0.6vw; }
+/* 効果は「ラベル 現在値 → 次の値」。次の値だけ行の色（インライン指定）で光る */
+#ds .ds-row-stat { font-size: 0.95vw; color: #9cc4aa; margin-top: 0.15vw; }
+#ds .ds-row-stat b { font-size: 1.15vw; color: #eaf5ee; }
+#ds .ds-arrow { color: #6b8f78; margin: 0 0.5vw; }
+#ds .ds-next { text-shadow: 0 0 8px currentColor; }
 /* text-align: right が効くのは「Lv. n / m」の匿名テキストだけ。
    flex-direction: column の既定 align-items: stretch がその匿名テキストを
    幅いっぱいに伸ばすので右寄せが成立する（子の .ds-pips は個別に flex-end で右寄せ） */
 #ds .ds-row-level {
-  font-size: 1vw; color: #eaf5ee; text-align: right;
+  font-size: 0.95vw; color: #eaf5ee; text-align: right;
   display: flex; flex-direction: column; justify-content: center;
 }
-#ds .ds-pips { display: flex; gap: 0.25vw; margin-top: 0.3vw; justify-content: flex-end; }
-#ds .ds-pips i { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: #1c3a2a; }
+#ds .ds-pips { display: flex; gap: 0.22vw; margin-top: 0.25vw; justify-content: flex-end; }
+#ds .ds-pips i { width: 0.6vw; height: 0.6vw; border-radius: 50%; background: #1c3a2a; }
 #ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
 #ds .ds-buy {
-  align-self: stretch; /* 見本どおり行の高さいっぱいの箱にする */
-  display: flex; align-items: center; gap: 0.6vw;
+  align-self: stretch; /* 行の高さいっぱいの箱にする */
+  display: flex; align-items: center; justify-content: center; gap: 0.5vw;
+  min-width: 5vw; /* 行ごとに桁数が違ってもボタン列を揃える */
   border: 1px solid #ffaa2b; border-radius: 0.3vw;
   background: rgba(60, 35, 5, 0.6);
-  color: #ffaa2b; font: inherit; font-size: 1.1vw; font-weight: bold;
-  padding: 0.4vw 0.7vw; cursor: pointer;
+  color: #ffaa2b; font: inherit; font-size: 1vw; font-weight: bold;
+  padding: 0.3vw 0.6vw; cursor: pointer;
 }
 #ds .ds-cost { text-align: center; line-height: 1.2; }
-#ds .ds-plus { font-size: 1.8vw; }
+#ds .ds-plus { font-size: 1.6vw; }
 #ds .ds-buy:disabled { opacity: 0.35; cursor: default; }
 /* ds-row は align-items:center なので、値の箱を行の高さまで伸ばすには
-   この列だけ stretch に戻す必要がある（見本のヤニ箱は行いっぱい） */
-#ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.8vw; }
+   この列だけ stretch に戻す必要がある */
+#ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.7vw; }
 
-#ds .ds-bottom { display: grid; grid-template-columns: 1.1fr 1.5fr 1.45fr; gap: 1.5vw; align-items: stretch; }
-#ds .ds-next { display: flex; gap: 0.8vw; align-items: center; }
-#ds .ds-next img { height: 5.5vw; }
-#ds .ds-next-title { color: #7fe0a8; font-weight: bold; font-size: 1.2vw; }
-#ds .ds-next-depth { font-size: 1.1vw; margin: 0.2vw 0; }
-#ds .ds-next-note { font-size: 0.95vw; color: #9cc4aa; }
-/* 見本では「所持アイテム」がスロットの上に載る。title を 1 行占有させて折り返す */
-#ds .ds-items { display: flex; flex-wrap: wrap; gap: 0.6vw; align-items: center; }
-#ds .ds-items .ds-panel-title { flex-basis: 100%; margin-bottom: 0; }
-#ds .ds-slot {
-  width: 5vw; height: 5vw;
-  border: 1px solid #2e6b4f; border-radius: 0.3vw;
-  background: rgba(8, 22, 14, 0.85);
-  display: flex; align-items: center; justify-content: center;
-  position: relative; color: #40634f; font-size: 0.9vw;
-}
-#ds .ds-slot img { width: 3.6vw; height: 3.6vw; }
-#ds .ds-slot b { position: absolute; right: 0.2vw; bottom: 0.1vw; color: #eaf5ee; font-size: 0.95vw; }
+/* 唯一の CTA。扉と推奨深度（次の潜入準備）をこの中に吸収する */
 #ds .ds-descend {
+  display: flex; align-items: center; justify-content: center; gap: 1vw;
   border: 2px solid #ffaa2b; border-radius: 0.5vw;
   background: linear-gradient(180deg, rgba(90, 50, 5, 0.7), rgba(40, 20, 2, 0.9));
-  color: #ffaa2b; font: inherit; font-weight: bold; font-size: 2.2vw;
+  color: #ffaa2b; font: inherit; font-weight: bold; font-size: 2vw;
   text-shadow: 0 0 10px #f70; box-shadow: 0 0 16px rgba(255, 170, 43, 0.4);
-  cursor: pointer; padding: 0.6vw 1vw;
+  cursor: pointer; padding: 0.5vw 1vw;
 }
-#ds .ds-descend small { display: block; font-size: 1vw; font-weight: normal; color: #e8c9a8; }
+#ds .ds-descend img { height: 3.8vw; }
+#ds .ds-descend small { display: block; font-size: 0.95vw; font-weight: normal; color: #e8c9a8; text-shadow: none; }
 #ds .ds-descend.selected { box-shadow: 0 0 26px rgba(255, 170, 43, 0.9); }
 
 #ds .ds-footer {
