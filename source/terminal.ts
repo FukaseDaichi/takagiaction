@@ -143,6 +143,9 @@ export function terminal_show_notice(notice: string): number {
 
   terminal_cancel()
   terminal_show()
+  // 通知は画面上中央に出す。イントロの左上組みと同じ位置に出すと HUD の
+  // ニコチンゲージのパネルと重なる（クラスの実体は index.html の #a.nt）
+  terminal_el.classList.add('nt')
 
   const lines = terminal_prepare_text(notice)
   // terminal_write_text() は lines を shift() で消費するので、長さは渡す前に読む。
@@ -155,6 +158,7 @@ export function terminal_show_notice(notice: string): number {
 }
 
 export function terminal_run_intro(): void {
+  terminal_el.classList.remove('nt')
   terminal_text_buffer = []
   terminal_write_text(terminal_prepare_text(terminal_text_title), terminal_style_normal, () => {
     terminal_timeout_id = setTimeout(terminal_run_garbage, 4000)

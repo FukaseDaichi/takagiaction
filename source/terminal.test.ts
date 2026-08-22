@@ -2,9 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // terminal.ts が触る外部は DOM と音声の 2 つだけなので、そこだけ差し替える。
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
-const mocks = vi.hoisted(() => ({
-  el: { style: { opacity: '', display: '' }, innerHTML: '' },
-}))
+const mocks = vi.hoisted(() => {
+  // classList は通知の位置クラス（index.html の #a.nt）の付け外しに使われる。
+  // 付いているかどうかしか見ないので DOMTokenList は模さず Set に記録する
+  const classes = new Set<string>()
+  return {
+    classes,
+    el: {
+      style: { opacity: '', display: '' },
+      innerHTML: '',
+      classList: {
+        add: (name: string) => { classes.add(name) },
+        remove: (name: string) => { classes.delete(name) },
+      },
+    },
+  }
+})
 
 vi.mock('./dom', () => ({ terminal_el: mocks.el }))
 vi.mock('./audio', () => ({ audio_play: () => {}, audio_sfx_terminal: undefined }))
@@ -33,6 +46,7 @@ describe('ターミナル', () => {
     mocks.el.innerHTML = ''
     mocks.el.style.opacity = ''
     mocks.el.style.display = ''
+    mocks.classes.clear()
   })
 
   afterEach(() => {
@@ -77,5 +91,15 @@ describe('ターミナル', () => {
     const duration = terminal_show_notice('深度 1 に到達')
     expect(duration).toBe((1 * normal_line_wait + notice_tail) / 1000)
     expect(last_line().startsWith('&gt; ')).toBe(true)
+  })
+
+  it('ゲーム中の通知は画面上中央のクラスを付け、イントロは付けない', () => {
+    terminal_show_notice('深度 1 に到達')
+    expect(mocks.classes.has('nt')).toBe(true)
+
+    // 死亡画面から戻ってイントロを流し直す経路は無いが、位置クラスの持ち主が
+    // 通知側であることを固定する（付けたら剥がす側が要る）
+    terminal_run_intro()
+    expect(mocks.classes.has('nt')).toBe(false)
   })
 })

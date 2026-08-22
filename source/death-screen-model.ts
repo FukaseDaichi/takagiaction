@@ -17,7 +17,7 @@ export interface run_result_t {
   dummy_count: number
   death_cause: number // 0 = 敵、death_cause_nicotine = ニコチン切れ
   nicotine_ratio: number // 死亡時の残量比 0..1
-  hp: number // 死亡時の HP（0..5）
+  hp: number // 死亡時の HP（0..player_hp_max）
 }
 
 export function format_run_time(seconds: number): string {

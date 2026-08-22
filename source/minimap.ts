@@ -22,14 +22,8 @@ let sniff_result: sniff_result_t | null = null
 
 export function minimap_reset(): void {
   minimap_explored.fill(0)
-  minimap_canvas.style.display = 'block'
   sniff_timer = 0
   sniff_result = null
-}
-
-export function minimap_hide(): void {
-  minimap_canvas.style.display = 'none'
-  sniff_el.style.display = 'none'
 }
 
 export function minimap_update(): void {
@@ -50,8 +44,8 @@ function minimap_set_pixel(index: number, r: number, g: number, b: number): void
 function minimap_sniff(): void {
   // state.game_running: run_end() 後も requestAnimationFrame(game_tick) は
   // 回り続け、minimap_update() は無条件に呼ばれる。ここで打ち切らないと、
-  // minimap_hide() が隠した直後の 1 フレームで sniff_el.style.display を
-  // 'block' に戻し、結果画面の上に残り香表示が復活してしまう
+  // リザルト表示中も 1 秒ごとに BFS が回り、次のランの最初のフレームまで
+  // 前のランの光跡と残り香の距離が残る
   // （entity-smoking-area.ts / entity-exit.ts の state.game_running と同じ理由）。
   if (
     !state.game_running ||
