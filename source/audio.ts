@@ -21,12 +21,22 @@ export let audio_sfx_pickup: AudioBuffer | undefined
 export let audio_sfx_terminal: AudioBuffer | undefined
 export let audio_sfx_explode: AudioBuffer | undefined
 
+// 自動再生ポリシーの下では、ユーザー操作より前に生成した AudioContext は
+// suspended で始まり、操作があっても自動では再開されない。suspended のまま
+// start() したソースは context の時計が止まっているため resume() の瞬間に
+// まとめて鳴る（イントロのタイピング音 100 発以上が一斉に出る）。
+// そのため audio_unlock() までは何も鳴らさず、BGM の開始もそこまで遅らせる。
+// 判定に audio_ctx.state を使わないのは、Chrome では resume() の直後に同期で
+// 読んでもまだ 'suspended' のままで、BGM 自身が落ちてしまうため
+let audio_unlocked = false
+let audio_music: AudioBuffer | undefined
+
 audio_gain.gain.value = audio_enabled ? 1 : 0
 audio_gain.connect(audio_ctx.destination)
 
 export function audio_init(callback: () => void): void {
   sonantxr_generate_song(audio_ctx, music_dark_meat_beat, (buffer) => {
-    audio_play(buffer, true)
+    audio_music = buffer
     callback()
   })
   sonantxr_generate_sound(audio_ctx, sound_shoot, 140, (b) => { audio_sfx_shoot = b })
@@ -38,7 +48,18 @@ export function audio_init(callback: () => void): void {
   sonantxr_generate_sound(audio_ctx, sound_explode, 114, (b) => { audio_sfx_explode = b })
 }
 
+// ユーザー操作起点で AudioContext を再開し、BGM を鳴らし始める。
+// main.ts のゲーム開始クリック（ページ唯一の必須ジェスチャ）から呼ぶ。
+// audio_init() のコールバックがそのクリックハンドラを張るので、ここに来る
+// 時点で audio_music は必ず埋まっている
+export function audio_unlock(): void {
+  audio_unlocked = true
+  audio_ctx.resume()
+  audio_play(audio_music, true)
+}
+
 export function audio_play(buffer: AudioBuffer | undefined, loop = false): void {
+  if (!audio_unlocked) { return }
   // このガードは AudioBuffer | undefined という型を満たすためのもの。
   // 効果音 7 つは sonantxr_generate_sound が同期的にコールバックを呼ぶため
   // audio_init が返る時点で埋まっており、実行時に undefined で呼ばれる経路はない。
