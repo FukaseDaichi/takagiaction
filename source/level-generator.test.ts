@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { generate_level, level_vert_cost, enemy_budget, sentry_count } from './level-generator'
+import {
+  generate_level, level_bounds_side, level_vert_cost, enemy_budget,
+  room_count_range, sentry_count,
+} from './level-generator'
 import type { level_layout_t, tile_pos_t } from './level-generator'
 import { level_height, level_width } from './state'
 
@@ -82,6 +85,74 @@ function bfs_distance_floor(layout: level_layout_t, p: tile_pos_t): number {
   return dist[tile_index(p.x, p.z)]
 }
 
+describe('フロアの広さ', () => {
+  it('生成範囲は深度 1 で 32、深度 10 で満寸の 62 になる', () => {
+    expect(level_bounds_side(1)).toBe(32)
+    expect(level_bounds_side(5)).toBe(45)
+    expect(level_bounds_side(10)).toBe(62)
+    expect(level_bounds_side(30)).toBe(62)
+  })
+
+  it('部屋数の範囲は深度 1 で 5〜6、深度 10 で 8〜12 になる', () => {
+    expect(room_count_range(1)).toEqual({ min: 5, max: 6 })
+    expect(room_count_range(5)).toEqual({ min: 6, max: 9 })
+    expect(room_count_range(10)).toEqual({ min: 8, max: 12 })
+    expect(room_count_range(30)).toEqual({ min: 8, max: 12 })
+  })
+
+  it('範囲も部屋数も深度に対して単調非減少で、min <= max を保つ', () => {
+    for (let depth = 1; depth < 200; depth++) {
+      expect(level_bounds_side(depth + 1))
+        .toBeGreaterThanOrEqual(level_bounds_side(depth))
+      expect(room_count_range(depth + 1).min)
+        .toBeGreaterThanOrEqual(room_count_range(depth).min)
+      expect(room_count_range(depth + 1).max)
+        .toBeGreaterThanOrEqual(room_count_range(depth).max)
+      expect(room_count_range(depth).min)
+        .toBeLessThanOrEqual(room_count_range(depth).max)
+    }
+  })
+
+  it('床タイルは生成範囲の内側に収まる', () => {
+    for (const depth of [1, 5, 10, 20]) {
+      const side = level_bounds_side(depth)
+      for (let seed = 1; seed <= 200; seed++) {
+        const { tiles } = generate_level(depth, seed)
+        let min_x = level_width, max_x = -1
+        let min_z = level_height, max_z = -1
+        for (let i = 0; i < tiles.length; i++) {
+          const x = i % level_width
+          const z = (i / level_width) | 0
+          if (!is_floor(tiles, x, z)) { continue }
+          if (x < min_x) { min_x = x }
+          if (x > max_x) { max_x = x }
+          if (z < min_z) { min_z = z }
+          if (z > max_z) { max_z = z }
+        }
+        expect(max_x - min_x + 1).toBeLessThanOrEqual(side)
+        expect(max_z - min_z + 1).toBeLessThanOrEqual(side)
+      }
+    }
+  }, 60000)
+
+  it('浅い層のフロアは満寸のフロアより明らかに狭い', () => {
+    // 1 シードでは間取りのばらつきに埋もれるので 100 シードの平均で見る
+    const mean_floor_tiles = (depth: number): number => {
+      let total = 0
+      for (let seed = 1; seed <= 100; seed++) {
+        for (const t of generate_level(depth, seed).tiles) {
+          if (t > 0 && t < 8) { total++ }
+        }
+      }
+      return total / 100
+    }
+    const shallow = mean_floor_tiles(1) // 実測 400
+    const full = mean_floor_tiles(10) // 実測 1066
+    expect(shallow).toBeLessThan(full * 0.5)
+    expect(full).toBeGreaterThan(1000)
+  }, 60000)
+})
+
 describe('generate_level: 決定性', () => {
   it('同じ深度とシードからは同じ間取りが出る', () => {
     const a = generate_level(5, 12345)
@@ -116,21 +187,25 @@ describe('generate_level: 部屋', () => {
   }, 30000)
 
   it('部屋は必ず 3 つ以上ある', () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      expect(generate_level(1, seed).rooms.length).toBeGreaterThanOrEqual(3)
-    }
-  }, 30000)
-
-  it('部屋は外周 1 タイルを空けて収まる', () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      for (const room of generate_level(1, seed).rooms) {
-        expect(room.x).toBeGreaterThanOrEqual(1)
-        expect(room.z).toBeGreaterThanOrEqual(1)
-        expect(room.x + room.w).toBeLessThanOrEqual(level_width - 1)
-        expect(room.z + room.h).toBeLessThanOrEqual(level_height - 1)
+    for (const depth of [1, 5, 10, 30]) {
+      for (let seed = 1; seed <= 200; seed++) {
+        expect(generate_level(depth, seed).rooms.length).toBeGreaterThanOrEqual(3)
       }
     }
-  }, 30000)
+  }, 60000)
+
+  it('部屋は外周 1 タイルを空けて収まる', () => {
+    for (const depth of [1, 5, 10, 30]) {
+      for (let seed = 1; seed <= 200; seed++) {
+        for (const room of generate_level(depth, seed).rooms) {
+          expect(room.x).toBeGreaterThanOrEqual(1)
+          expect(room.z).toBeGreaterThanOrEqual(1)
+          expect(room.x + room.w).toBeLessThanOrEqual(level_width - 1)
+          expect(room.z + room.h).toBeLessThanOrEqual(level_height - 1)
+        }
+      }
+    }
+  }, 60000)
 })
 
 describe('generate_level: 連結性', () => {
@@ -265,15 +340,20 @@ describe('generate_level: 目標地点', () => {
     }
   }, 60000)
 
-  it('同一シード内では深度が上がるほど喫煙所が遠くなる（単調非減少）', () => {
-    for (let seed = 1; seed <= 100; seed++) {
-      let last = -1
-      for (const depth of [1, 3, 6, 9, 12, 15, 30]) {
+  // 深度で生成範囲そのものが変わるため、同一シードの深度間比較は成立しない
+  // （同じ seed でも間取りが別物になる）。「潜るほど喫煙所が遠い」は
+  // 100 シード平均の性質として検証する。
+  it('深度が上がるほど喫煙所が遠くなる（100 シード平均で単調非減少）', () => {
+    let last = -1
+    for (const depth of [1, 3, 6, 9, 12, 15, 30]) {
+      let total = 0
+      for (let seed = 1; seed <= 100; seed++) {
         const layout = generate_level(depth, seed)
-        const d = bfs_distance_near(layout, layout.smoking_area)
-        expect(d).toBeGreaterThanOrEqual(last)
-        last = d
+        total += bfs_distance_near(layout, layout.smoking_area)
       }
+      const mean = total / 100
+      expect(mean).toBeGreaterThanOrEqual(last)
+      last = mean
     }
   }, 60000)
 })

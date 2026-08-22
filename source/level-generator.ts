@@ -36,8 +36,6 @@ export interface level_layout_t {
 // push_block = 24 verts なので、輪郭壁だけにしてもタイル数次第では超えうる。
 const max_level_verts = 60000
 
-const room_count_min = 8
-const room_count_max = 12
 const room_size_min = 5
 const room_size_max = 11
 const room_place_attempts = 200 // 部屋ごとではなく 1 レベル全体での試行回数
@@ -45,6 +43,29 @@ const room_count_floor = 3 // これを下回るシードは棄却して次の�
 const layout_attempts = 8
 const rng_warmup = 8 // 下の build_layout のコメントを参照
 const spawn_min_distance = 8 // 開始地点からの BFS タイル距離。ここより近くには湧かせない
+
+// 深度 1 → 10 でフロアを「狭い浅層」から満寸へ開く進行度。
+// 満寸のまま浅い層を出すと、開始から非常口まで常に約 75 タイル歩かされる
+// （非常口は最も遠い部屋なので、この距離は深度に依存しない）。
+function depth_scale(depth: number): number {
+  return Math.min(1, (depth - 1) / 9)
+}
+
+// 部屋を置ける正方形の一辺（タイル）。グリッド自体は 64×64 のまま変えない。
+// state.ts の level_data もミニマップの ImageData も level_width * level_height の
+// 固定長で、可変にすると生成器の外へ波及する。範囲だけ絞れば生成器の中で閉じる。
+// 満寸が 62 なのは、輪郭壁のために外周 1 タイルを空けるため（使える内側が 1..62）。
+export function level_bounds_side(depth: number): number {
+  return Math.round(32 + 30 * depth_scale(depth))
+}
+
+// 範囲と部屋数はセットで動かす。範囲だけ縮めると 8〜12 部屋が入りきらず、
+// place_rooms() が room_place_attempts を使い切って黙って少ない数を返し、
+// 部屋数がシードごとに 3〜8 の間で暴れる（一辺 26 での実測）。
+export function room_count_range(depth: number): { min: number, max: number } {
+  const t = depth_scale(depth)
+  return { min: Math.round(5 + 3 * t), max: Math.round(6 + 6 * t) }
+}
 
 function tile_index(x: number, z: number): number {
   return x + z * level_width
@@ -64,17 +85,23 @@ function rooms_overlap(a: room_t, b: room_t): boolean {
   )
 }
 
-function place_rooms(): room_t[] {
+function place_rooms(depth: number): room_t[] {
   const rooms: room_t[] = []
-  const target = random_int(room_count_min, room_count_max)
+  const count = room_count_range(depth)
+  const target = random_int(count.min, count.max)
+  const side = level_bounds_side(depth)
+  // 範囲は盤面中央に寄せる。外周 1 タイルは輪郭壁のために空けておく。
+  // side = 62 のとき x0 = 1 となり、範囲を導入する前の
+  // random_int(1, level_width - w - 2) とタイル単位で一致する。
+  const x0 = 1 + ((level_width - 2 - side) >> 1)
+  const z0 = 1 + ((level_height - 2 - side) >> 1)
 
   for (let i = 0; i < room_place_attempts && rooms.length < target; i++) {
     const w = random_int(room_size_min, room_size_max)
     const h = random_int(room_size_min, room_size_max)
-    // 外周 1 タイルは輪郭壁のために空けておく
     const room: room_t = {
-      x: random_int(1, level_width - w - 2),
-      z: random_int(1, level_height - h - 2),
+      x: random_int(x0, x0 + side - w - 1),
+      z: random_int(z0, z0 + side - h - 1),
       w,
       h,
     }
@@ -208,7 +235,7 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   for (let i = 0; i < rng_warmup; i++) { random_int(0, 1) }
 
   const tiles = new Uint8Array(level_width * level_height)
-  const rooms = place_rooms()
+  const rooms = place_rooms(depth)
   if (rooms.length < room_count_floor) { return null }
 
   for (const room of rooms) { carve_room(tiles, room) }
