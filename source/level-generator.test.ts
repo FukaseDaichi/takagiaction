@@ -329,13 +329,25 @@ describe('generate_level: 目標地点', () => {
   }, 60000)
 
   // レビュー B-8: 空き部屋数でクランプしないと深度 12 以降で足りなくなる
-  it('ダミー数は min(1 + floor(深度/4), 3) を上限とし、空き部屋数でも抑えられる', () => {
+  // 浅い層でダミーを出すと、明滅するオレンジが複数あって片方はハズレという
+  // 状態になり、フロアを狭めても探索の空振りだけが残る。深度 1〜4 は
+  // 明滅するオレンジが 1 点だけ = 本物になる。
+  // レビュー B-8: 空き部屋数でクランプしないと部屋数の少ないシードで足りなくなる
+  it('ダミーは深度 5 から出る。数は min(floor(深度/5), 3) を上限とし、空き部屋数でも抑えられる', () => {
     for (let seed = 1; seed <= 200; seed++) {
-      for (const depth of [1, 4, 8, 12, 40]) {
+      for (const depth of [1, 4, 5, 9, 10, 14, 15, 40]) {
         const layout = generate_level(depth, seed)
-        const want = Math.min(1 + Math.floor(depth / 4), 3)
+        const want = Math.min(Math.floor(depth / 5), 3)
         const available = layout.rooms.length - 3 // 開始・喫煙所・非常口を除く
         expect(layout.dummies.length).toBe(Math.max(0, Math.min(want, available)))
+      }
+    }
+  }, 60000)
+
+  it('深度 1〜4 にダミーは 1 つも出ない', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const depth of [1, 2, 3, 4]) {
+        expect(generate_level(depth, seed).dummies.length).toBe(0)
       }
     }
   }, 60000)

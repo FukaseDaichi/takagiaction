@@ -290,7 +290,10 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   for (let i = 1; i < ranked.length; i++) {
     if (i !== k && i !== exit_rank) { eligible.push(i) }
   }
-  const dummy_target = Math.min(1 + Math.floor(depth / 4), 3)
+  // 深度 5 から。深度 1〜4 でダミーを出すと、ミニマップに明滅するオレンジが
+  // 複数あって片方はハズレという状態になり、フロアを狭めても探索の空振りだけが
+  // 残る。浅い層は明滅するオレンジ 1 点 = 本物にして、明滅をそのまま答えにする。
+  const dummy_target = Math.min(Math.floor(depth / 5), 3)
   const dummies: tile_pos_t[] = []
   while (dummies.length < dummy_target && eligible.length > 0) {
     const pick = random_int(0, eligible.length - 1)
