@@ -30,8 +30,9 @@ export function nicotine_drain_rate(depth: number): number {
   return 1 + 0.19 * Math.sqrt(depth - 1)
 }
 
-export function player_speed(stage: number): number {
-  return stage >= nicotine_stage_withdrawal ? 96 : 128
+// 基礎 128（離脱症状で 96）× 移動速度係数（恒久強化、省略時 1）
+export function player_speed(stage: number, speed_factor = 1): number {
+  return (stage >= nicotine_stage_withdrawal ? 96 : 128) * speed_factor
 }
 
 // 基礎 0.1 秒 × 火力係数（恒久強化、省略時 1） × ニコチン係数（離脱症状で 1.8）

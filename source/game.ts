@@ -97,7 +97,6 @@ export function run_end(): void {
     dummy_count: state.dummy_count,
     death_cause: state.death_cause,
     nicotine_ratio: state.nicotine / state.nicotine_max,
-    hp: Math.max(0, state.entity_player!.h),
   }, run_start)
 }
 
@@ -266,12 +265,11 @@ function game_tick(): void {
   }
 
   // 死体は当たり判定から外す。相手側の _check は「entity_player_t かどうか」
-  // だけを見るので、死体のままでも回復パックを拾い、ヤニを回収し、喫煙所に
-  // 触れてしまう。死亡画面は HP と獲得ヤニをそのまま出すため、死後に動くと
-  // 「HP 1 で死亡」や死後に稼いだヤニが表示される。死体が消えるのは次の
-  // load_level なので、シーケンス中（dying）に加えてリザルト表示中
-  // （game_running = 0）も外す。除外はここ 1 か所で行う
-  // （各エンティティ側に足すと同じ判定が 5 つに散る）
+  // だけを見るので、死体のままでも回復パックを拾い（拾得音が死亡演出に重なり、
+  // 床のパックも消える）、ヤニを回収し（死後に稼いだぶんがリザルトの残高に載る）、
+  // 喫煙所に触れて一服を始めてしまう。死体が消えるのは次の load_level なので、
+  // シーケンス中（dying）に加えてリザルト表示中（game_running = 0）も外す。
+  // 除外はここ 1 か所で行う（各エンティティ側に足すと同じ判定が 5 つに散る）
   const corpse = state.dying || !state.game_running ? player : null
 
   // update and render entities

@@ -68,6 +68,11 @@ describe('段階効果', () => {
     expect(player_speed(nicotine_stage_limit)).toBe(96)
   })
 
+  it('移動速度係数は基礎速度と離脱時速度の両方に掛かる', () => {
+    expect(player_speed(nicotine_stage_normal, 1.5625)).toBeCloseTo(200, 6)
+    expect(player_speed(nicotine_stage_withdrawal, 1.5625)).toBeCloseTo(150, 6)
+  })
+
   // 設計書 §1: 基礎 0.1 秒 × ニコチン係数。火力強化の係数はこの間に挟まる
   it('離脱症状では射撃間隔が 1.8 倍になる', () => {
     expect(shot_interval(nicotine_stage_normal)).toBeCloseTo(0.1, 6)
