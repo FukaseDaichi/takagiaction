@@ -1,0 +1,187 @@
+/* ゲーム中の HUD。死亡画面（death-screen.css）と同じく寸法はすべて vw で、
+   16:9 前後のアスペクト比を前提にしている。
+   構造は hud.ts が 1 度だけ組み、毎フレーム書き換わるのは値ノードの
+   textContent と width / color だけ。
+
+   #hud は全画面の透明な土台で、パネルはそこからの絶対配置。
+   pointer-events: none を外すと、イントロのクリック待ち（main.ts の
+   document.onclick）と死亡画面のボタンがパネルの下で拾えなくなる。 */
+#hud {
+  position: fixed;
+  inset: 0;
+  display: none;
+  color: #e8eef4;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  font-size: 1vw;
+  pointer-events: none;
+  user-select: none;
+}
+
+#hud .hud-panel {
+  border: 1px solid #454d57;
+  border-radius: 0.45vw;
+  background: rgba(8, 9, 11, 0.82);
+  padding: 1.1vw 1vw;
+  box-sizing: border-box;
+}
+
+#hud .hud-label { color: #98a3af; font-size: 1.15vw; }
+#hud .hud-note { color: #8d97a2; font-size: 1.05vw; }
+
+/* 左列: ニコチン / HP / 所持ヤニ。ゲージだけ幅いっぱいで、下 2 枚は見本どおり狭い */
+#hud .hud-left {
+  position: absolute;
+  top: 1.3vw;
+  left: 1.4vw;
+  width: 26vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1vw;
+  align-items: flex-start;
+}
+#hud .hud-nico { width: 100%; }
+#hud .hud-hp, #hud .hud-yani { width: 72%; }
+
+/* ニコチンゲージ。枠線と塗りは stage_color() を hud.ts が両方に入れる
+   （枠だけオレンジで固定すると、限界帯の赤い塗りと喧嘩する） */
+#hud .hud-gauge {
+  position: relative;
+  height: 2vw;
+  margin-top: 0.4vw;
+  border: 0.16vw solid #e90;
+  border-radius: 0.2vw;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+#hud .hud-gauge i {
+  display: block;
+  height: 100%;
+  background: #e90;
+  box-shadow: 0 0 1vw rgba(255, 170, 43, 0.5);
+}
+#hud .hud-gauge b {
+  position: absolute;
+  right: 0.5vw;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.7vw;
+  text-shadow: 0 0 0.4vw #000;
+}
+#hud .hud-gauge small { font-size: 1.1vw; }
+
+/* HP。ラベル行の右端に数値、その下にブロック帯 */
+#hud .hud-row { display: flex; align-items: center; gap: 0.5vw; }
+#hud .hud-row b { margin-left: auto; font-size: 1.7vw; }
+#hud .hud-heart { color: #ff3b30; font-size: 1.5vw; text-shadow: 0 0 0.5vw #f33; }
+#hud .hud-hp-name { font-size: 1.45vw; font-weight: bold; }
+#hud .hud-blocks { display: flex; gap: 0.3vw; margin-top: 0.9vw; }
+#hud .hud-blocks i {
+  flex: 1;
+  height: 1.1vw;
+  border-radius: 0.1vw;
+  background: #ff3b30;
+  box-shadow: 0 0 0.4vw #f33;
+}
+#hud .hud-blocks i.off { background: #4a1310; box-shadow: none; }
+
+/* 所持ヤニ。金額 → 次の強化までの残り → 進捗帯 の縦積み */
+#hud .hud-yani img { width: 1.5vw; height: 1.5vw; }
+#hud .hud-yani-amount {
+  font-size: 2.3vw;
+  font-weight: bold;
+  line-height: 1.2;
+  margin: 0.1vw 0 0.2vw;
+}
+#hud .hud-track {
+  height: 0.85vw;
+  margin-top: 0.4vw;
+  border: 1px solid #6d5a33;
+  border-radius: 0.15vw;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+#hud .hud-track i { display: block; height: 100%; background: #ffaa2b; }
+
+/* 右上: ミニマップ。canvas#m と code#sn は index.html の静的要素を
+   hud.ts がこのパネルへ移してくる（他モジュールが id で掴んでいるため、
+   生成側を hud.ts に移すと dom.ts の静的な取得が成り立たない） */
+#hud .hud-map {
+  position: absolute;
+  top: 1.3vw;
+  right: 1.4vw;
+  width: 20vw;
+}
+#hud .hud-map canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: rgba(0, 0, 0, 0.45);
+  image-rendering: pixelated;
+}
+#hud .hud-legend {
+  margin-top: 0.5vw;
+  padding-top: 0.5vw;
+  border-top: 1px solid #2c333b;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35vw;
+}
+#hud .hud-legend div { display: flex; align-items: center; gap: 0.6vw; font-size: 1.1vw; }
+#hud .hud-legend i { width: 0.9vw; height: 0.9vw; border-radius: 0.1vw; }
+/* 色はミニマップの描画値と対で持つ（minimap.ts の minimap_set_pixel を参照） */
+#hud .hud-legend i.explored { background: rgb(90, 110, 125); }
+#hud .hud-legend i.area { background: rgb(238, 153, 0); }
+#hud #sn {
+  display: none;
+  margin-top: 0.5vw;
+  color: #ffd464;
+  font-weight: bold;
+  font-size: 1.15vw;
+  text-shadow: 0 0 0.5vw #f70;
+}
+
+/* 下部: ステータスバー + 次にやること */
+#hud .hud-bottom {
+  position: absolute;
+  bottom: 1.4vw;
+  left: 1.4vw;
+  right: 1.4vw;
+  display: grid;
+  grid-template-columns: 1.42fr 1fr;
+  gap: 1.5vw;
+  align-items: stretch;
+}
+
+#hud .hud-stats { display: flex; align-items: center; padding: 1vw 0; }
+/* flex-basis を auto にして、幅は中身に従わせる（1 に固定すると全セルが
+   等幅になり、「未開通」だけが枠に収まらず折り返す）。余った幅は均等に配る */
+#hud .hud-stat {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  padding: 0 0.9vw;
+}
+#hud .hud-stat + .hud-stat { border-left: 1px solid #2c333b; }
+#hud .hud-stat img, #hud .hud-stat svg { width: 1.9vw; height: 1.9vw; flex-shrink: 0; }
+/* インライン SVG の非常口アイコンを、webp の線画（オレンジ）と同じ色に合わせる */
+#hud .hud-stat svg { stroke: #e90; }
+#hud .hud-stat-label { color: #98a3af; font-size: 1.1vw; white-space: nowrap; }
+#hud .hud-stat-value {
+  font-size: 1.7vw; font-weight: bold; line-height: 1.15; white-space: nowrap;
+}
+#hud .hud-stat-value.depth { color: #ffaa2b; }
+#hud .hud-stat-value.warn { color: #ff5b4a; }
+#hud .hud-stat-value.ok { color: #3ae08a; }
+
+#hud .hud-objective { display: flex; flex-direction: column; justify-content: center; }
+#hud .hud-objective-title { color: #ffaa2b; font-size: 1.25vw; font-weight: bold; }
+#hud .hud-objective-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  font-size: 1.85vw;
+  font-weight: bold;
+  margin: 0.1vw 0;
+}
+#hud .hud-objective-main::before { content: '▶'; color: #ffaa2b; font-size: 1.3vw; }

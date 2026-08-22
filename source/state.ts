@@ -7,6 +7,12 @@ import type { entity_player_t } from './entity-player'
 export const level_width = 64
 export const level_height = 64
 
+// 自機の HP 上限。load_level() が自機を生成する値であり、HUD の HP ブロック数と
+// 死亡画面の「n / 5」も同じ数字を読む。定数の置き場をここにするのは、
+// entity-player.ts に置くと死亡画面が
+// death-screen → entity-player → game → death-screen の循環に入るため
+export const player_hp_max = 5
+
 // 中身を書き換えるのみで再代入されないため const で公開できる
 export const level_data = new Uint8Array(level_width * level_height)
 

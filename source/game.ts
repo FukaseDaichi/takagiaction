@@ -11,7 +11,7 @@ import { generate_level } from './level-generator'
 import {
   meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
 } from './meta'
-import { minimap_hide, minimap_reset, minimap_update } from './minimap'
+import { minimap_reset, minimap_update } from './minimap'
 import {
   monologue_arrival, monologue_notify_stage, monologue_reset, monologue_update,
 } from './monologue'
@@ -19,11 +19,11 @@ import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
 } from './nicotine'
 import {
-  camera, push_block, push_floor, push_sprite,
+  camera, push_block, push_floor,
   renderer_end_frame, renderer_freeze_level_geometry,
   renderer_prepare_frame, renderer_reset_level_geometry,
 } from './renderer'
-import { level_data, level_height, level_width, state } from './state'
+import { level_data, level_height, level_width, player_hp_max, state } from './state'
 import { terminal_show_notice } from './terminal'
 
 let time_last = performance.now()
@@ -76,7 +76,6 @@ export function run_end(): void {
   // 通さないぶん、_dead ガードが外れれば _kill() は同じフレームでもう一度走りうる。
   if (!state.game_running) { return }
   state.game_running = 0
-  minimap_hide()
   hud_hide()
   monologue_reset()
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
@@ -148,7 +147,7 @@ function load_level(depth: number): void {
   }
 
   state.entity_player =
-    new entity_player_t(layout.start.x * 8, 0, layout.start.z * 8, 5, 18)
+    new entity_player_t(layout.start.x * 8, 0, layout.start.z * 8, player_hp_max, 18)
 
   const smoking_area = new entity_smoking_area_t(
     layout.smoking_area.x * 8, 0, layout.smoking_area.z * 8, 0, 18,
@@ -272,12 +271,7 @@ function game_tick(): void {
     monologue_update(player.x, player.z)
   }
 
-  // health bar, render with plasma sprite
-  for (let i = 0; i < player.h; i++) {
-    push_sprite(-camera.x - 50 + i * 4, 29 - camera.y, -camera.z - 30, 26)
-  }
-
-  hud_update(state.nicotine, state.nicotine_max, stage, state.spares_left)
+  hud_update(stage)
 
   renderer_end_frame()
 

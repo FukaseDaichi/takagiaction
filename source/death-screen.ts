@@ -10,6 +10,7 @@ import {
   meta_spare_count, meta_upgrade_cost,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
+import { player_hp_max } from './state'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
 import './death-screen.css'
 
@@ -183,8 +184,8 @@ function render(): void {
     left += '<div class="ds-status">' +
       '<div class="ds-death-message">' + message[0] + '<br>' + message[1] + '</div>' +
       '<div>' +
-      '<div class="ds-gauge-row">♥ HP ' + blocks(r.hp, 5) +
-      '<b>' + r.hp + ' / 5</b></div>' +
+      '<div class="ds-gauge-row">♥ HP ' + blocks(r.hp, player_hp_max) +
+      '<b>' + r.hp + ' / ' + player_hp_max + '</b></div>' +
       '<div class="ds-gauge-row">ニコチン<b>' +
       Math.round(r.nicotine_ratio * 100) + '%</b></div>' +
       '</div>' +
