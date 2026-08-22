@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   notices: [] as string[],
   monologue: [] as string[],
+  sounds: [] as string[],
   blocks: [] as number[][],
   sprites: [] as number[][],
   lights: [] as number[][],
@@ -19,14 +20,19 @@ vi.mock('./renderer', () => ({
   camera: { x: 0, y: 0, z: 0, shake: 0 },
 }))
 vi.mock('./audio', () => ({
-  audio_play: () => {},
+  audio_play: (buffer: unknown) => {
+    if (buffer) { mocks.sounds.push(buffer as string) }
+  },
   audio_toggle: () => {},
-  audio_sfx_shoot: undefined,
-  audio_sfx_hit: undefined,
-  audio_sfx_hurt: undefined,
-  audio_sfx_beep: undefined,
-  audio_sfx_pickup: undefined,
-  audio_sfx_explode: undefined,
+  audio_sfx_shoot: 'shoot',
+  audio_sfx_hit: 'hit',
+  audio_sfx_hurt: 'hurt',
+  audio_sfx_beep: 'beep',
+  audio_sfx_pickup: 'pickup',
+  audio_sfx_explode: 'explode',
+  audio_sfx_lighter: 'lighter',
+  audio_sfx_exhale: 'exhale',
+  audio_sfx_door: 'door',
 }))
 vi.mock('./terminal', () => ({
   terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
@@ -74,6 +80,7 @@ describe('喫煙所', () => {
     state.dummy_count = 0
     mocks.notices.length = 0
     mocks.monologue.length = 0
+    mocks.sounds.length = 0
     mocks.blocks.length = 0
     mocks.sprites.length = 0
     mocks.lights.length = 0
@@ -397,5 +404,61 @@ describe('喫煙所', () => {
     tick(area, player, 0.5)
     expect(state.dummy_count).toBe(1)
     expect(state.smoke_count).toBe(0) // ダミーは一服に数えない
+  })
+
+  it('吸い始めにライターが鳴り、一度だけ鳴る', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 0.5)
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(1)
+
+    tick(area, player, 0.5) // 吸い続けても着火し直さない
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(1)
+  })
+
+  it('着火フラッシュ中は灰皿のライトが明るく（falloff が小さく）なり、0.3 秒で戻る', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 0.1) // 着火（フラッシュはこのフレームの描画には乗らない）
+    mocks.lights.length = 0
+    tick(area, player, 0.1)
+    expect(mocks.lights[0][6]).toBeCloseTo(0.012, 5)
+
+    tick(area, player, 0.3) // フラッシュの 0.3 秒を超える
+    mocks.lights.length = 0
+    tick(area, player, 0.1)
+    expect(mocks.lights[0][6]).toBeGreaterThan(0.02) // 通常の明滅（0.03±0.01）に戻る
+  })
+
+  it('吸引中は 0.6 秒ごとに高木の位置から煙が立ちのぼる', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    const count = (): number =>
+      state.entities.filter((e) => e instanceof entity_smoke_t).length
+
+    tick(area, player, 0.5) // 進捗 0.5 秒
+    expect(count()).toBe(0)
+    tick(area, player, 0.5) // 1.0 秒（0.6 を跨ぐ）
+    expect(count()).toBe(1)
+    tick(area, player, 0.5) // 1.5 秒（1.2 を跨ぐ）
+    expect(count()).toBe(2)
+  })
+
+  it('中断すると着火フラッシュが消え、吸い直しで再着火する', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.1) // 着火
+    player.h = 4
+    tick(area, player, 0.1) // 中断
+    mocks.lights.length = 0
+    idle(area, 0.1) // フラッシュが残っていればここで 0.012 が出る
+    expect(mocks.lights[0][6]).toBeGreaterThan(0.02)
+
+    tick(area, player, 0.1) // 吸い直し = 再着火
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(2)
   })
 })

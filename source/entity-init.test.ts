@@ -17,6 +17,9 @@ vi.mock('./audio', () => ({
   audio_sfx_beep: undefined,
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
+  audio_sfx_lighter: undefined,
+  audio_sfx_exhale: undefined,
+  audio_sfx_door: undefined,
 }))
 // terminal も dom.ts に触る
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))

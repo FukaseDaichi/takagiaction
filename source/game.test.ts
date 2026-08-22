@@ -35,6 +35,9 @@ vi.mock('./audio', () => ({
   audio_sfx_beep: undefined,
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
+  audio_sfx_lighter: undefined,
+  audio_sfx_exhale: undefined,
+  audio_sfx_door: undefined,
 }))
 vi.mock('./hud', () => ({ hud_hide: () => {}, hud_show: () => {}, hud_update: () => {} }))
 vi.mock('./minimap', () => ({ minimap_reset: () => {}, minimap_update: () => {} }))
