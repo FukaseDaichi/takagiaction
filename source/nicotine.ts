@@ -7,10 +7,16 @@ export const nicotine_stage_edgy = 1 // 60〜31% そわそわ
 export const nicotine_stage_withdrawal = 2 // 30〜1% 離脱症状
 export const nicotine_stage_limit = 3 // 0% 限界
 
+// 段階の境界（比率）。HUD のタバコはこの 2 値の位置に印字帯を描くため、
+// しきい値を式に埋め込まず名前で公開する（CSS 側に数値を複製すると、
+// 境界を動かしたときに計器の目盛りだけが古い位置に残る）
+export const nicotine_edgy_ratio = 0.6
+export const nicotine_withdrawal_ratio = 0.3
+
 export function nicotine_stage(nicotine: number, nicotine_max: number): number {
   const ratio = nicotine / nicotine_max
-  if (ratio > 0.6) { return nicotine_stage_normal }
-  if (ratio > 0.3) { return nicotine_stage_edgy }
+  if (ratio > nicotine_edgy_ratio) { return nicotine_stage_normal }
+  if (ratio > nicotine_withdrawal_ratio) { return nicotine_stage_edgy }
   if (ratio > 0) { return nicotine_stage_withdrawal }
   return nicotine_stage_limit
 }

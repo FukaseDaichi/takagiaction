@@ -1,69 +1,70 @@
 import { describe, expect, it } from 'vitest'
-import { hud_objective, hud_yani_progress } from './hud-model'
-import { meta_max_level, meta_upgrade_cost } from './meta'
-import type { meta_upgrade_id_t } from './meta'
+import {
+  hp_reveal_hold, hp_reveal_idle, hp_reveal_step, hud_percent_visible, hud_spare_urgent,
+} from './hud-model'
+import {
+  nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
+  nicotine_stage_withdrawal,
+} from './nicotine'
 
-const levels_at = (
-  overrides: Partial<Record<meta_upgrade_id_t, number>> = {},
-): Record<meta_upgrade_id_t, number> => ({
-  lung: 0, tolerance: 0, sniff: 0, power: 0, spare: 0, ...overrides,
-})
-
-describe('次にやること', () => {
-  it('一服中は吸い続けることを指示する', () => {
-    const o = hud_objective(1, 0)
-    expect(o.title).toContain('吸い続け')
+describe('百分率の表示条件', () => {
+  it('通常帯では出さない（静かなことが「安全」の合図になる）', () => {
+    expect(hud_percent_visible(nicotine_stage_normal, 0)).toBe(false)
   })
 
-  it('一服中は非常口が開いていても吸うほうを優先する', () => {
-    expect(hud_objective(1, 1).title).toBe(hud_objective(1, 0).title)
+  it('そわそわ帯（60% 以下）から出る', () => {
+    expect(hud_percent_visible(nicotine_stage_edgy, 0)).toBe(true)
+    expect(hud_percent_visible(nicotine_stage_withdrawal, 0)).toBe(true)
+    expect(hud_percent_visible(nicotine_stage_limit, 0)).toBe(true)
   })
 
-  it('非常口が未開通なら喫煙所を探させる', () => {
-    const o = hud_objective(0, 0)
-    expect(o.title).toContain('喫煙所')
-    expect(o.note).toContain('非常口')
-  })
-
-  it('非常口が開通したら非常口へ向かわせる', () => {
-    const o = hud_objective(0, 1)
-    expect(o.title).toContain('非常口')
+  it('一服中は通常帯でも出す（回復が数字で駆け上がる）', () => {
+    expect(hud_percent_visible(nicotine_stage_normal, 1)).toBe(true)
   })
 })
 
-describe('次の強化までのヤニ', () => {
-  it('未強化なら最安の 1 段目（15）が目標になる', () => {
-    const p = hud_yani_progress(0, levels_at())
-    expect(p.cost).toBe(meta_upgrade_cost(0))
-    expect(p.remain).toBe(meta_upgrade_cost(0))
-    expect(p.ratio).toBe(0)
+describe('HP の表示条件', () => {
+  const step = (
+    prev: ReturnType<typeof hp_reveal_idle>, hp: number, stage: number, dt = 0.016,
+  ) => hp_reveal_step(prev, hp, 5, stage, dt)
+
+  it('満タン・通常帯では出さない', () => {
+    expect(step(hp_reveal_idle(), 5, nicotine_stage_normal).visible).toBe(false)
   })
 
-  it('目標額に届いていれば残り 0・ゲージ満タンになる', () => {
-    const p = hud_yani_progress(999, levels_at())
-    expect(p.remain).toBe(0)
-    expect(p.ratio).toBe(1)
+  it('削られたら出る', () => {
+    expect(step(hp_reveal_idle(), 4, nicotine_stage_normal).visible).toBe(true)
   })
 
-  it('最安は「まだ上げられる項目の中で一番レベルが低いもの」で決まる', () => {
-    // 予備だけ Lv0 のままなら、他が何段でも目標は Lv0 のコスト
-    const p = hud_yani_progress(0, levels_at({
-      lung: 4, tolerance: 4, sniff: 4, power: 4,
-    }))
-    expect(p.cost).toBe(meta_upgrade_cost(0))
+  it('限界帯は満タンでも出す（次に食われるのが HP だから）', () => {
+    expect(step(hp_reveal_idle(), 5, nicotine_stage_limit).visible).toBe(true)
   })
 
-  it('MAX の項目は目標に数えない', () => {
-    // 予備は 5 段で MAX。残りは全部 Lv2 なので目標は Lv2 のコスト
-    const p = hud_yani_progress(10, levels_at({
-      lung: 2, tolerance: 2, sniff: 2, power: 2, spare: meta_max_level.spare,
-    }))
-    expect(p.cost).toBe(meta_upgrade_cost(2))
-    expect(p.remain).toBe(meta_upgrade_cost(2) - 10)
+  it('満タンに戻ってから hp_reveal_hold 秒だけ残り、そのあと消える', () => {
+    let r = step(hp_reveal_idle(), 3, nicotine_stage_normal)
+    expect(r.hold).toBe(hp_reveal_hold)
+
+    // 満タンに戻した直後はまだ見えている
+    r = step(r, 5, nicotine_stage_normal, hp_reveal_hold - 0.1)
+    expect(r.visible).toBe(true)
+
+    r = step(r, 5, nicotine_stage_normal, 0.2)
+    expect(r.visible).toBe(false)
+    expect(r.hold).toBe(0)
   })
 
-  it('全項目 MAX なら cost 0 で「目標なし」を表す', () => {
-    const p = hud_yani_progress(9999, { ...meta_max_level })
-    expect(p.cost).toBe(0)
+  it('消えたあとは満タンのまま何フレーム進めても出てこない', () => {
+    let r = hp_reveal_idle()
+    for (let i = 0; i < 10; i++) { r = step(r, 5, nicotine_stage_normal) }
+    expect(r.visible).toBe(false)
+  })
+})
+
+describe('予備の一本の使いどき', () => {
+  it('離脱症状帯（30% 以下）で点灯する', () => {
+    expect(hud_spare_urgent(nicotine_stage_normal)).toBe(false)
+    expect(hud_spare_urgent(nicotine_stage_edgy)).toBe(false)
+    expect(hud_spare_urgent(nicotine_stage_withdrawal)).toBe(true)
+    expect(hud_spare_urgent(nicotine_stage_limit)).toBe(true)
   })
 })

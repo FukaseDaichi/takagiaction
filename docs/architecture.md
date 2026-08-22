@@ -18,8 +18,8 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
 - `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import を一切持たず、Node でモックなしに評価できる
-- `hud.ts` — ゲーム中の HUD（ニコチンゲージ・HP・所持ヤニ・ミニマップのパネル・下部ステータス・次にやること）。構造を起動時に 1 度だけ組み、`hud_update()` は値ノードだけを書き換える。スタイルは `hud.css` が持つ
-- `hud-model.ts` — HUD の表示ロジック（次にやること、次の強化までのヤニ）。実行時 import は `meta.ts` のみで、Node でモックなしに評価できる
+- `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・ミニマップの枠）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコは画像を使わず CSS だけで描く
+- `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する
@@ -89,7 +89,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚を合わせた 15 枚である（HUD が使う 5 枚はすべてその 14 枚の中にある）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚を合わせた 15 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
 
 これに加えて、イントロの hero 画像（`m/hero.webp`）だけは静的 import ではなく、`index.html` の `<style>` 内の `url(m/hero.webp)` から参照する。Vite はインライン `<style>` も CSS として処理するため、この参照も静的 import と同様にビルドで解決される（ハッシュ付きで `dist/assets/` に出力され、`dist/index.html` がその URL を指す）。禁止されているのは Vite が静的に検出できない JS 側の文字列連結であって、`index.html` 内の静的な CSS 参照は使ってよい。ただし効くのは CSS として解釈される位置に限る。`m/` へのパスを `<style>` の外（属性値の文字列など）へ動かすと `dist` に出なくなる。
 

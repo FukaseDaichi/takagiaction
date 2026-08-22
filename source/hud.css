@@ -1,187 +1,224 @@
-/* ゲーム中の HUD。死亡画面（death-screen.css）と同じく寸法はすべて vw で、
-   16:9 前後のアスペクト比を前提にしている。
-   構造は hud.ts が 1 度だけ組み、毎フレーム書き換わるのは値ノードの
-   textContent と width / color だけ。
+/* ゲーム中の HUD。寸法はすべて vw で、16:9 前後のアスペクト比を前提にしている
+   （death-screen.css と同じ）。
 
-   #hud は全画面の透明な土台で、パネルはそこからの絶対配置。
-   pointer-events: none を外すと、イントロのクリック待ち（main.ts の
-   document.onclick）と死亡画面のボタンがパネルの下で拾えなくなる。 */
+   常設の計器はタバコ（左上）とミニマップ（右上）の 2 つだけ。他の表示は
+   hud-model.ts の条件で現れて消える。ラベルを一切持たないのは、
+   「表示されていること自体が警告」だから（docs/gameplay.md）。
+
+   #hud は全画面の透明な土台。pointer-events: none を外すと、イントロの
+   クリック待ち（main.ts の document.onclick）と死亡画面のボタンが拾えなくなる。 */
 #hud {
+  /* タバコの材質。世界側の照明は #e90 なので、火種はより赤く熱い側に置いて
+     in-world のオレンジの光と混ざらないようにする */
+  --paper: #ede6d6;
+  --paper-lit: #fffbf0;
+  --paper-mid: #cfc6b2;
+  --paper-low: #b4ab98;
+  --ember: #ff5a12;
+  --ash: #2b2a27;
+  --filter: #b4832c;
+  --hp-lit: #e23a2e;
+  --hp-lost: #40241f;
+  --dim: #7e7568;
+
   position: fixed;
   inset: 0;
   display: none;
-  color: #e8eef4;
+  color: var(--paper);
   font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
-  font-size: 1vw;
   pointer-events: none;
   user-select: none;
 }
 
-#hud .hud-panel {
-  border: 1px solid #454d57;
-  border-radius: 0.45vw;
-  background: rgba(8, 9, 11, 0.82);
-  padding: 1.1vw 1vw;
-  box-sizing: border-box;
+/* 計器の数字は等幅で組む。桁が変わっても幅が動かず、目が位置で読める */
+#hud .num {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
 }
 
-#hud .hud-label { color: #98a3af; font-size: 1.15vw; }
-#hud .hud-note { color: #8d97a2; font-size: 1.05vw; }
-
-/* 左列: ニコチン / HP / 所持ヤニ。ゲージだけ幅いっぱいで、下 2 枚は見本どおり狭い */
 #hud .hud-left {
   position: absolute;
-  top: 1.3vw;
-  left: 1.4vw;
-  width: 26vw;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1vw;
-  align-items: flex-start;
+  top: 1.4vw;
+  left: 1.5vw;
 }
-#hud .hud-nico { width: 100%; }
-#hud .hud-hp, #hud .hud-yani { width: 72%; }
 
-/* ニコチンゲージ。枠線と塗りは stage_color() を hud.ts が両方に入れる
-   （枠だけオレンジで固定すると、限界帯の赤い塗りと喧嘩する） */
-#hud .hud-gauge {
+/* ── タバコ ─────────────────────────────────────────────
+   フィルターは固定長、紙は残量ぶんの幅、燃えた分は灰として残る。
+   グラデーションはすべてハードストップ。ドット絵の画面に滑らかなブレンドを
+   置くと浮くので、段の付いた低解像度な陰影にする。 */
+#hud .cig-row { display: flex; align-items: center; gap: 0.7vw; }
+#hud .cig { display: flex; align-items: stretch; height: 2.2vw; }
+
+#hud .cig-filter {
   position: relative;
-  height: 2vw;
-  margin-top: 0.4vw;
-  border: 0.16vw solid #e90;
-  border-radius: 0.2vw;
-  background: rgba(0, 0, 0, 0.6);
-  overflow: hidden;
+  width: 4vw;
+  border-radius: 0.25vw 0 0 0.25vw;
+  background: linear-gradient(
+    180deg,
+    #c8922e 0%, #c8922e 24%,
+    var(--filter) 24%, var(--filter) 66%,
+    #8e6620 66%
+  );
 }
-#hud .hud-gauge i {
-  display: block;
+/* 印字帯。細い縦線の繰り返しでフィルターの印刷を出す */
+#hud .cig-filter::before {
+  content: '';
+  position: absolute;
+  inset: 0 0.5vw;
+  background-image: repeating-linear-gradient(
+    90deg, rgba(80, 52, 8, 0.45) 0 0.06vw, transparent 0.06vw 0.2vw
+  );
+}
+/* 紙との継ぎ目の暗い一本 */
+#hud .cig-filter::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 0.14vw;
+  background: #6d4c14;
+}
+
+#hud .cig-track {
+  position: relative;
+  width: 18vw;
+  background: linear-gradient(
+    180deg,
+    #34332f 0%, #34332f 30%,
+    var(--ash) 30%, var(--ash) 70%,
+    #201f1d 70%
+  );
+}
+
+/* 紙。width が残量。overflow: hidden が印字帯（.cig-print）を切るので、
+   火種が越えた目盛りは燃え落ちて消える */
+#hud .cig-paper {
+  position: relative;
   height: 100%;
-  background: #e90;
-  box-shadow: 0 0 1vw rgba(255, 170, 43, 0.5);
-}
-#hud .hud-gauge b {
-  position: absolute;
-  right: 0.5vw;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.7vw;
-  text-shadow: 0 0 0.4vw #000;
-}
-#hud .hud-gauge small { font-size: 1.1vw; }
-
-/* HP。ラベル行の右端に数値、その下にブロック帯 */
-#hud .hud-row { display: flex; align-items: center; gap: 0.5vw; }
-#hud .hud-row b { margin-left: auto; font-size: 1.7vw; }
-#hud .hud-heart { color: #ff3b30; font-size: 1.5vw; text-shadow: 0 0 0.5vw #f33; }
-#hud .hud-hp-name { font-size: 1.45vw; font-weight: bold; }
-#hud .hud-blocks { display: flex; gap: 0.3vw; margin-top: 0.9vw; }
-#hud .hud-blocks i {
-  flex: 1;
-  height: 1.1vw;
-  border-radius: 0.1vw;
-  background: #ff3b30;
-  box-shadow: 0 0 0.4vw #f33;
-}
-#hud .hud-blocks i.off { background: #4a1310; box-shadow: none; }
-
-/* 所持ヤニ。金額 → 次の強化までの残り → 進捗帯 の縦積み */
-#hud .hud-yani img { width: 1.5vw; height: 1.5vw; }
-#hud .hud-yani-amount {
-  font-size: 2.3vw;
-  font-weight: bold;
-  line-height: 1.2;
-  margin: 0.1vw 0 0.2vw;
-}
-#hud .hud-track {
-  height: 0.85vw;
-  margin-top: 0.4vw;
-  border: 1px solid #6d5a33;
-  border-radius: 0.15vw;
-  background: rgba(0, 0, 0, 0.6);
   overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--paper-lit) 0%, var(--paper-lit) 22%,
+    var(--paper) 22%, var(--paper) 62%,
+    var(--paper-mid) 62%, var(--paper-mid) 84%,
+    var(--paper-low) 84%
+  );
 }
-#hud .hud-track i { display: block; height: 100%; background: #ffaa2b; }
-
-/* 右上: ミニマップ。canvas#m と code#sn は index.html の静的要素を
-   hud.ts がこのパネルへ移してくる（他モジュールが id で掴んでいるため、
-   生成側を hud.ts に移すと dom.ts の静的な取得が成り立たない） */
-#hud .hud-map {
+/* 段階が進むと紙まで赤く染まる。不透明度は .cig の段階クラスが決める */
+#hud .cig-paper::after {
+  content: '';
   position: absolute;
-  top: 1.3vw;
-  right: 1.4vw;
-  width: 20vw;
+  inset: 0;
+  background: #ff3a14;
+  opacity: 0;
+}
+#hud .cig.s2 .cig-paper::after { opacity: 0.22; }
+#hud .cig.s3 .cig-paper::after { opacity: 0.4; }
+
+/* 印字帯の土台。幅を .cig-track と同じ固定値にすることで、目盛りの位置が
+   紙の残量に影響されない（紙が縮むと右側から切り落とされる） */
+#hud .cig-print { position: absolute; inset: 0; width: 18vw; }
+#hud .cig-print i {
+  position: absolute;
+  top: 22%; bottom: 22%;
+  width: 0.1vw;
+  margin-left: -0.05vw;
+  background: rgba(60, 45, 20, 0.5);
+}
+
+/* 火種。紙の右端に追従させるため、幅ではなく left で置く */
+#hud .cig-ember {
+  position: absolute;
+  top: -0.12vw; bottom: -0.12vw;
+  width: 0.55vw;
+  margin-left: -0.3vw;
+  background: linear-gradient(
+    180deg,
+    #ffc24a 0%, #ffc24a 25%,
+    var(--ember) 25%, var(--ember) 70%,
+    #c02a05 70%
+  );
+  box-shadow: 0 0 0.8vw 0.12vw rgba(255, 90, 18, 0.7);
+}
+/* 0% は吸殻。火が消えていることを見せる */
+#hud .cig.s3 .cig-ember { opacity: 0; }
+/* 一服中だけ火種が咲く。HUD で動くのはここ 1 か所だけにする */
+#hud .cig.smoking .cig-ember {
+  animation: cig-bloom 0.7s ease-in-out infinite alternate;
+}
+@keyframes cig-bloom {
+  to { box-shadow: 0 0 1.9vw 0.5vw rgba(255, 130, 40, 0.85); }
+}
+
+#hud .cig-percent { font-size: 1.7vw; }
+#hud .cig-percent.warn { color: var(--ember); text-shadow: 0 0 0.6vw rgba(255, 90, 18, 0.6); }
+
+/* ── HP と予備の一本 ────────────────────────────────────
+   どちらも条件付き。両方消えたら行そのものを畳んで、左上をタバコ 1 本に戻す */
+#hud .meter-row { display: none; align-items: center; gap: 1.4vw; margin-top: 0.7vw; }
+#hud .hp { display: flex; gap: 0.32vw; font-size: 1.75vw; line-height: 1; }
+#hud .hp i { color: var(--hp-lit); font-style: normal; text-shadow: 0 0 0.5vw rgba(226, 58, 46, 0.7); }
+#hud .hp i.lost { color: var(--hp-lost); text-shadow: none; }
+/* 限界帯（2 秒ごとに HP が減る）だけ明滅させる */
+#hud .hp.blink { animation: hp-blink 0.9s steps(1, end) infinite; }
+@keyframes hp-blink { 50% { opacity: 0.3; } }
+
+#hud .spare { display: flex; align-items: center; gap: 0.35vw; }
+#hud .spare i {
+  width: 0.45vw;
+  height: 1.15vw;
+  background: linear-gradient(180deg, #c8922e 0%, #c8922e 30%, var(--filter) 30%, #8e6620 74%);
+}
+#hud .spare b {
+  margin-left: 0.35vw;
+  padding: 0 0.3vw;
+  border: 1px solid var(--dim);
+  border-radius: 0.15vw;
+  color: var(--dim);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.95vw;
+}
+#hud .spare.urgent b {
+  border-color: var(--ember);
+  color: var(--ember);
+  text-shadow: 0 0 0.5vw rgba(255, 90, 18, 0.7);
+}
+
+/* ── ミニマップ ─────────────────────────────────────────
+   canvas#m と code#sn は index.html の静的要素を hud.ts が移してくる。
+   パネルの縁取りは 1px のヘアラインだけで、凡例は持たない */
+#hud .hud-map { position: absolute; top: 1.4vw; right: 1.5vw; width: 15vw; }
+#hud .hud-map-frame {
+  position: relative;
+  border: 1px solid #2c333b;
+  background: rgba(3, 5, 7, 0.6);
 }
 #hud .hud-map canvas {
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  background: rgba(0, 0, 0, 0.45);
   image-rendering: pixelated;
 }
-#hud .hud-legend {
-  margin-top: 0.5vw;
-  padding-top: 0.5vw;
-  border-top: 1px solid #2c333b;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35vw;
+/* 深度は地下階の表記（B12）。3 文字で済むので独立したセルを持たせない */
+#hud .map-depth {
+  position: absolute;
+  right: 0.35vw;
+  bottom: 0.2vw;
+  color: var(--dim);
+  font-size: 1.05vw;
+  text-shadow: 0 0 0.4vw #000;
 }
-#hud .hud-legend div { display: flex; align-items: center; gap: 0.6vw; font-size: 1.1vw; }
-#hud .hud-legend i { width: 0.9vw; height: 0.9vw; border-radius: 0.1vw; }
-/* 色はミニマップの描画値と対で持つ（minimap.ts の minimap_set_pixel を参照） */
-#hud .hud-legend i.explored { background: rgb(90, 110, 125); }
-#hud .hud-legend i.area { background: rgb(238, 153, 0); }
 #hud #sn {
   display: none;
-  margin-top: 0.5vw;
+  margin-top: 0.4vw;
+  text-align: right;
   color: #ffd464;
   font-weight: bold;
   font-size: 1.15vw;
   text-shadow: 0 0 0.5vw #f70;
 }
 
-/* 下部: ステータスバー + 次にやること */
-#hud .hud-bottom {
-  position: absolute;
-  bottom: 1.4vw;
-  left: 1.4vw;
-  right: 1.4vw;
-  display: grid;
-  grid-template-columns: 1.42fr 1fr;
-  gap: 1.5vw;
-  align-items: stretch;
+@media (prefers-reduced-motion: reduce) {
+  #hud .cig.smoking .cig-ember,
+  #hud .hp.blink { animation: none; }
 }
-
-#hud .hud-stats { display: flex; align-items: center; padding: 1vw 0; }
-/* flex-basis を auto にして、幅は中身に従わせる（1 に固定すると全セルが
-   等幅になり、「未開通」だけが枠に収まらず折り返す）。余った幅は均等に配る */
-#hud .hud-stat {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.6vw;
-  padding: 0 0.9vw;
-}
-#hud .hud-stat + .hud-stat { border-left: 1px solid #2c333b; }
-#hud .hud-stat img, #hud .hud-stat svg { width: 1.9vw; height: 1.9vw; flex-shrink: 0; }
-/* インライン SVG の非常口アイコンを、webp の線画（オレンジ）と同じ色に合わせる */
-#hud .hud-stat svg { stroke: #e90; }
-#hud .hud-stat-label { color: #98a3af; font-size: 1.1vw; white-space: nowrap; }
-#hud .hud-stat-value {
-  font-size: 1.7vw; font-weight: bold; line-height: 1.15; white-space: nowrap;
-}
-#hud .hud-stat-value.depth { color: #ffaa2b; }
-#hud .hud-stat-value.warn { color: #ff5b4a; }
-#hud .hud-stat-value.ok { color: #3ae08a; }
-
-#hud .hud-objective { display: flex; flex-direction: column; justify-content: center; }
-#hud .hud-objective-title { color: #ffaa2b; font-size: 1.25vw; font-weight: bold; }
-#hud .hud-objective-main {
-  display: flex;
-  align-items: center;
-  gap: 0.6vw;
-  font-size: 1.85vw;
-  font-weight: bold;
-  margin: 0.1vw 0;
-}
-#hud .hud-objective-main::before { content: '▶'; color: #ffaa2b; font-size: 1.3vw; }

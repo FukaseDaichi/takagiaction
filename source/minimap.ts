@@ -20,14 +20,22 @@ const minimap_pixels = minimap_ctx.createImageData(level_width, level_height)
 let sniff_timer = 0
 let sniff_result: sniff_result_t | null = null
 
+// 明滅の位相。「まだ行っていない喫煙所」と「開通した非常口」だけが明滅する。
+// HUD から「次にやること」のパネルを外した代わりに、この 1 ビットが行き先を
+// 常に答える（docs/gameplay.md「明滅は行き先を意味する」）
+const blink_period = 1
+let blink_timer = 0
+
 export function minimap_reset(): void {
   minimap_explored.fill(0)
   sniff_timer = 0
   sniff_result = null
+  blink_timer = 0
 }
 
 export function minimap_update(): void {
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
+  blink_timer = (blink_timer + state.time_elapsed) % blink_period
   minimap_sniff()
   minimap_reveal(stage)
   minimap_draw()
@@ -138,6 +146,13 @@ function minimap_draw(): void {
 
   // 喫煙所は開示済みダミーだけ灰色。それ以外（未接触・本物）は同じオレンジで、見分けは足で確かめるしかない。
   // 非常口は開通していて、かつ探索済みのときだけ緑で出る。
+  //
+  // 「これから行く先」だけが明滅する: まだ触っていない喫煙所（本物もダミーも
+  // 候補なので両方明滅する。見分けは足で確かめるという中核はそのまま）と、
+  // 開通した非常口。吸い終わった本物と開示済みダミーは用済みなので明滅しない。
+  // 消える側ではなく白く強くなる側に振るのは、1 タイル 1 ピクセルしかないため
+  // 暗くすると見失うから。
+  const blink = blink_timer < blink_period / 2
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
     const index = (e.x >> 3) + (e.z >> 3) * level_width
@@ -146,11 +161,17 @@ function minimap_draw(): void {
     if (e instanceof entity_smoking_area_t) {
       if (e.revealed_dummy) {
         minimap_set_pixel(index, 110, 110, 110)
+      } else if (!e._done && blink) {
+        minimap_set_pixel(index, 255, 228, 150)
       } else {
         minimap_set_pixel(index, 238, 153, 0)
       }
     } else if (e instanceof entity_exit_t && state.exit_open) {
-      minimap_set_pixel(index, 0, 220, 120)
+      if (blink) {
+        minimap_set_pixel(index, 190, 255, 220)
+      } else {
+        minimap_set_pixel(index, 0, 220, 120)
+      }
     }
   }
 
