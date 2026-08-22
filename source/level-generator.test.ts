@@ -299,7 +299,10 @@ describe('generate_level: 配置', () => {
   it('敵とアイテムは床タイルの上にあり、互いに重ならない', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const layout = generate_level(10, seed)
-      const all = [...layout.spiders, ...layout.sentries, ...layout.health, ...layout.yani]
+      const all = [
+        ...layout.spiders, ...layout.sentries, ...layout.health,
+        ...layout.yani, ...layout.drones,
+      ]
       for (const p of all) {
         expect(is_floor(layout.tiles, p.x, p.z)).toBe(true)
       }
@@ -312,7 +315,10 @@ describe('generate_level: 配置', () => {
   it('敵とアイテムは開始地点から 8 タイル以上離れている', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const layout = generate_level(10, seed)
-      for (const p of [...layout.spiders, ...layout.sentries, ...layout.health, ...layout.yani]) {
+      for (const p of [
+        ...layout.spiders, ...layout.sentries, ...layout.health,
+        ...layout.yani, ...layout.drones,
+      ]) {
         expect(bfs_distance_floor(layout, p)).toBeGreaterThanOrEqual(8)
       }
     }
@@ -347,4 +353,18 @@ describe('generate_level: 配置', () => {
       }
     }
   }, 30000)
+
+  it('清掃ドローンは 0〜1 体で、まれに（おおよそ 1/4 のフロアに）出る', () => {
+    let floors_with_drone = 0
+    for (let seed = 1; seed <= 400; seed++) {
+      const layout = generate_level(3, seed)
+      expect(layout.drones.length).toBeLessThanOrEqual(1)
+      for (const p of layout.drones) {
+        expect(is_floor(layout.tiles, p.x, p.z)).toBe(true)
+      }
+      floors_with_drone += layout.drones.length
+    }
+    expect(floors_with_drone).toBeGreaterThanOrEqual(400 * 0.15)
+    expect(floors_with_drone).toBeLessThanOrEqual(400 * 0.35)
+  }, 60000)
 })

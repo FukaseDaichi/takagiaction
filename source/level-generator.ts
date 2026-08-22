@@ -28,6 +28,7 @@ export interface level_layout_t {
   sentries: tile_pos_t[]
   health: tile_pos_t[]
   yani: tile_pos_t[] // 床に散在する吸い殻
+  drones: tile_pos_t[] // 清掃ドローン。0〜1 体
 }
 
 // renderer.ts の max_verts（1024*64 = 65536）から、エンティティのスプライトと
@@ -301,9 +302,12 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   const spiders = take(enemy_budget(depth) - sentries.length)
   const health = take(random_int(2, 4))
   const yani = take(random_int(1, 3)) // 床への散在: 1 フロアあたり 1〜3（設計書）
+  // 清掃ドローンは「まれに」= 1/4 のフロアに 1 体。敵予算には数えない（非武装）
+  const drones = take(random_int(0, 3) === 0 ? 1 : 0)
 
   return {
-    tiles, rooms, start, smoking_area, dummies, exit, spiders, sentries, health, yani,
+    tiles, rooms, start, smoking_area, dummies, exit,
+    spiders, sentries, health, yani, drones,
   }
 }
 

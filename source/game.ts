@@ -1,4 +1,5 @@
 import { death_screen_show } from './death-screen'
+import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
@@ -163,6 +164,7 @@ function load_level(depth: number): void {
   for (const p of layout.sentries) { new entity_sentry_t(p.x * 8, 0, p.z * 8, 5, 32) }
   for (const p of layout.health) { new entity_health_t(p.x * 8, 0, p.z * 8, 5, 31) }
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
+  for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
 
   const player = state.entity_player!
   camera.x = -player.x

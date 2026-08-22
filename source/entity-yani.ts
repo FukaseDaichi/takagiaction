@@ -1,5 +1,6 @@
 import { audio_play, audio_sfx_pickup } from './audio'
 import { entity_t } from './entity'
+import { entity_drone_t } from './entity-drone'
 import { entity_player_t } from './entity-player'
 import { push_light } from './renderer'
 import { state } from './state'
@@ -16,6 +17,13 @@ export class entity_yani_t extends entity_t {
       this._kill()
       state.yani_run++
       audio_play(audio_sfx_pickup)
+    }
+
+    // 清掃ドローンに回収される。プレイヤーと同フレームで触れたときは
+    // 先に処理された側が取る（_dead ガードで二重には数えない）
+    else if (!this._dead && other instanceof entity_drone_t) {
+      this._kill()
+      other._collect()
     }
   }
 
