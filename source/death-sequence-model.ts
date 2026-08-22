@@ -8,6 +8,7 @@
 //   0.5s 高木の最期のひとこと（遅延は death_line_delay、発話は _kill 時に予約）
 //   1.2s ターミナル「救護ドローンを派遣」
 //   1.8s ドローンの光が降りてきて、死体が浮き上がりはじめる
+//   1.8s〜3.0s 白フェード
 //   3.0s run_end() → 死亡画面
 
 export const death_duration = 3
@@ -55,4 +56,10 @@ export function death_drone_y(elapsed: number): number | null {
   if (elapsed < lift_at) { return null }
   const progress = Math.min(1, (elapsed - lift_at) / drone_descend_duration)
   return drone_y_start + (drone_y_hover - drone_y_start) * progress
+}
+
+// 白フェード。持ち上げ開始から終端へ直線で 0 → 1。「降りてきた白い光に
+// 包まれて運ばれた」の完結で、機体を描かない表現（上記）は変えない
+export function death_fade_opacity(elapsed: number): number {
+  return Math.max(0, Math.min(1, (elapsed - lift_at) / (death_duration - lift_at)))
 }

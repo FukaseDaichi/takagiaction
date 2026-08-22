@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  death_beats, death_body_y, death_drone_y, death_duration,
+  death_beats, death_body_y, death_drone_y, death_duration, death_fade_opacity,
 } from './death-sequence-model'
 
 describe('death_beats: ビート発火', () => {
@@ -78,5 +78,15 @@ describe('death_drone_y: ドローンの光', () => {
 
   it('降り切ったら 40 に留まる', () => {
     expect(death_drone_y(3.0)).toBe(40)
+  })
+})
+
+describe('白フェード', () => {
+  it('持ち上げ開始（1.8 秒）から終端（3.0 秒）へ直線で 0 → 1', () => {
+    expect(death_fade_opacity(0)).toBe(0)
+    expect(death_fade_opacity(1.8)).toBe(0)
+    expect(death_fade_opacity(2.4)).toBeCloseTo(0.5, 5)
+    expect(death_fade_opacity(3.0)).toBe(1)
+    expect(death_fade_opacity(4.0)).toBe(1)
   })
 })

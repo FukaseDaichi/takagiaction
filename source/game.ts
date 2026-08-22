@@ -1,8 +1,9 @@
 import { audio_music_restore } from './audio'
 import { death_screen_show } from './death-screen'
 import {
-  death_beats, death_body_y, death_drone_y,
+  death_beats, death_body_y, death_drone_y, death_fade_opacity,
 } from './death-sequence-model'
+import { fade_el } from './dom'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
@@ -60,6 +61,11 @@ export function run_start(): void {
   state.nicotine = state.nicotine_max
   state.game_running = 1
   audio_music_restore() // 死亡シーケンスのテープストップから通常再生へ戻す
+  // 白フェードのリセット。クラスを外して次の死のフレーム駆動フェードインを
+  // アニメーションと競合させない。opacity はアニメーションが 0 で終えているが、
+  // 明け切る前（0.6 秒以内）に「地下へ戻る」が押された場合に備えて明示的に戻す
+  fade_el.classList.remove('f')
+  fade_el.style.opacity = '0'
   next_level()
   if (!game_started) {
     game_started = true
@@ -89,6 +95,10 @@ export function run_end(): void {
   meta.yani += state.yani_run
   meta.best_depth = Math.max(meta.best_depth, state.depth)
   meta_save()
+  // 真っ白の状態で死亡画面を出し、.f のアニメーション（0.6 秒、開始値は
+  // キーフレームの from{opacity:1} で確定）で白が明けて闇サイトが見える
+  fade_el.classList.add('f')
+  fade_el.style.opacity = '0'
   death_screen_show({
     depth: state.depth,
     kills: state.kills,
@@ -230,6 +240,11 @@ function game_tick(): void {
     if (drone_y !== null) {
       push_light(player.x, drone_y, player.z, 1, 1, 1, 0.02)
     }
+    // 白フェード。持ち上げ以降、白い光に包まれていく。フェードインは
+    // フレーム駆動の書き込み（トランジションを常時付けると毎フレームの
+    // 書き込みに追従しない）。reduced-motion は CSS 側（#wf の display:none）
+    // で無効化されるので、ここに分岐は持たない
+    fade_el.style.opacity = String(death_fade_opacity(state.death_elapsed))
     if (beats.done) {
       state.dying = 0
       run_end()

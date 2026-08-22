@@ -8,10 +8,18 @@ const harness = vi.hoisted(() => {
   const pending: Array<() => void> = []
   const death_screens: unknown[] = []
   const notices: string[] = []
+  const fade = {
+    style: { opacity: '0' },
+    classes: new Set<string>(),
+    classList: {
+      add(c: string) { fade.classes.add(c) },
+      remove(c: string) { fade.classes.delete(c) },
+    },
+  }
   const globals = globalThis as Record<string, unknown>
   globals.performance = { now: () => clock.now }
   globals.requestAnimationFrame = (cb: () => void) => { pending.push(cb); return 1 }
-  return { clock, pending, death_screens, notices }
+  return { clock, pending, death_screens, notices, fade }
 })
 
 vi.mock('./renderer', () => ({
@@ -58,6 +66,7 @@ vi.mock('./terminal', () => ({
 vi.mock('./death-screen', () => ({
   death_screen_show: (result: unknown) => { harness.death_screens.push(result) },
 }))
+vi.mock('./dom', () => ({ fade_el: harness.fade }))
 
 import { run_start } from './game'
 import { entity_health_t } from './entity-health'
@@ -151,6 +160,21 @@ describe('死亡シーケンスの進行', () => {
     const frozen = state.nicotine
     advance(1)
     expect(state.nicotine).toBe(frozen)
+  })
+
+  it('白フェードは持ち上げ（1.8 秒）から掛かり、死亡画面が出ると明けはじめる', () => {
+    kill_player()
+    advance(1.75)
+    expect(Number(harness.fade.style.opacity)).toBe(0)
+
+    advance(0.625) // 2.375 秒: フェードの途中
+    const mid = Number(harness.fade.style.opacity)
+    expect(mid).toBeGreaterThan(0)
+    expect(mid).toBeLessThan(1)
+
+    advance(0.625) // 3.0 秒: run_end → 真っ白から明けはじめる
+    expect(harness.fade.style.opacity).toBe('0')
+    expect(harness.fade.classes.has('f')).toBe(true)
   })
 })
 

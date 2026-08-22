@@ -18,6 +18,10 @@
 		#b::after{content:'';position:absolute;left:50%;bottom:-.35vw;margin-left:-.35vw;border:.35vw solid transparent;border-bottom:0;border-top-color:#e90;}
 		#b.tr{animation:tr .12s infinite;}
 		@keyframes tr{25%{margin:-2px 0 0 1px;}75%{margin:2px 0 0 -1px;}}
+		#wf{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
+		#wf.f{animation:wfo .6s forwards;}
+		@keyframes wfo{from{opacity:1}to{opacity:0}}
+		@media (prefers-reduced-motion: reduce){#wf{display:none;}}
 	</style>
 </head>
 <body style="margin:0;background:#000">
@@ -28,5 +32,6 @@
 	<canvas id="m" width=64 height=64></canvas>
 	<code id="sn"></code>
 	<code id="b"></code>
+	<div id="wf"></div>
 	<script type="module" src="/source/main.ts"></script>
 </body></html>
