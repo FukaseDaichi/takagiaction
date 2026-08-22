@@ -143,6 +143,13 @@ describe('保存と読み込み', () => {
     delete (globalThis as { localStorage?: unknown }).localStorage
   })
 
+  // Node の globalThis.localStorage は「--localstorage-file が無い」という
+  // ExperimentalWarning を出すゲッターで、typeof で覗くだけでも発火する。
+  // test-setup.ts がプロパティごと外しているのでテスト出力が汚れない
+  it('テスト環境に Node の実験的 localStorage グローバルが残っていない', () => {
+    expect('localStorage' in globalThis).toBe(false)
+  })
+
   it('localStorage が無い環境では persistent が false になり初期値のまま', () => {
     meta_load()
     expect(meta.persistent).toBe(false)

@@ -23,7 +23,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
 - `sonantx-reduced.js` — サードパーティ（後述）
-- テストは `source/*.test.ts` に併置する
+- テストは `source/*.test.ts` に併置する。`test-setup.ts` は Vitest の `setupFiles`（後述の「テストと localStorage」）
 
 ## 共有可変状態の規則
 
@@ -130,6 +130,14 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 - `vite.config.ts` の `base: './'` は必須。GitHub Pages のプロジェクトページは `<user>.github.io/takagiaction/` 配下で配信されるため、絶対パスでは資産を解決できない
 - リポジトリ設定の Pages → Source は「GitHub Actions」（`build_type: workflow`）でなければならない。`legacy` のままだと **CI が全ジョブ success を返したまま**未ビルドの `index.html` が直配信され、`/source/main.ts` が `video/mp2t` の MIME で返ってゲームが起動しない（実際に起きた）。デプロイの検証は CI の結果ではなく、公開 URL の `index.html` が `./assets/` のバンドルを参照していることの確認で行う
+
+## テストと localStorage
+
+Node の `globalThis.localStorage` は「`--localstorage-file` が無い」という ExperimentalWarning を出すゲッターで、**読むだけで発火する**。`typeof localStorage === 'undefined'` のガードもゲッターを呼ぶので警告は消せない（返る値は `undefined` でも警告は出る）。
+
+そのため `meta.ts` 側は触らず、Vitest の `setupFiles`（`source/test-setup.ts`）でプロパティごと `delete` する。参照は `ReferenceError` になり、`meta.ts` の `try`/`catch` がそのまま拾って `persistent` が `false` になる（ゲッターが `undefined` を返していた従来と同じ結果）。ブラウザはこのファイルを読まないため、保存・読み込みの挙動は変わらない。
+
+`--disable-warning=ExperimentalWarning` や `NODE_NO_WARNINGS` で黙らせる案は採らない。他の実験的機能の警告まで一律に消えるため。
 
 ## ブラウザでの動作検証
 

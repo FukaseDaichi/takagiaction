@@ -18,5 +18,7 @@ export default defineConfig({
     // test.exclude は標準の除外を追加ではなく丸ごと上書きするので、
     // configDefaults.exclude を展開して失わないようにする
     exclude: [...configDefaults.exclude, '.claude/**'],
+    // Node の実験的 localStorage グローバルを外す。理由は source/test-setup.ts
+    setupFiles: ['./source/test-setup.ts'],
   },
 })
