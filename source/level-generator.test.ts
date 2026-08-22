@@ -116,6 +116,11 @@ describe('フロアの広さ', () => {
   it('床タイルは生成範囲の内側に収まる', () => {
     for (const depth of [1, 5, 10, 20]) {
       const side = level_bounds_side(depth)
+      // 範囲は盤面中央に寄せる（place_rooms() の x0 / z0 と同じ式）。
+      // サイズだけでなく位置も見ないと、中央寄せを落とす回帰
+      // （例: x0 を無条件に 1 にする）を素通しさせてしまう。
+      const x0 = 1 + ((level_width - 2 - side) >> 1)
+      const z0 = 1 + ((level_height - 2 - side) >> 1)
       for (let seed = 1; seed <= 200; seed++) {
         const { tiles } = generate_level(depth, seed)
         let min_x = level_width, max_x = -1
@@ -131,6 +136,10 @@ describe('フロアの広さ', () => {
         }
         expect(max_x - min_x + 1).toBeLessThanOrEqual(side)
         expect(max_z - min_z + 1).toBeLessThanOrEqual(side)
+        expect(min_x).toBeGreaterThanOrEqual(x0)
+        expect(max_x).toBeLessThanOrEqual(x0 + side - 1)
+        expect(min_z).toBeGreaterThanOrEqual(z0)
+        expect(max_z).toBeLessThanOrEqual(z0 + side - 1)
       }
     }
   }, 60000)
@@ -151,6 +160,49 @@ describe('フロアの広さ', () => {
     expect(shallow).toBeLessThan(full * 0.5)
     expect(full).toBeGreaterThan(1000)
   }, 60000)
+})
+
+// tiles 用の簡易チェックサム（FNV-1a, 32bit）。tsconfig.json は "types": []
+// で node の型を読み込んでおらず @types/node も入っていないため、
+// node:crypto は使わない。変化を検出できれば十分で暗号学的な強度は要らない。
+function fnv1a(bytes: Uint8Array): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i]
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+// 深度 15 以上は、範囲導入（level_bounds_side）とダミー喫煙所の目標数
+// （min(floor(深度/5), 3)）がどちらも旧実装と一致する深度で、docs/gameplay.md
+// 「フロアの広さは深度で開く」はここを「間取りは変えない」と明記している。
+// この不変条件は移行時に base リビジョンと 600 レイアウトを手で比較して
+// 確認されたが、その指紋がリポジトリに残っていなかった。ここで固定し、
+// 今後の変更が深度 15 以上の間取りを意図せず変えたら検出できるようにする。
+//
+// 深度 10〜14 は対象にしない。ダミーの目標数が旧実装（1 + floor(深度/4)、
+// 深度 8 で 3 に到達）と現行（floor(深度/5)、深度 15 で 3 に到達）で
+// 一致しない区間があり、ダミーは床タイルを壁（タイル値 8）へ変えるため、
+// tiles にダミーセルぶんの差が出る。これは意図した変更なので、
+// golden にすると意図した差を回帰として検出してしまう。
+describe('generate_level: 深度 15 以上の間取りの指紋', () => {
+  it('固定した (depth, seed) の tiles のチェックサムが変わらない', () => {
+    // 値は現行コードから生成したもの（値そのものに意味はない）。
+    // source/random.test.ts が旧 random.js の出力列を固定するのと同じ作法。
+    const golden: [number, number, string][] = [
+      [15, 1, '60b2f848'],
+      [15, 7, '800d1652'],
+      [20, 3, '6396da19'],
+      [30, 2, 'b1980a04'],
+      [50, 42, '25499d0e'],
+      [100, 999, '99c18502'],
+    ]
+    for (const [depth, seed, expected] of golden) {
+      const { tiles } = generate_level(depth, seed)
+      expect(fnv1a(tiles)).toBe(expected)
+    }
+  })
 })
 
 describe('generate_level: 決定性', () => {

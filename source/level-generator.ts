@@ -54,7 +54,8 @@ function depth_scale(depth: number): number {
 // 部屋を置ける正方形の一辺（タイル）。グリッド自体は 64×64 のまま変えない。
 // state.ts の level_data もミニマップの ImageData も level_width * level_height の
 // 固定長で、可変にすると生成器の外へ波及する。範囲だけ絞れば生成器の中で閉じる。
-// 満寸が 62 なのは、輪郭壁のために外周 1 タイルを空けるため（使える内側が 1..62）。
+// 満寸が 62 なのは、輪郭壁のために外周 1 タイルを空けるため（使える内側が
+// 1..61。一辺 side に対して実際に置けるのは side-1 タイル分）。
 export function level_bounds_side(depth: number): number {
   return Math.round(32 + 30 * depth_scale(depth))
 }
