@@ -1,4 +1,5 @@
 import { sonantxr_generate_song, sonantxr_generate_sound } from './sonantx-reduced'
+import { death_duration, death_tape_stop_duration } from './death-sequence-model'
 import { music_dark_meat_beat } from './music-dark-meat-beat'
 import {
   sound_beep, sound_explode, sound_hit, sound_hurt,
@@ -9,6 +10,15 @@ import { terminal_show_notice } from './terminal'
 
 const audio_ctx = new AudioContext()
 const audio_gain = audio_ctx.createGain()
+
+// BGM 専用チェーン: music_source → music_gain → music_filter → audio_gain。
+// 死亡シーケンスのテープストップ（回転落ち）でレート・音量・フィルタを個別に
+// 操作するため、効果音（audio_gain 直結）から分離する
+const music_gain = audio_ctx.createGain()
+const music_filter = audio_ctx.createBiquadFilter()
+// BiquadFilter の frequency 既定値は 350Hz。通常再生でこもらないよう開いておく
+const music_filter_open_hz = 20000
+let music_source: AudioBufferSourceNode | undefined
 
 // ローカル（localhost / 127.0.0.1 / file://）では既定でミュート
 let audio_enabled = ['localhost', '127.0.0.1', ''].indexOf(location.hostname) === -1
@@ -34,6 +44,12 @@ let audio_music: AudioBuffer | undefined
 audio_gain.gain.value = audio_enabled ? 1 : 0
 audio_gain.connect(audio_ctx.destination)
 
+music_gain.gain.value = 1
+music_filter.type = 'lowpass'
+music_filter.frequency.value = music_filter_open_hz
+music_gain.connect(music_filter)
+music_filter.connect(audio_gain)
+
 export function audio_init(callback: () => void): void {
   sonantxr_generate_song(audio_ctx, music_dark_meat_beat, (buffer) => {
     audio_music = buffer
@@ -55,7 +71,47 @@ export function audio_init(callback: () => void): void {
 export function audio_unlock(): void {
   audio_unlocked = true
   audio_ctx.resume()
-  audio_play(audio_music, true)
+  // BGM は audio_play()（効果音チェーン直結）ではなく専用チェーンで鳴らす
+  music_source = audio_ctx.createBufferSource()
+  music_source.buffer = audio_music!
+  music_source.loop = true
+  music_source.connect(music_gain)
+  music_source.start()
+}
+
+// 死亡シーケンスの BGM 演出。テープストップ（レートとローパスを 1.5 秒で落とす）
+// ののち、シーケンス終端（3 秒）に向けて音量を 0 へ。死亡画面は無音になる
+// （ドローンに運ばれて地下の音が遠ざかった、という理屈。docs/story.md）
+export function audio_music_death(): void {
+  if (!music_source) { return }
+  const now = audio_ctx.currentTime
+  const stop_at = now + death_tape_stop_duration
+  const rate = music_source.playbackRate
+  rate.cancelScheduledValues(now)
+  rate.setValueAtTime(rate.value, now)
+  rate.linearRampToValueAtTime(0.4, stop_at)
+  const freq = music_filter.frequency
+  freq.cancelScheduledValues(now)
+  freq.setValueAtTime(music_filter_open_hz, now)
+  // 周波数は聴感が対数なので指数で落とす（線形だと最後の一瞬でこもって聞こえる）
+  freq.exponentialRampToValueAtTime(200, stop_at)
+  const gain = music_gain.gain
+  gain.cancelScheduledValues(now)
+  gain.setValueAtTime(gain.value, now)
+  gain.linearRampToValueAtTime(0, now + death_duration)
+}
+
+// 次のラン開始で通常再生へ即時復帰する（run_start が呼ぶ）
+export function audio_music_restore(): void {
+  if (!music_source) { return }
+  const now = audio_ctx.currentTime
+  const rate = music_source.playbackRate
+  rate.cancelScheduledValues(now)
+  rate.setValueAtTime(1, now)
+  music_filter.frequency.cancelScheduledValues(now)
+  music_filter.frequency.setValueAtTime(music_filter_open_hz, now)
+  music_gain.gain.cancelScheduledValues(now)
+  music_gain.gain.setValueAtTime(1, now)
 }
 
 export function audio_play(buffer: AudioBuffer | undefined, loop = false): void {

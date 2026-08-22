@@ -2,17 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // push_light の引数を覗くため、モックの外に配列を用意する。
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
-const mocks = vi.hoisted(() => ({ light_calls: [] as number[][] }))
+const mocks = vi.hoisted(() => ({
+  light_calls: [] as number[][],
+  sprite_calls: 0,
+  camera: { x: 0, y: 0, z: 0, shake: 0 },
+  music_death_calls: 0,
+  monologue_death_calls: [] as number[],
+}))
 
 vi.mock('./renderer', () => ({
-  push_sprite: () => {},
+  push_sprite: () => { mocks.sprite_calls++ },
   push_block: () => {},
   push_light: (...args: number[]) => { mocks.light_calls.push(args) },
-  camera: { x: 0, y: 0, z: 0, shake: 0 },
+  camera: mocks.camera,
 }))
 vi.mock('./audio', () => ({
   audio_play: () => {},
   audio_toggle: () => {},
+  audio_music_death: () => { mocks.music_death_calls++ },
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,
@@ -21,7 +28,9 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ run_end: () => {} }))
+vi.mock('./monologue', () => ({
+  monologue_death: (cause: number) => { mocks.monologue_death_calls.push(cause) },
+}))
 
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
@@ -167,6 +176,8 @@ describe('ニコチン切れの継続ダメージ', () => {
     state.nicotine = 0
     state.nicotine_max = 100
     state.smoking = 0
+    state.dying = 0
+    state.death_elapsed = 0
     for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
     player = new entity_player_t(64, 0, 64, 5, 18)
     state.entity_player = player
@@ -187,11 +198,15 @@ describe('ニコチン切れの継続ダメージ', () => {
     expect(player.h).toBe(2)
   })
 
-  it('HP が 0 になるとランが終わる', () => {
+  it('HP が 0 になると死亡シーケンスが始まる', () => {
     player.h = 1
     player._receive_withdrawal_damage()
     expect(player.h).toBe(0)
-    expect(player._dead).toBe(true)
+    expect(state.dying).toBe(1)
+    expect(state.death_elapsed).toBe(0)
+    // 死体を描き続けるため、エンティティとしては殺さない
+    expect(player._dead).toBe(false)
+    expect(state.entities_to_kill.length).toBe(0)
   })
 
   // レビュー Finding 4e: 継続ダメージは _receive_damage の 2 秒の無敵を通さないので、
@@ -201,7 +216,7 @@ describe('ニコチン切れの継続ダメージ', () => {
     player.h = 1
     const z_alive = player.z
     player._receive_withdrawal_damage()
-    expect(player._dead).toBe(true)
+    expect(state.dying).toBe(1)
     expect(player.z).toBe(z_alive + 5)
     expect(player.y).toBe(10)
 
@@ -285,5 +300,80 @@ describe('予備の一本', () => {
     player._update()
     expect(state.nicotine).toBe(20)
     expect(state.spares_left).toBe(2)
+  })
+})
+
+describe('死亡シーケンス', () => {
+  let player: entity_player_t
+
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.nicotine = 50
+    state.nicotine_max = 100
+    state.smoking = 0
+    state.game_running = 1
+    state.dying = 0
+    state.death_elapsed = 0
+    state.death_cause = 0
+    mocks.camera.shake = 0
+    mocks.music_death_calls = 0
+    mocks.monologue_death_calls.length = 0
+    for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
+    player = new entity_player_t(64, 0, 64, 5, 18)
+    state.entity_player = player
+  })
+
+  it('死ぬと BGM のテープストップと最期のひとことが始まる', () => {
+    player._update()
+    player.h = 1
+    state.death_cause = 1
+    player._receive_damage(player, 1)
+    expect(mocks.music_death_calls).toBe(1)
+    expect(mocks.monologue_death_calls).toEqual([1])
+    expect(mocks.camera.shake).toBeGreaterThan(0)
+  })
+
+  it('シーケンス中は移動も射撃も効かない', () => {
+    player._update()
+    player.h = 1
+    player._receive_damage(player, 1)
+    expect(state.dying).toBe(1)
+
+    keys[key_right] = 1
+    keys[key_shoot] = 1
+    const y = player.y
+    for (let i = 0; i < 30; i++) { player._update() }
+    expect(player.ax).toBe(0)
+    expect(player.vx).toBe(0)
+    expect(plasma_count()).toBe(0)
+    expect(player.y).toBe(y) // 死体は bobbing しない
+  })
+
+  it('シーケンス中の追い打ちはダメージにならない', () => {
+    player._update()
+    player.h = 1
+    player._receive_damage(player, 1)
+    expect(player.h).toBe(0)
+
+    // 無敵時間を抜けた後の攻撃でも、死体はもう傷つかない
+    state.time_elapsed = 3
+    player._update()
+    player._receive_damage(player, 1)
+    expect(player.h).toBe(0)
+    expect(state.dying).toBe(1)
+  })
+
+  it('シーケンス中は死体を点滅させない', () => {
+    player._update()
+    player.h = 1
+    player._receive_damage(player, 1) // _last_damage = 2 の点滅が張られる
+
+    // 被弾の点滅は 6 フレーム中 2 フレームのスプライトを抜くが、死体は全フレーム描く
+    mocks.sprite_calls = 0
+    for (let i = 0; i < 12; i++) { player._render() }
+    expect(mocks.sprite_calls).toBe(12)
   })
 })

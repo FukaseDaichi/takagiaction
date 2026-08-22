@@ -1,3 +1,5 @@
+import { death_cause_nicotine } from './death-screen-model'
+import { death_line_delay } from './death-sequence-model'
 import { bubble_el, canvas } from './dom'
 import type { bubble_t } from './monologue-model'
 import {
@@ -34,6 +36,17 @@ const lines_interrupt = [
   'げほっ……！',
   'ちっ、落ち着いて吸わせろ……！',
 ]
+// 最期のひとこと。世界の危機ではなく、最期まで煙草のことしか考えていない
+const lines_death_enemy = [
+  'まだ……吸ってない……',
+  '灰皿……どこだ……',
+  'こんな……ところで……',
+]
+const lines_death_nicotine = [
+  'いっぷく……いっぷくだけ……',
+  'け……むり……',
+  'ゆめに……みる……喫煙所……',
+]
 // 添字 = nicotine_stage_*（1 そわそわ / 2 離脱症状 / 3 限界）。0 は使わない
 const lines_stage: string[][] = [
   [],
@@ -63,6 +76,13 @@ function say(pool: string[], ambient: boolean, delay = 0): void {
 }
 
 export function monologue_arrival(): void { say(lines_arrival, false, arrival_delay) }
+// 死亡シーケンスの最期のひとこと。倒れた「間」を置いてから口にする
+export function monologue_death(cause: number): void {
+  say(
+    cause === death_cause_nicotine ? lines_death_nicotine : lines_death_enemy,
+    false, death_line_delay,
+  )
+}
 export function monologue_dummy(): void { say(lines_dummy, false) }
 export function monologue_all_done(): void { say(lines_all_done, false) }
 export function monologue_complete(): void { say(lines_complete, false) }
