@@ -225,7 +225,7 @@ export const sound_explode: SonantInstrument = {
 }
 
 // ライターの着火音。ノイズ主体の短い擦過音（シュボッ）。
-// パラメータは試聴で調整した値（docs/superpowers/plans の実装計画 Task 6）
+// パラメータは初期値のまま。試聴による調整はまだ行っていない
 export const sound_lighter: SonantInstrument = {
   osc1_oct: 8,
   osc1_det: 0,
