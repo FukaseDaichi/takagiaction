@@ -42,6 +42,11 @@ export const state = {
   smoke_count: 0, // 一服の回数。喫煙所での完了と予備の一本の使用で 1 ずつ増える
   dummy_count: 0, // 踏んだダミーの数。_take_dummy は _done ガードで同一個体 1 度しか走らない
   death_cause: 0, // 0 = 敵、1 = ニコチン切れ。_receive_withdrawal_damage が死亡時に立てる
+  // 死亡シーケンス（death-sequence-model.ts）。dying はプレイヤーの _kill() が立て、
+  // game_tick が death_elapsed を進めてビートを発火し、3 秒後に run_end() を呼ぶ。
+  // シーケンス中も死体を描き続けるため、自機は _dead にしない
+  dying: 0,
+  death_elapsed: 0,
 
   entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],

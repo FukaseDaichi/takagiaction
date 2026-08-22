@@ -20,8 +20,8 @@ vi.mock('./audio', () => ({
 }))
 // terminal も dom.ts に触る
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-// game は minimap → dom 経由で document に触る
-vi.mock('./game', () => ({ run_end: () => {} }))
+// entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
+vi.mock('./monologue', () => ({ monologue_death: () => {} }))
 
 import { entity_drone_t } from './entity-drone'
 import { entity_plasma_t } from './entity-plasma'

@@ -17,7 +17,8 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ run_end: () => {} }))
+// entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
+vi.mock('./monologue', () => ({ monologue_death: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_spider_t } from './entity-spider'

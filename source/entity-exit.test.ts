@@ -27,7 +27,8 @@ vi.mock('./terminal', () => ({
     return 5.1
   },
 }))
-vi.mock('./game', () => ({ run_end: () => {} }))
+// entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
+vi.mock('./monologue', () => ({ monologue_death: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_player_t } from './entity-player'

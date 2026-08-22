@@ -1,9 +1,14 @@
+import { audio_music_restore } from './audio'
 import { death_screen_show } from './death-screen'
+import {
+  death_beats, death_body_y, death_drone_y,
+} from './death-sequence-model'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
 import { entity_sentry_t } from './entity-sentry'
+import { spawn_smoke } from './entity-smoke'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
@@ -20,7 +25,7 @@ import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
 } from './nicotine'
 import {
-  camera, push_block, push_floor,
+  camera, push_block, push_floor, push_light,
   renderer_end_frame, renderer_freeze_level_geometry,
   renderer_prepare_frame, renderer_reset_level_geometry,
 } from './renderer'
@@ -48,10 +53,13 @@ export function run_start(): void {
   state.smoke_count = 0
   state.dummy_count = 0
   state.death_cause = 0
+  state.dying = 0
+  state.death_elapsed = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
   state.game_running = 1
+  audio_music_restore() // 死亡シーケンスのテープストップから通常再生へ戻す
   next_level()
   if (!game_started) {
     game_started = true
@@ -68,13 +76,10 @@ function next_level(): void {
 }
 
 export function run_end(): void {
-  // 二重呼び出しの二次防御（一次防御は entity_player_t._kill() の _dead ガードで、
-  // entity-spider.ts / entity-sentry.ts と同じ形。通常はそちらが _kill() の再入を
-  // 止めるので run_end() はここまで来ない）。ここは meta（ラン間で残る恒久状態）を
-  // 書くので、万一 2 度走るとヤニが二重に加算されて保存される。ニコチン切れの
-  // 継続ダメージで死んだ自機は、衝突ループのフレーム末尾での除去まで 2 体目として
-  // 生き残っており、_receive_withdrawal_damage() が _receive_damage() の 2 秒無敵を
-  // 通さないぶん、_dead ガードが外れれば _kill() は同じフレームでもう一度走りうる。
+  // 二重呼び出しの二次防御（一次防御は entity_player_t._kill() の state.dying
+  // ガード）。呼び出し元は game_tick の死亡シーケンス終端ビートの 1 箇所だけに
+  // なったが、ここは meta（ラン間で残る恒久状態）を書くので、万一 2 度走ると
+  // ヤニが二重に加算されて保存される。ガードは残す。
   if (!state.game_running) { return }
   state.game_running = 0
   hud_hide()
@@ -188,15 +193,17 @@ function game_tick(): void {
   state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
 
-  // リザルト表示中は生存時間に数えない
-  if (state.game_running) { state.run_time += state.time_elapsed }
+  // リザルト表示中と死亡シーケンス中は生存時間に数えない（死んだ瞬間で止める）
+  if (state.game_running && !state.dying) { state.run_time += state.time_elapsed }
 
   // 非常口の通過演出が終わったら降下する。予約の実体は state.descend_timer で、
   // terminal の表示チェーンから独立しているため、演出中に別の通知が出ても
   // 消えない（レビュー Finding 1、予約側の理由は entity-exit.ts）。
   // renderer_prepare_frame() より前に済ませて、このフレームから新しいフロアを描く。
-  // ラン終了中（リザルト表示中）は進めない。0 に戻すのは load_level が持つ。
-  if (state.game_running && state.descend_timer > 0) {
+  // ラン終了中（リザルト表示中）と死亡シーケンス中は進めない — 非常口に触れた
+  // 直後に死ぬと、予約が残ったまま死亡演出の途中でフロアが変わってしまう。
+  // 0 に戻すのは load_level が持つ。
+  if (state.game_running && !state.dying && state.descend_timer > 0) {
     state.descend_timer -= state.time_elapsed
     if (state.descend_timer <= 0) { next_level() }
   }
@@ -205,13 +212,38 @@ function game_tick(): void {
 
   const player = state.entity_player!
 
+  // 死亡シーケンス（時間割は death-sequence-model.ts）。死体・敵・煙は下の
+  // 通常のエンティティループが動かし続け、ここではビートの発火だけを行う。
+  // 最期のひとことと BGM のテープストップは entity-player._kill() が予約済み
+  if (state.dying) {
+    const elapsed_before = state.death_elapsed
+    state.death_elapsed += state.time_elapsed
+    const beats = death_beats(elapsed_before, state.death_elapsed)
+    // 魂の煙。最期まで煙を出す男（見た目は喫煙所の煙と同じ = 世界観の説明が不要）
+    for (let i = 0; i < beats.smoke; i++) { spawn_smoke(player.x, player.z) }
+    if (beats.notice) {
+      terminal_show_notice('倒れた侵入者を検出___救護ドローンを派遣')
+    }
+    // 救護ドローンの回収。機体は描かず、降りてくる白い光と死体の上昇だけで表現する
+    player.y = death_body_y(state.death_elapsed)
+    const drone_y = death_drone_y(state.death_elapsed)
+    if (drone_y !== null) {
+      push_light(player.x, drone_y, player.z, 1, 1, 1, 0.02)
+    }
+    if (beats.done) {
+      state.dying = 0
+      run_end()
+    }
+  }
+
   // ニコチン減少。ラン終了後（リザルト表示中）と一服中は止める。
   // 一服中に減少を走らせると、設計書 §1 の「1.5 秒吸えたら 60% 回復」が
   // 減少ぶんだけ目減りして成立しなくなる（深度 1 で 58.5、深度 30 で 57.0）。
   // 吸っている間だけ止めるのが、要件を完全に満たす最も単純な形。
   // state.smoking が立つのは喫煙所の _render（この後）なので接触の初回 1 フレーム
   // だけは減少が走るが、深度 1 で 0.017 と誤差にもならない。
-  if (state.game_running && !state.smoking) {
+  // 死亡シーケンス中も止める（リザルトの残量表示を死んだ瞬間の値で固定する）
+  if (state.game_running && !state.smoking && !state.dying) {
     state.nicotine = Math.max(
       0,
       state.nicotine -
@@ -221,7 +253,8 @@ function game_tick(): void {
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
 
   // 限界（0%）: 2 秒ごとに HP が 1 減る。即死ではなく、まだ間に合う猶予帯
-  if (state.game_running && !state.smoking && stage === nicotine_stage_limit) {
+  if (state.game_running && !state.smoking && !state.dying &&
+      stage === nicotine_stage_limit) {
     limit_damage_timer += state.time_elapsed
     if (limit_damage_timer >= 2) {
       limit_damage_timer -= 2
@@ -230,6 +263,14 @@ function game_tick(): void {
   } else {
     limit_damage_timer = 0
   }
+
+  // 死体は当たり判定から外す。相手側の _check は「entity_player_t かどうか」
+  // だけを見るので、死体のままでも回復パックを拾い（拾得音が死亡演出に重なり、
+  // 床のパックも消える）、ヤニを回収し（死後に稼いだぶんがリザルトの残高に載る）、
+  // 喫煙所に触れて一服を始めてしまう。死体が消えるのは次の load_level なので、
+  // シーケンス中（dying）に加えてリザルト表示中（game_running = 0）も外す。
+  // 除外はここ 1 か所で行う（各エンティティ側に足すと同じ判定が 5 つに散る）
+  const corpse = state.dying || !state.game_running ? player : null
 
   // update and render entities
   const entities = state.entities
@@ -241,6 +282,7 @@ function game_tick(): void {
     // check for collisions between entities - it's quadratic and nobody cares \o/
     for (let j = i + 1; j < entities.length; j++) {
       const e2 = entities[j]
+      if (e1 === corpse || e2 === corpse) { continue }
       if (!(
         e1.x >= e2.x + 9 ||
         e1.x + 9 <= e2.x ||

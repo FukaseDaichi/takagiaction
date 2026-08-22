@@ -16,6 +16,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `game.ts` — ゲームループとレベル遷移
 - `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
 - `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
+- `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）。実行時 import を一切持たない、最も葉に近いモジュール
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
 - `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import を一切持たず、Node でモックなしに評価できる
 - `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・ミニマップの枠）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコは画像を使わず CSS だけで描く

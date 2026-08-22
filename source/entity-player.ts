@@ -1,14 +1,16 @@
-import { audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot } from './audio'
+import {
+  audio_music_death, audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot,
+} from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
 import { entity_plasma_t } from './entity-plasma'
-import { run_end } from './game'
 import { key_down, key_left, key_right, key_shoot, key_spare, key_up, keys } from './input'
 import { meta_power_factor, meta_speed_factor } from './meta'
+import { monologue_death } from './monologue'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
 } from './nicotine'
-import { push_light } from './renderer'
+import { camera, push_light } from './renderer'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
 
@@ -25,6 +27,14 @@ export class entity_player_t extends entity_t {
 
   override _update(): void {
     const t = this
+    // 死亡シーケンス中の死体。入力も物理も止めて、game_tick が y（ドローンの
+    // 持ち上げ）を書くのに任せる。基底の _update() を呼ぶと bobbing で書いた
+    // y の残差を積分し続けてしまうので、ここで完全に止める
+    if (state.dying) {
+      t.ax = t.az = 0
+      t.vx = t.vz = 0
+      return
+    }
     const stage = nicotine_stage(state.nicotine, state.nicotine_max)
     const smoking = state.smoking === 1
     // 一服中は移動も射撃もできない。無敵にはしない
@@ -85,7 +95,8 @@ export class entity_player_t extends entity_t {
 
   override _render(): void {
     this._frame++
-    if (this._last_damage < 0 || this._frame % 6 < 4) {
+    // 死体は点滅させない（致命打の直後は被弾点滅の 2 秒が残っている）
+    if (state.dying || this._last_damage < 0 || this._frame % 6 < 4) {
       super._render()
     }
     // 視界は falloff で縮める。RGB を下げても暖色が減って青く沈むだけで、
@@ -94,19 +105,28 @@ export class entity_player_t extends entity_t {
     push_light(this.x, 4, this.z + 6, 1, 0.5, 0, player_light_falloff(stage))
   }
 
+  // 死＝死亡シーケンスの開始（docs/gameplay.md「死亡シーケンス」）。
+  // super._kill() は呼ばない — _dead にするとフレーム末尾でエンティティから
+  // 除去されて死体が消える。run_end() は game_tick が 3 秒後に呼ぶ。
+  // 一度死んだらもう死なない: state.dying が二重呼び出しを遮断し（二重に走ると
+  // 姿勢がもう一段跳ねる）、game_running がリザルト表示中の再開を止める。
+  // 死体は load_level まで残るので、止めないと敵に押されるたびシーケンスが
+  // 走り直し、表示中のリザルトに通知と BGM の落としが割り込む
   protected override _kill(): void {
-    // 二重呼び出しの遮断。run_end() 側の game_running ガードがヤニの二重加算は
-    // 止めるが、それだけでは下の姿勢変更が 2 度走って死体がもう一段跳ねる。
-    // entity-spider / entity-sentry と同じ形に揃える
-    if (this._dead) { return }
-    super._kill()
+    if (state.dying || !state.game_running) { return }
+    state.dying = 1
+    state.death_elapsed = 0
     this.y = 10
     this.z += 5
-    // 死＝ラン終了。同じフロアの頭からやり直す経路は無くなった
-    run_end()
+    camera.shake = 5 // 倒れた衝撃の一発。以降は 0.9/frame の減衰に任せる
+    audio_music_death()
+    monologue_death(state.death_cause)
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
+    // 死体は傷つかない（敵が乗ってきても hurt 音を鳴らさない）。シーケンス中も
+    // リザルト表示中も、死体が消えるのは次のフロアを読み込むときだけ
+    if (state.dying || !state.game_running) { return }
     if (this._last_damage < 0) {
       audio_play(audio_sfx_hurt)
       super._receive_damage(from, amount)
