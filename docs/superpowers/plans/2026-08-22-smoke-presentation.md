@@ -286,6 +286,14 @@ export let audio_sfx_door: AudioBuffer | undefined
   sonantxr_generate_sound(audio_ctx, sound_door, 110, (b) => { audio_sfx_door = b })
 ```
 
+`audio_play()` 内のコメント「効果音 7 つは sonantxr_generate_sound が…」は個数が増えるたびに古くなるので、個数を含まない表現に直す:
+
+```ts
+  // このガードは AudioBuffer | undefined という型を満たすためのもの。
+  // 効果音は sonantxr_generate_sound が同期的にコールバックを呼ぶため
+  // audio_init が返る時点で埋まっており、実行時に undefined で呼ばれる経路はない。
+```
+
 - [ ] **Step 3: 型チェックと既存テストを確認する**
 
 Run: `npm run typecheck && npm test`
@@ -305,7 +313,7 @@ git commit -m "ライター・吐息・防災扉の効果音を追加する"
 **Files:**
 - Modify: `source/entity-smoking-area.ts`
 - Modify: `source/entity-smoking-area.test.ts`（audio モックの差し替え + テスト追加）
-- Modify: `source/game.test.ts:28-38`（audio モックに新 export を追加。実物の entity-smoking-area を import しているため、モックに export が無いと読み込みが落ちる）
+- Modify: `source/game.test.ts:28-38` と `source/entity-init.test.ts:11-21`（audio モックに新 export を追加。どちらも実物の entity-smoking-area を import しているため、モックに export が無いと Vitest がモジュール評価時に落ちる）
 
 **Interfaces:**
 - Consumes: `smoke_puffs` / `ignite_flash_duration`（Task 1）、`audio_sfx_lighter`（Task 2）、`spawn_smoke(x, z)`（既存）
@@ -505,9 +513,9 @@ import { ignite_flash_duration, smoke_puffs } from './smoking-sequence-model'
     }
 ```
 
-- [ ] **Step 4: game.test.ts の audio モックに新 export を追加する**
+- [ ] **Step 4: game.test.ts と entity-init.test.ts の audio モックに新 export を追加する**
 
-`source/game.test.ts` の `vi.mock('./audio', ...)` に 3 行追加（entity-smoking-area が実物のため、export が無いと import が落ちる）:
+`source/game.test.ts` と `source/entity-init.test.ts` の `vi.mock('./audio', ...)` にそれぞれ 3 行追加（どちらも entity-smoking-area が実物のため、export が無いと import が落ちる）:
 
 ```ts
   audio_sfx_lighter: undefined,
@@ -523,7 +531,7 @@ Expected: 全 PASS
 - [ ] **Step 6: コミット**
 
 ```bash
-git add source/entity-smoking-area.ts source/entity-smoking-area.test.ts source/game.test.ts
+git add source/entity-smoking-area.ts source/entity-smoking-area.test.ts source/game.test.ts source/entity-init.test.ts
 git commit -m "一服に着火と吸引の演出を付ける"
 ```
 
@@ -558,18 +566,24 @@ git commit -m "一服に着火と吸引の演出を付ける"
     expect(mocks.notices.some((n) => n.includes('深く吸い込む'))).toBe(false)
 ```
 
-新しいテストを 2 件追加:
+`beforeEach` に `state.dying = 0` を追加する（死亡シーケンス中の停止テストが使う）。
+
+新しいテストを 3 件追加:
 
 ```ts
   it('完了で吐息と煙 3 つ、0.8 秒後に感知器と通知、1.5 秒後に防災扉の音が続く', () => {
     const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
     area.is_real = true
-    const smoke_count = (): number =>
-      state.entities.filter((e) => e instanceof entity_smoke_t).length
+    const smokes = (): entity_smoke_t[] =>
+      state.entities.filter((e): e is entity_smoke_t => e instanceof entity_smoke_t)
 
     for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 2.5 秒で完了
     expect(mocks.sounds).toContain('exhale')
-    expect(smoke_count()).toBe(4 + 3) // 吸引中 4 つ + 吐き出し 3 つ
+    expect(smokes().length).toBe(4 + 3) // 吸引中 4 つ + 吐き出し 3 つ
+    // 吐き出しの 3 つは同座標だと軌道が決定的に一致して 1 つに見えるため、
+    // x をずらして生成する
+    const exhale_x = smokes().slice(-3).map((e) => e.x)
+    expect(new Set(exhale_x).size).toBe(3)
     expect(mocks.notices.length).toBe(0) // 通知はまだ
     expect(mocks.sounds).not.toContain('beep')
 
@@ -598,6 +612,24 @@ git commit -m "一服に着火と吸引の演出を付ける"
     expect(mocks.sounds).not.toContain('beep')
     expect(mocks.sounds).not.toContain('door')
   })
+
+  // 死亡シーケンス（state.dying = 1）の 3 秒間は game_running がまだ 1 のまま
+  // （run_end() は 3 秒後）。dying を見ないと、死亡演出中に感知器の通知が
+  // 「救護ドローンを派遣」の表示チェーンを潰してしまう
+  it('死亡シーケンス中（state.dying が 1）は感知器のタイムラインが進まない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 完了
+    idle(area, 0.5) // 完了から 0.5 秒（まだ何も鳴らない時刻）
+    mocks.notices.length = 0
+    mocks.sounds.length = 0
+
+    state.dying = 1
+    for (let i = 0; i < 4; i++) { idle(area, 0.5) }
+    expect(mocks.notices.length).toBe(0)
+    expect(mocks.sounds).not.toContain('beep')
+    expect(mocks.sounds).not.toContain('door')
+  })
 ```
 
 なお `exit_open` が完了の瞬間に立つことは既存テスト「本物は 2.5 秒で一服が完了し、非常口が開いて HP が 1 回復する」がそのまま守る（変更しない）。
@@ -605,7 +637,7 @@ git commit -m "一服に着火と吸引の演出を付ける"
 - [ ] **Step 2: テストが失敗することを確認する**
 
 Run: `npx vitest run source/entity-smoking-area.test.ts`
-Expected: 修正 1 件 + 新規 2 件が FAIL
+Expected: 新規 1 件目（吐息とタイムライン）が FAIL。修正した既存テストと停止テスト 2 件は「実装前でも通る回帰のピン留め」なので PASS のままでよい
 
 - [ ] **Step 3: 実装する**
 
@@ -640,9 +672,11 @@ import {
     // 開通は演出を待たない。ここを遅らせると完了直後の死亡や降下との
     // 相互作用が生まれ、演出のためにコアループへ摩擦を足すことになる
     state.exit_open = 1
-    // 吐き出し。感知器の音と通知は _render のタイムライン（0.8 秒後）が出す
+    // 吐き出し。感知器の音と通知は _render のタイムライン（0.8 秒後）が出す。
+    // 煙の軌道は生成位置から決定的なので、同座標に 3 つ出すと重なって
+    // 1 つにしか見えない。x をずらして生成する
     audio_play(audio_sfx_exhale)
-    for (let i = 0; i < 3; i++) { spawn_smoke(player.x, player.z) }
+    for (let i = 0; i < 3; i++) { spawn_smoke(player.x - 3 + i * 3, player.z) }
     this._complete_elapsed = 0
     monologue_complete()
   }
@@ -663,8 +697,11 @@ import {
 
     // 完了後の因果タイムライン: 吸う → 感知される → 扉が動く、を耳で追わせる。
     // game_running が落ちたら進めない — リザルト表示中の terminal_show_notice() は
-    // death_screen_show() が止めたターミナルの表示チェーンを再び動かしてしまう
-    if (this._complete_elapsed >= 0 && state.game_running) {
+    // death_screen_show() が止めたターミナルの表示チェーンを再び動かしてしまう。
+    // dying も見る — 死亡シーケンスの 3 秒間は game_running がまだ 1 のままなので
+    // （run_end() は 3 秒後）、見ないと感知器の通知が「救護ドローンを派遣」の
+    // 表示チェーンを潰す
+    if (this._complete_elapsed >= 0 && state.game_running && !state.dying) {
       const elapsed_before = this._complete_elapsed
       this._complete_elapsed += state.time_elapsed
       const beats = complete_beats(elapsed_before, this._complete_elapsed)
@@ -679,6 +716,17 @@ import {
     }
 ```
 
+あわせて、接触処理のゲート（`_render()` 内）にも `!state.dying` を足す。敵の接触死は衝突ループの途中で `state.dying` を立てるが `game_running` は 1 のままなので、同じフレームの後続の接触で一服（と中断のセリフ）が走りうる:
+
+```ts
+    // state.game_running: ラン終了後に terminal_show_notice() を呼ぶと、run_end() が
+    // death_screen_show() で止めたターミナルの表示チェーンを再び動かしてしまう
+    // （レビュー Finding 1）。state.dying: 死亡シーケンス中（game_running はまだ 1）に
+    // 死体が一服を始めない・中断のセリフを出さないため
+    if (touching && !this._done && !this._needs_release &&
+        state.game_running && !state.dying) {
+```
+
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `npm test && npm run typecheck`
@@ -689,7 +737,7 @@ Expected: 全 PASS
 「一服中は速度も明示的にゼロにする」の段落の後に追加:
 
 ```markdown
-一服は「着火 → 吸引 → 吐き出し」の三幕で演出する（時間割は `smoking-sequence-model.ts`）。着火でライターの音と灰皿の 0.3 秒のフラッシュ、吸引中は進捗 0.6 秒ごとに高木の位置から煙、完了で吐息と煙 3 つ。完了後は 0.8 秒で感知器の音とロック解除通知、1.5 秒で遠くの防災扉の駆動音が続き、「吸う → 感知される → 扉が動く」という世界のルール（docs/story.md)が耳で追える。**`exit_open` は完了の瞬間に立てたまま**で、遅れるのは音と通知だけ — 開通自体を遅らせると完了直後の死亡や降下との相互作用が生まれ、演出のためにコアループへ摩擦を足すことになる。タイムラインは setTimeout ではなくフレーム駆動で、`state.game_running` が落ちたら進まない（リザルト表示中の `terminal_show_notice()` はターミナルの表示チェーンを壊す）。
+一服は「着火 → 吸引 → 吐き出し」の三幕で演出する（時間割は `smoking-sequence-model.ts`）。着火でライターの音と灰皿の 0.3 秒のフラッシュ、吸引中は進捗 0.6 秒ごとに高木の位置から煙、完了で吐息と煙 3 つ。完了後は 0.8 秒で感知器の音とロック解除通知、1.5 秒で遠くの防災扉の駆動音が続き、「吸う → 感知される → 扉が動く」という世界のルール（docs/story.md)が耳で追える。**`exit_open` は完了の瞬間に立てたまま**で、遅れるのは音と通知だけ — 開通自体を遅らせると完了直後の死亡や降下との相互作用が生まれ、演出のためにコアループへ摩擦を足すことになる。タイムラインは setTimeout ではなくフレーム駆動で、`state.game_running` が落ちるか死亡シーケンス（`state.dying`）に入ったら進まない — リザルト表示中の `terminal_show_notice()` はターミナルの表示チェーンを壊し、死亡シーケンス中は「救護ドローンを派遣」の通知を潰すため（死亡シーケンスの 3 秒間、`game_running` はまだ 1 のままである点に注意）。
 ```
 
 - [ ] **Step 6: コミット**
@@ -762,11 +810,12 @@ Expected: PASS
 
 ```css
 #wf{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
-#wf.f{transition:opacity .6s;}
+#wf.f{animation:wfo .6s forwards;}
+@keyframes wfo{from{opacity:1}to{opacity:0}}
 @media (prefers-reduced-motion: reduce){#wf{display:none;}}
 ```
 
-（`z-index: 20` は死亡画面 `#ds` の `z-index: 10` より上。reduced-motion では `display:none` にして、JS 側の書き込みを無害化する — JS に matchMedia の分岐を持たない。）
+（`z-index: 20` は死亡画面 `#ds` の `z-index: 10` より上。フェードアウトはトランジションではなくキーフレームアニメーション — トランジションだと、同一フレーム内で `opacity = 1` の書き込みとクラス追加・`opacity = 0` が連続するため開始値が 1 と確定せず、前フレームの中途半端な値から明けてしまう。`from{opacity:1}` のアニメーションなら開始値が常に真っ白で確定し、CSS アニメーションはインラインスタイルより優先されるので `style.opacity = '0'` と共存できる。reduced-motion では `display:none` にして、JS 側の書き込みを無害化する — JS に matchMedia の分岐を持たない。）
 
 `<body>` の `<code id="b"></code>` の下に追加:
 
@@ -846,8 +895,8 @@ import { fade_el } from './dom'
 `run_end()` の `death_screen_show({...}, run_start)` の直前に追加:
 
 ```ts
-  // 真っ白の状態で死亡画面を出し、.f のトランジション（0.6 秒）で白が明けて
-  // 闇サイトが見える。トランジションはフェードアウト側にだけ使う
+  // 真っ白の状態で死亡画面を出し、.f のアニメーション（0.6 秒、開始値は
+  // キーフレームの from{opacity:1} で確定）で白が明けて闇サイトが見える
   fade_el.classList.add('f')
   fade_el.style.opacity = '0'
 ```
@@ -855,7 +904,11 @@ import { fade_el } from './dom'
 `run_start()` の `audio_music_restore()` の下に追加:
 
 ```ts
-  fade_el.classList.remove('f') // 次の死のフレーム駆動フェードインに遅延を残さない
+  // 白フェードのリセット。クラスを外して次の死のフレーム駆動フェードインを
+  // アニメーションと競合させない。opacity はアニメーションが 0 で終えているが、
+  // 明け切る前（0.6 秒以内）に「地下へ戻る」が押された場合に備えて明示的に戻す
+  fade_el.classList.remove('f')
+  fade_el.style.opacity = '0'
 ```
 
 - [ ] **Step 7: テストが通ることを確認する**
@@ -868,7 +921,7 @@ Expected: 全 PASS
 箇条書き（「BGM はテープストップ」の項の後）に追加:
 
 ```markdown
-- 終端は白フェードでつなぐ: 持ち上げ開始（1.8 秒）から終端（3.0 秒）へ、白いオーバーレイ `#wf` の不透明度を `death_fade_opacity()` で 0 → 1 に上げ、真っ白の状態で死亡画面を出してから CSS トランジション（0.6 秒）で明ける。「降りてきた白い光に包まれて運ばれた」の完結で、機体を描かない表現は変えない。フェードインはフレーム駆動・フェードアウトだけトランジション（`.f`）— 常時トランジションだと毎フレームの書き込みに追従しない。`prefers-reduced-motion` では `#wf` を `display:none` にし、従来どおりカットで切り替える（JS に分岐を持たない）
+- 終端は白フェードでつなぐ: 持ち上げ開始（1.8 秒）から終端（3.0 秒）へ、白いオーバーレイ `#wf` の不透明度を `death_fade_opacity()` で 0 → 1 に上げ、真っ白の状態で死亡画面を出してから CSS キーフレームアニメーション（`.f`、0.6 秒）で明ける。「降りてきた白い光に包まれて運ばれた」の完結で、機体を描かない表現は変えない。フェードインはフレーム駆動の書き込み、フェードアウトは `from{opacity:1}` のアニメーション — トランジションだと同一フレーム内の書き込みの連続で開始値が 1 と確定しない。`prefers-reduced-motion` では `#wf` を `display:none` にし、従来どおりカットで切り替える（JS に分岐を持たない）
 ```
 
 - [ ] **Step 9: コミット**
