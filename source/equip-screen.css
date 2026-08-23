@@ -1,0 +1,64 @@
+/* 押収品コンテナの開封ダイアログ。死亡画面（#ds）と違い、ゲームの絵を
+   隠しきらない中央パネルにする — 背後ではフロアが止まったまま描かれ続けており、
+   「どこで開けたか」が見えていることが、開ける場所を選んだ判断の答え合わせになる。
+   寸法は死亡画面と同じく vw 単位で 16:9 前後を前提にしている */
+#eq {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #b9dcc4;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  z-index: 12;
+  user-select: none;
+}
+/* 枠の色は解錠が済むまで灰色のまま。等級はためている間ずっと伏せる */
+#eq .eq-box {
+  width: 34vw;
+  padding: 1.4vw 1.6vw;
+  border: 1px solid #8a8a8a;
+  border-radius: 0.5vw;
+  background: rgba(4, 10, 7, 0.94);
+  text-align: center;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+#eq .eq-head { font-size: 1vw; letter-spacing: 0.2em; color: #7fe0a8; }
+#eq .eq-wait { font-size: 1.6vw; padding: 2.4vw 0; letter-spacing: 0.1em; }
+#eq .eq-wait b { animation: eqd 1s steps(4) infinite; }
+@keyframes eqd { to { clip-path: inset(0 100% 0 0); } }
+#eq .eq-grade { font-size: 1.1vw; font-weight: bold; letter-spacing: 0.3em; margin-top: 0.6vw; }
+#eq .eq-item { animation: eqp 0.28s ease-out; }
+@keyframes eqp { from { transform: scale(0.7); opacity: 0; } }
+#eq .eq-item img { width: 8vw; height: 8vw; image-rendering: pixelated; }
+#eq .eq-name { font-size: 1.5vw; font-weight: bold; }
+#eq .eq-slot { font-size: 0.9vw; color: #6f9c80; }
+#eq .eq-stats { margin: 1vw 0; display: grid; gap: 0.25vw; }
+#eq .eq-stat {
+  display: grid;
+  grid-template-columns: 9vw 1fr 1.6vw 1fr;
+  align-items: center;
+  font-size: 1vw;
+  border-bottom: 1px solid rgba(46, 107, 79, 0.35);
+  padding: 0.2vw 0;
+}
+#eq .eq-stat span { text-align: left; color: #7fa892; }
+#eq .eq-stat i { font-style: normal; color: #6f8a7a; text-align: right; }
+#eq .eq-stat em { font-style: normal; color: #4f6f5c; }
+#eq .eq-stat b { text-align: right; }
+#eq .eq-stat b.up { color: #7fe0a8; }
+#eq .eq-stat b.down { color: #e0705f; }
+#eq .eq-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8vw; }
+#eq .eq-choice {
+  border: 1px solid #2e6b4f;
+  border-radius: 0.3vw;
+  padding: 0.5vw;
+  background: rgba(6, 20, 12, 0.7);
+}
+#eq .eq-choice.on { border-color: #ffaa2b; background: rgba(60, 36, 4, 0.7); }
+#eq .eq-choice b { display: block; font-size: 1.1vw; }
+#eq .eq-choice i { font-style: normal; font-size: 0.85vw; color: #7fa892; }
+#eq .eq-keys { margin-top: 0.8vw; font-size: 0.85vw; color: #6f9c80; }
+@media (prefers-reduced-motion: reduce) {
+  #eq .eq-item, #eq .eq-wait b { animation: none; }
+}
