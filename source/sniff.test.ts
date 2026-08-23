@@ -17,6 +17,7 @@ describe('嗅覚の残り香探索', () => {
     expect(r).not.toBeNull()
     expect(r.dist).toBe(9) // 隣接床 (9,1) まで 8 歩 + 1
     expect(r.angle).toBeCloseTo(0, 6) // 真東
+    expect(r.path_angle).toBeCloseTo(0, 6) // 一直線なので angle と一致する
   })
 
   it('ユークリッド距離ではなく BFS 距離で最寄りを選ぶ', () => {
@@ -60,6 +61,33 @@ describe('嗅覚の残り香探索', () => {
     // (63,0) → (63,1) → 左へ 62 歩で (1,1)。その 63 歩 + 1。
     // 回り込むと自機のタイル (63,0) の距離 0 を拾って 1 になる
     expect(r.dist).toBe(64)
+  })
+
+  // Lv3 の価値そのもの: ユークリッド角は壁を指すが、経路の第一歩は通路を指す
+  it('L 字の通路では path_angle が通路の入口を指し、angle と食い違う', () => {
+    const tiles = make_tiles()
+    // 自機 (1,1) → 東へ (10,1) → 南へ (10,5) → 西へ (2,5) の 3 辺の通路。
+    // 目標 (1,5) は直線では真南だが、経路の第一歩は真東になる
+    for (let x = 1; x <= 10; x++) { tiles[x + 1 * level_width] = 1 }
+    for (let z = 1; z <= 5; z++) { tiles[10 + z * level_width] = 1 }
+    for (let x = 2; x <= 10; x++) { tiles[x + 5 * level_width] = 1 }
+    tiles[1 + 5 * level_width] = 8 // 目標は生成器と同じく壁
+
+    const r = sniff_find(tiles, 1, 1, [{ x: 1, z: 5 }])!
+    expect(r.dist).toBe(22) // 隣接床 (2,5) まで 21 歩 + 1
+    expect(r.angle).toBeCloseTo(Math.PI / 2, 6) // 真南（壁の向こう）
+    expect(r.path_angle).toBeCloseTo(0, 6) // 真東（通路の入口）
+  })
+
+  it('自機が目標に隣接していると path_angle は angle にフォールバックする', () => {
+    const tiles = make_tiles()
+    tiles[1 + level_width] = 1 // 自機 (1,1)
+    tiles[2 + level_width] = 8 // 目標 (2,1)。周囲の床は自機タイルだけ
+
+    const r = sniff_find(tiles, 1, 1, [{ x: 2, z: 1 }])!
+    expect(r.dist).toBe(1)
+    expect(r.angle).toBeCloseTo(0, 6)
+    expect(r.path_angle).toBe(r.angle)
   })
 
   it('目標が空なら null', () => {
