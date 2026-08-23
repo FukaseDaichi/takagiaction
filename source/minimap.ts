@@ -1,7 +1,7 @@
 import { minimap_canvas, sniff_el } from './dom'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
-import { meta_sniff_active, meta_sniff_distance } from './meta'
+import { meta_sniff_active, meta_sniff_distance, meta_sniff_path } from './meta'
 import { minimap_radius, nicotine_stage } from './nicotine'
 import { sniff_find } from './sniff'
 import type { sniff_result_t } from './sniff'
@@ -79,7 +79,7 @@ function minimap_sniff(): void {
     sniff_result = sniff_find(level_data, player.x >> 3, player.z >> 3, targets)
   }
 
-  // 10 段: 距離も表示する（1 タイル = 1m と読む）
+  // Lv3 以上: 距離も表示する（1 タイル = 1m と読む）
   if (sniff_result && meta_sniff_distance()) {
     sniff_el.textContent = '残り香 ' + sniff_result.dist + 'm'
     sniff_el.style.display = 'block'
@@ -186,11 +186,14 @@ function minimap_draw(): void {
     238, 153, 0,
   )
 
-  // 嗅覚: 自機から残り香の方角へ短い光跡を描く
+  // 嗅覚: 自機から残り香の方角へ短い光跡を描く。Lv3 以上は経路の第一歩
+  // （path_angle）を指すので壁を指さない。Lv1〜2 はユークリッド角のままで、
+  // 「近いのに矢印が壁を指す」ことが粗い鼻であることの表現になる
   if (sniff_result) {
+    const angle = meta_sniff_path() ? sniff_result.path_angle : sniff_result.angle
     for (let r = 2; r <= 4; r++) {
-      const x = (player.x >> 3) + Math.round(Math.cos(sniff_result.angle) * r)
-      const z = (player.z >> 3) + Math.round(Math.sin(sniff_result.angle) * r)
+      const x = (player.x >> 3) + Math.round(Math.cos(angle) * r)
+      const z = (player.z >> 3) + Math.round(Math.sin(angle) * r)
       if (x >= 0 && x < level_width && z >= 0 && z < level_height) {
         minimap_set_pixel(x + z * level_width, 255, 220, 100)
       }
