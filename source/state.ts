@@ -29,6 +29,10 @@ export const state = {
   nicotine: 100,
   nicotine_max: 100,
   smoking: 0, // 一服中は 1。移動と射撃をロックする
+  // 押収品コンテナの開封ダイアログ中は 1。ゲーム内で唯一のポーズで、
+  // game_tick が time_elapsed を 0 にしてエンティティの更新と衝突判定を飛ばす
+  // （equip-screen.ts が立てて下ろす）
+  equipping: 0,
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
   // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
   // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに

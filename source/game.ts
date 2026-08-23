@@ -57,6 +57,7 @@ export function run_start(): void {
   state.death_cause = 0
   state.dying = 0
   state.death_elapsed = 0
+  state.equipping = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
@@ -201,7 +202,13 @@ function game_tick(): void {
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
   // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
-  state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
+  // 開封ダイアログ中は時間を止める。この 1 行で、ニコチン減少・生存時間・
+  // 降下予約・死亡シーケンス・つぶやき・HUD の hold タイマーが個別のガード
+  // なしにまとめて止まる（各所に !state.equipping を足すと同じ判定が
+  // 6 か所以上に散る。死体の除外を 1 か所に集めているのと同じ理由）
+  state.time_elapsed = state.equipping
+    ? 0
+    : Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
 
   // リザルト表示中と死亡シーケンス中は生存時間に数えない（死んだ瞬間で止める）
@@ -297,20 +304,27 @@ function game_tick(): void {
   for (let i = 0; i < entities.length; i++) {
     const e1 = entities[i]
     if (e1._dead) { continue }
-    e1._update()
 
-    // check for collisions between entities - it's quadratic and nobody cares \o/
-    for (let j = i + 1; j < entities.length; j++) {
-      const e2 = entities[j]
-      if (e1 === corpse || e2 === corpse) { continue }
-      if (!(
-        e1.x >= e2.x + 9 ||
-        e1.x + 9 <= e2.x ||
-        e1.z >= e2.z + 9 ||
-        e1.z + 9 <= e2.z
-      )) {
-        e1._check(e2)
-        e2._check(e1)
+    // 開封ダイアログ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
+    // だけでは足りない — _last_shot -= 0 は負のままなので、押しっぱなしの
+    // スペースで毎フレーム弾が生成され、セントリーの発射カウンタも同じく
+    // 負のままで弾が積み上がる
+    if (!state.equipping) {
+      e1._update()
+
+      // check for collisions between entities - it's quadratic and nobody cares \o/
+      for (let j = i + 1; j < entities.length; j++) {
+        const e2 = entities[j]
+        if (e1 === corpse || e2 === corpse) { continue }
+        if (!(
+          e1.x >= e2.x + 9 ||
+          e1.x + 9 <= e2.x ||
+          e1.z >= e2.z + 9 ||
+          e1.z + 9 <= e2.z
+        )) {
+          e1._check(e2)
+          e2._check(e1)
+        }
       }
     }
 

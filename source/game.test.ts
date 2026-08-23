@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // game.ts のループを Node で回す。DOM / WebGL / 音を触るモジュールだけ差し替え、
 // エンティティと生成器は本物を使う（死亡シーケンスの配線を実物で確かめるため）。
@@ -71,6 +71,7 @@ vi.mock('./dom', () => ({ fade_el: harness.fade }))
 import { run_start } from './game'
 import { entity_health_t } from './entity-health'
 import { entity_yani_t } from './entity-yani'
+import { key_shoot, keys } from './input'
 import { state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -235,5 +236,56 @@ describe('リザルト表示中の死体', () => {
 
     advance(0.5)
     expect(player.h).toBe(0)
+  })
+})
+
+describe('装備の入れ替え中はゲームが止まる', () => {
+  beforeEach(() => {
+    start_run()
+    state.equipping = 0
+  })
+
+  // assert が例外を投げるとテスト末尾の後片付けは実行されない。afterEach なら
+  // 成否によらず必ず戻るので、次のテストへ keys[key_shoot] が漏れない
+  afterEach(() => {
+    keys[key_shoot] = 0
+  })
+
+  it('ニコチンも生存時間も進まない', () => {
+    const nicotine = state.nicotine
+    const run_time = state.run_time
+    state.equipping = 1
+    advance(2)
+    expect(state.nicotine).toBe(nicotine)
+    expect(state.run_time).toBe(run_time)
+    state.equipping = 0
+    advance(2)
+    expect(state.nicotine).toBeLessThan(nicotine)
+  })
+
+  it('エンティティが動かない', () => {
+    const player = state.entity_player!
+    player.vx = 100
+    const x = player.x
+    state.equipping = 1
+    advance(1)
+    expect(player.x).toBe(x)
+  })
+
+  // time_elapsed = 0 だけでは足りない。_last_shot -= 0 は負のままなので、
+  // 押しっぱなしのスペースで毎フレーム弾が生成される
+  it('止まっている間に弾が積み上がらない', () => {
+    keys[key_shoot] = 1
+    state.equipping = 1
+    const before = state.entities.length
+    advance(1)
+    expect(state.entities.length).toBe(before)
+  })
+
+  it('降下予約が消化されない', () => {
+    state.descend_timer = 0.5
+    state.equipping = 1
+    advance(2)
+    expect(state.descend_timer).toBe(0.5)
   })
 })
