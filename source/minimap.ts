@@ -1,4 +1,5 @@
 import { minimap_canvas, sniff_el } from './dom'
+import { entity_container_t } from './entity-container'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
@@ -189,6 +190,13 @@ function minimap_draw(): void {
     }
     if (e instanceof entity_drone_t) {
       if (loot) { minimap_set_pixel(index, 140, 200, 240) }
+      continue
+    }
+    // 押収品コンテナも収入系（機会）。生存系との見分けは明滅の有無が担うので、
+    // ヤニ・ドローンと同じく明滅させない（docs/meta-progression.md
+    // 「生存系と収入系は別の感覚である」）
+    if (e instanceof entity_container_t) {
+      if (loot) { minimap_set_pixel(index, 150, 230, 200) }
       continue
     }
 

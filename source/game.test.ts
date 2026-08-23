@@ -67,6 +67,7 @@ vi.mock('./death-screen', () => ({
   death_screen_show: (result: unknown) => { harness.death_screens.push(result) },
 }))
 vi.mock('./dom', () => ({ fade_el: harness.fade }))
+vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 
 import { run_start } from './game'
 import { entity_health_t } from './entity-health'
