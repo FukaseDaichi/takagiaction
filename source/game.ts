@@ -19,7 +19,8 @@ import { drain_floor, patch_drain_bonus } from './equipment'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
 import {
-  meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
+  meta, meta_drain_factor, meta_grant, meta_nicotine_max, meta_save,
+  meta_spare_count,
 } from './meta'
 import { minimap_reset, minimap_update } from './minimap'
 import {
@@ -53,6 +54,7 @@ export function run_start(): void {
   state.depth = 0
   state.kills = 0
   state.yani_run = 0
+  state.boss_levels = []
   state.run_time = 0
   state.smoke_count = 0
   state.dummy_count = 0
@@ -99,6 +101,8 @@ export function run_end(): void {
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
   // 深度を伸ばす動機にならない（設計書）
   meta.yani += state.yani_run
+  // ボス撃破の報酬。寿命はヤニと同じで、途中でタブを閉じれば消える
+  for (const id of state.boss_levels) { meta_grant(id) }
   meta.best_depth = Math.max(meta.best_depth, state.depth)
   meta_save()
   // 真っ白の状態で死亡画面を出し、.f のアニメーション（0.6 秒、開始値は

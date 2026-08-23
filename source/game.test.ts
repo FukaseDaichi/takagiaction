@@ -82,6 +82,7 @@ import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_yani_t } from './entity-yani'
 import * as equipment from './equipment'
 import { key_shoot, keys } from './input'
+import { meta } from './meta'
 import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -554,5 +555,13 @@ describe('ボス', () => {
       (e): e is entity_container_t => e instanceof entity_container_t,
     )!
     expect(container._tier).toBe(8)
+  })
+
+  it('選んだ段はランの終わりに meta へ入る', () => {
+    const before = meta.levels.leg
+    state.boss_levels = ['leg', 'leg']
+    kill_player()
+    advance(3.125)
+    expect(meta.levels.leg).toBe(before + 2)
   })
 })
