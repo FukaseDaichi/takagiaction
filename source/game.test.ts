@@ -54,6 +54,8 @@ vi.mock('./minimap', () => ({ minimap_reset: () => {}, minimap_update: () => {} 
 vi.mock('./monologue', () => ({
   monologue_arrival: () => {},
   monologue_all_done: () => {},
+  monologue_boss_arrival: () => {},
+  monologue_boss_kill: () => {},
   monologue_complete: () => {},
   monologue_death: () => {},
   monologue_drone_kill: () => {},

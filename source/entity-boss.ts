@@ -11,8 +11,10 @@ import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
 import { gear_roll_slot, gear_roll_tier } from './equipment'
 import { meta } from './meta'
+import { monologue_boss_kill } from './monologue'
 import { camera, push_light, push_quad } from './renderer'
 import { state } from './state'
+import { terminal_show_notice } from './terminal'
 
 // 灰皿撤去ユニット。深度が 5 の倍数のフロアで、中央の灰皿の上に居座る。
 // 倒すまで一服できない（entity-smoking-area.ts が state.boss_alive を見る）。
@@ -157,6 +159,10 @@ export class entity_boss_t extends entity_t {
     audio_play(audio_sfx_explode)
     audio_play(audio_sfx_explode, false, 0.09)
     audio_play(audio_sfx_explode, false, 0.18)
+
+    // 事実はターミナルが即時に、感情は 2 秒遅れて高木が言う（docs/story.md「声の使い分け」）
+    terminal_show_notice('灰皿撤去ユニットの応答が途絶___区画の封鎖を解除')
+    monologue_boss_kill()
 
     drop_container(cx, cz)
 

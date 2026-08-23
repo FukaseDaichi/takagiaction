@@ -17,14 +17,15 @@ import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
 import { drain_floor, patch_drain_bonus } from './equipment'
 import { hud_hide, hud_show, hud_update } from './hud'
-import { generate_level } from './level-generator'
+import { generate_level, is_boss_depth } from './level-generator'
 import {
   meta, meta_drain_factor, meta_grant, meta_nicotine_max, meta_save,
   meta_spare_count,
 } from './meta'
 import { minimap_reset, minimap_update } from './minimap'
 import {
-  monologue_arrival, monologue_notify_stage, monologue_reset, monologue_update,
+  monologue_arrival, monologue_boss_arrival, monologue_notify_stage,
+  monologue_reset, monologue_update,
 } from './monologue'
 import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
@@ -212,11 +213,14 @@ function load_level(depth: number): void {
 
   renderer_freeze_level_geometry()
 
-  terminal_show_notice('深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
+  const boss_floor = is_boss_depth(depth)
+  terminal_show_notice(boss_floor
+    ? '深度 ' + depth + ' に到達___大型作業機の稼働音を検知'
+    : '深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
   // フロアを跨いだ表示・予約は消す。到達つぶやきはターミナルの深度ログの
   // 2 秒後に出る（遅延は monologue 側の定数）
   monologue_reset()
-  monologue_arrival()
+  if (boss_floor) { monologue_boss_arrival() } else { monologue_arrival() }
 }
 
 function game_tick(): void {
