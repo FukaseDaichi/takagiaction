@@ -4,32 +4,46 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 
 ## モジュール構成
 
-- `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
+- `main.ts` — エントリポイント。起動シーケンス（イントロ → クリック → `renderer_init()` → アトラス読み込み → 死亡画面）を持つ唯一の場所
+- `state.ts` — ラン中の共有可変データ
+- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル、拾った装備の段
 - `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
-- `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
+- `level-generator.ts` — フロアの間取り生成。実行時 import は `random.ts` と `state.ts`（定数のみ）だけ
 - `sniff.ts` — 嗅覚の残り香探索。`level-generator.ts` の `bfs_distances` を自機タイル起点で呼ぶ純粋関数。最寄りの目標**タイル**（`x` / `z`）と BFS 距離（`dist`）を返す。返すのは距離を測るのに使った隣接床ではなく目標タイル自身で、これがエンティティのミニマップ座標（`x >> 3`, `z >> 3`）と一致するため、`minimap.ts` は添字の一致だけで「いま嗅いでいるのはどれか」を判定できる。エンティティを知らないため、目標リストの組み立ては呼び出し側の責務
-- `projection.ts` — ワールド座標→CSS ピクセル座標の変換。実行時 import を一切持たない、最も葉に近いモジュール。`renderer.ts` の GLSL 行列を JS 側に再現する（詳細は後述の「renderer.ts と projection.ts の定数複製」）
+- `projection.ts` — ワールド座標→CSS ピクセル座標の変換。`renderer.ts` の GLSL 行列を JS 側に再現する（詳細は後述の「renderer.ts と projection.ts の定数複製」）
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
-- `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
-- `entity-container.ts` — 押収品コンテナ
-- `entity-slash.ts` — 薙ぎの弧。`slash-model.ts` の形を `push_quad` で積むだけの、判定を持たない絵のエンティティ
-- `slash-model.ts` — 薙ぎの弧のジオメトリ（掃引の進み具合と三日月の 4 隅）。実行時 import を一切持たない、最も葉に近いモジュール。3D の見た目を自動では確認できないため、形の性質はここでテストする
-- `screen-slash.ts` — 一撃必殺の決めの閃光（`#sl` のクラス付け替え）。CSS は `index.html` が持つ
+- `minimap.ts` — 霧つきミニマップ（1 タイル = 1 ピクセル）。嗅覚の目標リストを組み立てて `sniff.ts` に渡すのはここ
 - `game.ts` — ゲームループとレベル遷移
-- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
-- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
-- `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）。実行時 import を一切持たない、最も葉に近いモジュール
-- `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
-- `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。実行時 import を一切持たない葉モジュールで、画像も DOM も知らない
+- `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts` に 1 つずつ置く
+- `entity-slash.ts` — 薙ぎの弧。`slash-model.ts` の形を `push_quad` で積むだけの、判定を持たない絵のエンティティ
+- `slash-model.ts` — 薙ぎの弧のジオメトリ（掃引の進み具合と三日月の 4 隅）。3D の見た目を自動では確認できないため、形の性質はここでテストする
+- `screen-slash.ts` — 一撃必殺の決めの閃光（`#sl` のクラス付け替え）。CSS は `index.html` が持つ
+- `nicotine.ts` — ニコチンの数値ロジック（段階判定・減少速度・移動速度・射撃と薙ぎの間隔）
+- `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。画像も DOM も知らない
 - `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコン 30 枚の静的 import はここが持つ。スタイルは `equip-screen.css`
-- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル、拾った装備の段。実行時 import は `equipment.ts`（同じく葉モジュール）のみで、Node でモックなしに評価できる
-- `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・ミニマップの枠）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコは画像を使わず CSS だけで描く
-- `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
-- `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
+- `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・武器スロット・ミニマップの枠）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコは画像を使わず CSS だけで描く
+- `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）
+- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
+- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）
+- `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）
+- `smoking-sequence-model.ts` — 一服演出の時間割（吸引中の煙、完了後の感知器と防災扉）
+- `monologue.ts` — 高木の内心の吹き出しの DOM とセリフプール。位置は `projection.ts` で自機頭上に追従させる
+- `monologue-model.ts` — 吹き出しのタイプライター状態機械とセリフ抽選
+- `terminal.ts` — 施設端末の表示。表示チェーンの契約は後述
+- `audio.ts` — `AudioContext` と再生。音色データは `sound-effects.ts`（効果音）と `music-dark-meat-beat.ts`（BGM）
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する。`test-setup.ts` は Vitest の `setupFiles`（後述の「テストと localStorage」）
+
+### 葉モジュールと Node で評価できるモジュール
+
+似ているが別の 2 つの性質があり、モジュールを足すときはどちらに入れるかを先に決める。
+
+- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat`。後述の循環参照の起点になりえない
+- **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`hud-model` と `death-screen-model`（→ `nicotine`）を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
+
+`dom` が 1 つ目だけを満たすとおり、この 2 つは一致しない。数値・時間割・状態機械を DOM から切り離して `*-model.ts` に置いているのは、2 つ目を満たすためである。
 
 ## 共有可変状態の規則
 
@@ -117,9 +131,9 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ### 画像の形式
 
-配信する画像 45 枚は WebP のロッシー圧縮（`quality=85`）で、変換は `tools/webp.py` が行う。ロッシーにするのは、イラスト 2 枚（`m/hero.webp` と `m/ui/hero.webp`）だけで 447KB と `dist`（約 1.2MB）の 4 割を占めるうえ、ロスレス WebP では PNG の 8 割程度にしか縮まないため。品質 85 は、劣化が最も出やすい `m/ui/hero.webp` の看板の日本語とラップトップの細い赤文字で原本と差が出ない下限である。表示サイズは `background-size: cover` でほぼ等倍になるので、寸法は縮小していない。
+配信する画像 45 枚は WebP のロッシー圧縮（`quality=85`）で、変換は `tools/webp.py` が行う。ロッシーにするのは、イラスト 2 枚（`m/hero.webp` と `m/ui/hero.webp`）だけで 437KB と `dist`（約 1.2MB）の 4 割近くを占めるうえ、ロスレス WebP では PNG の 8 割程度にしか縮まないため。品質 85 は、劣化が最も出やすい `m/ui/hero.webp` の看板の日本語とラップトップの細い赤文字で原本と差が出ない下限である。表示サイズは `background-size: cover` でほぼ等倍になるので、寸法は縮小していない。
 
-装備アイコン 30 枚（`m/ui/gear-*.webp`）は合計 571KB（1 枚あたり約 19KB）で、`dist` の 2 番目に大きい塊になる。**ネオンの発光をアルファ付きで持つ絵は、既存アイコン（2〜13KB）ほど WebP が縮まない。** 枚数を削らないのは、品ごとに絵が違うことが開封の報酬そのものだから（docs/equipment.md「画像」）。
+装備アイコン 30 枚（`m/ui/gear-*.webp`）は合計 571KB（1 枚あたり約 19KB）で、イラスト 2 枚（437KB）を抜いて `dist` で最も大きい塊になる。**ネオンの発光をアルファ付きで持つ絵は、既存アイコン（1〜14KB）ほど WebP が縮まない。** 枚数を削らないのは、品ごとに絵が違うことが開封の報酬そのものだから（docs/equipment.md「画像」）。
 
 変換元の PNG はリポジトリに残していない。イラストを差し替えるときは新しい PNG を `tools/webp.py` に通し、出力した WebP だけをコミットする。
 
