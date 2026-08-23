@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => {
   const pending: Array<() => void> = []
   const death_screens: unknown[] = []
   const notices: string[] = []
+  const boss_rewards: unknown[] = []
   const fade = {
     style: { opacity: '0' },
     classes: new Set<string>(),
@@ -19,7 +20,7 @@ const harness = vi.hoisted(() => {
   const globals = globalThis as Record<string, unknown>
   globals.performance = { now: () => clock.now }
   globals.requestAnimationFrame = (cb: () => void) => { pending.push(cb); return 1 }
-  return { clock, pending, death_screens, notices, fade }
+  return { clock, pending, death_screens, notices, boss_rewards, fade }
 })
 
 vi.mock('./renderer', () => ({
@@ -70,7 +71,7 @@ vi.mock('./death-screen', () => ({
 }))
 vi.mock('./dom', () => ({ fade_el: harness.fade }))
 vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
-vi.mock('./boss-reward', () => ({ boss_reward_show: () => {} }))
+vi.mock('./boss-reward', () => ({ boss_reward_show: () => { harness.boss_rewards.push(1) } }))
 
 import { run_start } from './game'
 import { entity_t } from './entity'
@@ -83,7 +84,7 @@ import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_yani_t } from './entity-yani'
 import * as equipment from './equipment'
 import { key_shoot, keys } from './input'
-import { meta } from './meta'
+import { meta, meta_max_level, meta_upgrade_ids } from './meta'
 import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -107,6 +108,7 @@ function advance(seconds: number): void {
 function start_run(): void {
   harness.death_screens.length = 0
   harness.notices.length = 0
+  harness.boss_rewards.length = 0
   // pending は空にしない。run_start() が game_tick を直接呼ぶのは初回だけで
   // （game.ts の game_started）、捨ててしまうと 2 本目以降のテストで
   // ループを回す手段が無くなる
@@ -405,8 +407,20 @@ describe('ボス', () => {
     )!
   }
 
-  beforeEach(() => { start_run() })
-  afterEach(() => { vi.restoreAllMocks() })
+  // meta.levels はラン間で持ち越す恒久状態で、このファイル内ではテストを
+  // 跨いで同じインスタンスを共有する。全 6 本上限を試すテストが書き換える値
+  // なので、他のテストが前提にする既定値を壊さないよう毎テストの前後で
+  // スナップショットを取って戻す
+  let meta_levels_snapshot: typeof meta.levels
+
+  beforeEach(() => {
+    start_run()
+    meta_levels_snapshot = { ...meta.levels }
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    Object.assign(meta.levels, meta_levels_snapshot)
+  })
 
   it('ボス階でだけ湧き、耐久が深度で決まる', () => {
     descend_to(5)
@@ -564,5 +578,20 @@ describe('ボス', () => {
     kill_player()
     advance(3.125)
     expect(meta.levels.leg).toBe(before + 2)
+  })
+
+  // reward_any_available が全 6 本上限を見落とすと、first_available() が 0
+  // を返し available(0) も false になる。その状態では on_key() の Enter 分岐
+  // が close() を一度も呼べず、Esc も無いこのダイアログは開いたまま固まる
+  // （リロードしか逃げ道がない）。この分岐は if 側と対をなす唯一の防波堤なので、
+  // if 側だけでなく else 側も実挙動で固定する
+  it('6 本すべて上限ならダイアログを出さずコンテナを 2 個落とす', () => {
+    descend_to(5)
+    for (const id of meta_upgrade_ids) { meta.levels[id] = meta_max_level[id] }
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    boss._receive_damage(state.entity_player!, 999)
+    step()
+    expect(harness.boss_rewards.length).toBe(0)
+    expect(state.entities.filter((e) => e instanceof entity_container_t).length).toBe(2)
   })
 })
