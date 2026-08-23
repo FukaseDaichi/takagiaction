@@ -221,8 +221,10 @@ function minimap_draw(): void {
   )
 
   // 嗅覚: 自機から残り香の方角へ短い光跡を描く。Lv3 以上は経路の第一歩
-  // （path_angle）を指すので壁を指さない。Lv1〜2 はユークリッド角のままで、
-  // 「近いのに矢印が壁を指す」ことが粗い鼻であることの表現になる
+  // （path_angle）を指す。指す先のタイル自体は必ず床だが、光跡は r=2〜4 に
+  // 描くため唯一床が保証される r=1 は描かれず、通路がすぐ折れると光跡は
+  // 壁の上に乗りうる（読ませているのは向きだけ）。Lv1〜2 はユークリッド角の
+  // ままで、「近いのに矢印が壁を指す」ことが粗い鼻であることの表現になる
   if (sniff_result) {
     const angle = meta_sniff_path() ? sniff_result.path_angle : sniff_result.angle
     for (let r = 2; r <= 4; r++) {

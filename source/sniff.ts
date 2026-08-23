@@ -11,10 +11,15 @@ import { level_height, level_width } from './state'
 // 喫煙所のタイルは壁（生成器が 8 を書く）、非常口は開通の瞬間に entity-exit.ts が
 // level_data へ 1 を書いて床になる。床の目標が BFS 距離 D にあるとき、経路上の
 // 先行タイルが D − 1 を持つので最小近傍 + 1 は D に一致する。分岐は要らない。
+//
+// 自機が目標タイルの上に乗っている場合（開通後の非常口だけが該当）、最小近傍が
+// 距離 1 になるので距離は 2 と出る。降下の直前にしか起きないので直さない。
 
 export interface sniff_result_t {
   angle: number // 自機から目標へのユークリッド方角（ラジアン）
-  // 経路の第一歩の方角。壁を指さない。嗅覚 Lv3 以上（meta_sniff_path）が使う
+  // 経路の第一歩の方角。第一歩のタイル自体は必ず床だが、光跡（minimap.ts）は
+  // r=2〜4 に描くため、通路がすぐ折れると光跡そのものは壁の上に乗りうる
+  // （読ませているのは向きだけ）。嗅覚 Lv3 以上（meta_sniff_path）が使う
   path_angle: number
   dist: number // BFS タイル距離
 }
