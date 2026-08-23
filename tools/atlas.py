@@ -1,8 +1,11 @@
-"""m/q2.png のタイル 33〜42 に画像を焼き込む。
+"""m/q2.png のタイル 33〜46 に画像を焼き込む。
 
 使い方: uv run --with pillow python tools/atlas.py <src_dir>
-<src_dir> に 33.png .. 42.png を置く（任意サイズ、正方形推奨）。
+<src_dir> に 33.png .. 46.png を置く（任意サイズ、正方形推奨）。
 左上 (0,0) のピクセル色を背景キーとみなし、近い色を透過にする。
+
+43・44・46 はコードで作る帯と点（tools/slash_tiles.py, tools/boss_tiles.py）
+なので、この tool 用の元画像を置かなければ黙って飛ばされる。
 """
 import sys
 from pathlib import Path
@@ -11,7 +14,7 @@ from PIL import Image
 
 ATLAS = Path(__file__).resolve().parent.parent / 'm' / 'q2.png'
 TILE_SIZE = 16
-TILE_RANGE = range(33, 43)
+TILE_RANGE = range(33, 47)
 # 背景キー色との距離（チャンネル毎の絶対差の和）がこの値以下なら透過
 KEY_TOLERANCE = 90
 
@@ -48,7 +51,7 @@ def main() -> None:
         baked.append(index)
 
     if not baked:
-        sys.exit(f'no source images (33.png..42.png) found in {src_dir}')
+        sys.exit(f'no source images (33.png..46.png) found in {src_dir}')
     atlas.save(ATLAS)
     print(f'baked tiles {baked} into {ATLAS}')
 
