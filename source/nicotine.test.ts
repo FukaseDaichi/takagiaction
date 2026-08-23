@@ -3,7 +3,7 @@ import {
   camera_shake_amount, minimap_radius, nicotine_drain_rate, nicotine_stage,
   nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
   nicotine_stage_withdrawal, player_light_falloff, player_speed,
-  shot_interval, shot_spread, stage_color,
+  shot_interval, shot_spread, stage_color, swing_interval,
 } from './nicotine'
 
 describe('nicotine_stage', () => {
@@ -119,5 +119,33 @@ describe('段階効果', () => {
     for (const stage of [0, 1, 2, 3]) {
       expect(stage_color(stage)).toMatch(/^#[0-9a-f]{3}$/)
     }
+  })
+})
+
+describe('装備の加算', () => {
+  // 加算にするのは、乗算だと深いほど効きが増してインフレするため。
+  // 加算は深いほど相対効果が薄れて自己減衰する
+  it('ソールは係数の後に加算される', () => {
+    expect(player_speed(nicotine_stage_normal, 1, 25)).toBeCloseTo(153)
+    expect(player_speed(nicotine_stage_normal, 1.5625, 25)).toBeCloseTo(225)
+  })
+
+  it('ソールは離脱症状帯にも同じ量だけ効く', () => {
+    expect(player_speed(nicotine_stage_withdrawal, 1, 25)).toBeCloseTo(121)
+  })
+
+  it('装備を持たないときは従来と同じ', () => {
+    expect(player_speed(nicotine_stage_normal, 1)).toBe(128)
+    expect(player_speed(nicotine_stage_withdrawal, 1)).toBe(96)
+  })
+})
+
+describe('薙ぎの間隔', () => {
+  // 離脱症状の手の震えは近接にも効く。火力強化（銃の強化）は掛からない
+  it('離脱症状帯で 1.8 倍になる', () => {
+    expect(swing_interval(nicotine_stage_normal, 0.5)).toBeCloseTo(0.5)
+    expect(swing_interval(nicotine_stage_edgy, 0.5)).toBeCloseTo(0.5)
+    expect(swing_interval(nicotine_stage_withdrawal, 0.5)).toBeCloseTo(0.9)
+    expect(swing_interval(nicotine_stage_limit, 0.5)).toBeCloseTo(0.9)
   })
 })

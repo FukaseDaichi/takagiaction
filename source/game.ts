@@ -13,6 +13,7 @@ import { spawn_smoke } from './entity-smoke'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
+import { drain_floor, patch_drain_bonus } from './equipment'
 import { hud_hide, hud_show, hud_update } from './hud'
 import { generate_level } from './level-generator'
 import {
@@ -259,11 +260,15 @@ function game_tick(): void {
   // だけは減少が走るが、深度 1 で 0.017 と誤差にもならない。
   // 死亡シーケンス中も止める（リザルトの残量表示を死んだ瞬間の値で固定する）
   if (state.game_running && !state.smoking && !state.dying) {
-    state.nicotine = Math.max(
-      0,
-      state.nicotine -
-        nicotine_drain_rate(state.depth) * meta_drain_factor() * state.time_elapsed,
+    // 装備（パッチ）は係数ではなく定数を引く。乗算だと深いほど効きが増して
+    // インフレする（docs/equipment.md）。下限は、耐性側を将来触ったときに
+    // 0 を割ってゲージが減らなくなるのを止めるための保険
+    const drain = Math.max(
+      drain_floor,
+      nicotine_drain_rate(state.depth) * meta_drain_factor() -
+        patch_drain_bonus(meta.gear.patch),
     )
+    state.nicotine = Math.max(0, state.nicotine - drain * state.time_elapsed)
   }
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
 

@@ -31,8 +31,18 @@ export function nicotine_drain_rate(depth: number): number {
 }
 
 // 基礎 128（離脱症状で 96）× 移動速度係数（恒久強化、省略時 1）
-export function player_speed(stage: number, speed_factor = 1): number {
-  return (stage >= nicotine_stage_withdrawal ? 96 : 128) * speed_factor
+// + 装備の加算（ソール、省略時 0）。
+// 装備を乗算しないのは、乗算だと深いほど効きが増してインフレするため
+// （docs/equipment.md「加算にする理由」）。定数加算は離脱症状帯にも同じ量だけ
+// 効くので、弱っているときほど相対的に大きく助ける
+export function player_speed(stage: number, speed_factor = 1, bonus = 0): number {
+  return (stage >= nicotine_stage_withdrawal ? 96 : 128) * speed_factor + bonus
+}
+
+// 薙ぎの間隔。離脱症状の手の震えは近接にも効くが、火力強化（銃の強化）は
+// 掛からない。base は刃物の段が決める（equipment.ts の blade_interval）
+export function swing_interval(stage: number, base: number): number {
+  return base * (stage >= nicotine_stage_withdrawal ? 1.8 : 1)
 }
 
 // 基礎 0.1 秒 × 火力係数（恒久強化、省略時 1） × ニコチン係数（離脱症状で 1.8）
