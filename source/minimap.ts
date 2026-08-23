@@ -1,8 +1,11 @@
 import { minimap_canvas, sniff_el } from './dom'
+import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
+import { entity_yani_t } from './entity-yani'
 import {
-  meta_sniff_active, meta_sniff_distance, meta_sniff_exit, meta_sniff_path,
+  meta_sniff_active, meta_sniff_distance, meta_sniff_exit, meta_sniff_loot,
+  meta_sniff_path,
 } from './meta'
 import { minimap_radius, nicotine_stage } from './nicotine'
 import { sniff_find } from './sniff'
@@ -165,9 +168,25 @@ function minimap_draw(): void {
   // 消える側ではなく白く強くなる側に振るのは、1 タイル 1 ピクセルしかないため
   // 暗くすると見失うから。
   const blink = blink_timer < blink_period / 2
+  // 嗅覚 Lv5: ヤニと清掃ドローンは未探索タイルでも点灯する。しきい値は
+  // 持たない（meta.ts）が、リザルト表示中に前のランの分を映さないため
+  // game_running のガードは生存系と同じく通す
+  const loot = state.game_running && meta_sniff_loot()
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
     const index = (e.x >> 3) + (e.z >> 3) * level_width
+
+    // 収入系は明滅させない。喫煙所のオレンジ（238,153,0）と色相が近いので、
+    // 明滅の有無が 1 ピクセルでも読める区別になる
+    if (e instanceof entity_yani_t) {
+      if (loot) { minimap_set_pixel(index, 215, 195, 110) }
+      continue
+    }
+    if (e instanceof entity_drone_t) {
+      if (loot) { minimap_set_pixel(index, 140, 200, 240) }
+      continue
+    }
+
     if (!minimap_explored[index]) { continue }
 
     if (e instanceof entity_smoking_area_t) {
