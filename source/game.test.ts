@@ -247,7 +247,7 @@ describe('リザルト表示中の死体', () => {
 describe('装備の入れ替え中はゲームが止まる', () => {
   beforeEach(() => {
     start_run()
-    state.equipping = 0
+    state.paused = 0
   })
 
   // assert が例外を投げるとテスト末尾の後片付けは実行されない。afterEach なら
@@ -259,11 +259,11 @@ describe('装備の入れ替え中はゲームが止まる', () => {
   it('ニコチンも生存時間も進まない', () => {
     const nicotine = state.nicotine
     const run_time = state.run_time
-    state.equipping = 1
+    state.paused = 1
     advance(2)
     expect(state.nicotine).toBe(nicotine)
     expect(state.run_time).toBe(run_time)
-    state.equipping = 0
+    state.paused = 0
     advance(2)
     expect(state.nicotine).toBeLessThan(nicotine)
   })
@@ -272,7 +272,7 @@ describe('装備の入れ替え中はゲームが止まる', () => {
     const player = state.entity_player!
     player.vx = 100
     const x = player.x
-    state.equipping = 1
+    state.paused = 1
     advance(1)
     expect(player.x).toBe(x)
   })
@@ -281,7 +281,7 @@ describe('装備の入れ替え中はゲームが止まる', () => {
   // 押しっぱなしのスペースで毎フレーム弾が生成される
   it('止まっている間に弾が積み上がらない', () => {
     keys[key_shoot] = 1
-    state.equipping = 1
+    state.paused = 1
     const before = state.entities.length
     advance(1)
     expect(state.entities.length).toBe(before)
@@ -289,7 +289,7 @@ describe('装備の入れ替え中はゲームが止まる', () => {
 
   it('降下予約が消化されない', () => {
     state.descend_timer = 0.5
-    state.equipping = 1
+    state.paused = 1
     advance(2)
     expect(state.descend_timer).toBe(0.5)
   })

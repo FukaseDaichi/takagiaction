@@ -87,7 +87,7 @@ export function equip_screen_show(next_slot: gear_slot_t, next_tier: number): vo
   // 変わらないが、違う段では損得が生じる。それでも選べないことを説明する
   // ほうが複雑になる）
   selected = tier > meta.gear[next_slot] ? 0 : 1
-  state.equipping = 1
+  state.paused = 1
 
   if (!root) {
     root = document.createElement('div')
@@ -135,7 +135,7 @@ function close(keep: boolean): void {
   if (scrapped > 0) { state.yani_run += gear_scrap_value(scrapped) }
 
   audio_play(audio_sfx_beep)
-  state.equipping = 0
+  state.paused = 0
   // ポーズ中も input.ts のハンドラは生きているが _update() は飛ぶので、
   // エッジ検出のフラグ（E・Tab）だけが取り残される。ここで戻さないと、
   // ポーズ中に押した E/Tab がダイアログを閉じた直後の 1 フレームで消費される

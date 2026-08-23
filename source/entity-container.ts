@@ -23,9 +23,9 @@ export class entity_container_t extends entity_t {
     // 重なりうる。game_running: リザルト表示中だけの除外（entity-yani.ts と
     // 同じ理由）。死亡シーケンス中（state.dying）はまだ 1 のままなので、
     // 死体の除外は game.ts の衝突ループの corpse スキップが担う。
-    // equipping: 同じフレームで 2 個踏んだときの二重開封
+    // paused: 同じフレームで 2 個踏んだときの二重開封
     if (
-      state.game_running && !state.smoking && !state.equipping &&
+      state.game_running && !state.smoking && !state.paused &&
       other instanceof entity_player_t
     ) {
       this._kill()

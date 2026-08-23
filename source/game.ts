@@ -57,7 +57,7 @@ export function run_start(): void {
   state.death_cause = 0
   state.dying = 0
   state.death_elapsed = 0
-  state.equipping = 0
+  state.paused = 0
   state.melee_active = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
@@ -203,11 +203,12 @@ function game_tick(): void {
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
   // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
-  // 開封ダイアログ中は時間を止める。この 1 行で、ニコチン減少・生存時間・
-  // 降下予約・死亡シーケンス・つぶやき・HUD の hold タイマーが個別のガード
-  // なしにまとめて止まる（各所に !state.equipping を足すと同じ判定が
-  // 6 か所以上に散る。死体の除外を 1 か所に集めているのと同じ理由）
-  state.time_elapsed = state.equipping
+  // ポーズ中は時間を止める（開封ダイアログとボス報酬の 2 か所が立てる）。
+  // この 1 行で、ニコチン減少・生存時間・降下予約・死亡シーケンス・つぶやき・
+  // HUD の hold タイマーが個別のガードなしにまとめて止まる（各所に
+  // !state.paused を足すと同じ判定が 6 か所以上に散る。死体の除外を
+  // 1 か所に集めているのと同じ理由）
+  state.time_elapsed = state.paused
     ? 0
     : Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
@@ -310,7 +311,7 @@ function game_tick(): void {
     // だけでは足りない — _last_shot -= 0 は負のままなので、押しっぱなしの
     // スペースで毎フレーム弾が生成され、セントリーの発射カウンタも同じく
     // 負のままで弾が積み上がる
-    if (!state.equipping) {
+    if (!state.paused) {
       e1._update()
 
       // check for collisions between entities - it's quadratic and nobody cares \o/

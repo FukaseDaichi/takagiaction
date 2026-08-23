@@ -29,10 +29,11 @@ export const state = {
   nicotine: 100,
   nicotine_max: 100,
   smoking: 0, // 一服中は 1。移動と射撃をロックする
-  // 押収品コンテナの開封ダイアログ中は 1。ゲーム内で唯一のポーズで、
-  // game_tick が time_elapsed を 0 にしてエンティティの更新と衝突判定を飛ばす
-  // （equip-screen.ts が立てて下ろす）
-  equipping: 0,
+  // ポーズ中は 1。ゲーム内で唯一の時間停止で、game_tick が time_elapsed を
+  // 0 にしてエンティティの更新と衝突判定を飛ばす。立てるのは押収品コンテナの
+  // 開封ダイアログ（equip-screen.ts）とボス撃破の報酬ダイアログ
+  // （boss-reward.ts）の 2 つ
+  paused: 0,
   // 1 = 刃物を構えている（0 = 銃）。Tab で切り替わるラン状態で、フロアを
   // 跨いでは保持し、run_start() が 0 に戻す
   melee_active: 0,

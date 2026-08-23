@@ -41,7 +41,7 @@ describe('押収品コンテナ', () => {
     state.nicotine = 100
     state.nicotine_max = 100
     state.smoking = 0
-    state.equipping = 0
+    state.paused = 0
     state.dying = 0
     state.game_running = 1
     player = new entity_player_t(64, 0, 64, 5, 18)
@@ -81,7 +81,7 @@ describe('押収品コンテナ', () => {
   })
 
   it('開封中に二重で開かない', () => {
-    state.equipping = 1
+    state.paused = 1
     const c = drop('sole', 3)
     c._check(player)
     expect(opened.length).toBe(0)
