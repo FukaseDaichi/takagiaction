@@ -952,7 +952,22 @@ Lv4 は分岐を書かずに「本物の残り香 > 非常口」になる。`ent
 
 このステップがあるため、Task 8 のコミットには `source/minimap.ts` も含める。
 
-- [ ] **Step 10: 数値の整合を確認する**
+- [ ] **Step 10: `source/death-screen.ts` の `upgrade_row_t` のコメントに例外を書く**
+
+`value` フィールドのコメントが「式は meta.ts の getter（段数引数）から引き、画面側に書き写さない」と全 6 行について主張しているが、Task 7 以降これは 5 行にしか当てはまらない。嗅覚行は解放名の文字列を `death-screen.ts` 内に持つ（`meta.ts` は真偽値と数値の機構だけを公開する葉モジュールで、人間向けラベルの getter を持たない）。次に差し替える。
+
+```ts
+  // 任意の段での効果値。現在値と次段プレビューの両方をこれで出す。
+  // 式は meta.ts の getter（段数引数）から引き、画面側に書き写さない。
+  // 例外は嗅覚行で、段ごとの解放名という人間向けラベルはここが持つ
+  // （meta.ts は真偽値と数値の機構だけを公開する葉モジュールなので、
+  // 呼び出し元 1 か所のためにラベルの getter を足さない）
+  value: (level: number) => string
+```
+
+このステップがあるため、Task 8 のコミットには `source/death-screen.ts` も含める。
+
+- [ ] **Step 11: 数値の整合を確認する**
 
 ```bash
 grep -rn "10450\|Lv10\|0.3 / 9" docs/ README.md
@@ -960,10 +975,10 @@ grep -rn "10450\|Lv10\|0.3 / 9" docs/ README.md
 
 Expected: 1 件も出ない。`3.33pt` と `10 段` は grep しない — Step 3 の新しい文面が「段あたり 3.33pt の連続値は…だった」と旧設計を説明するために意図して前者を含み、「10 段の項目 1 本が 2025」として後者も正しく残るため。あわせて、嗅覚を「10 段」の列挙に含めた記述が残っていないことを目で確認する。
 
-- [ ] **Step 11: コミット**
+- [ ] **Step 12: コミット**
 
 ```bash
-git add docs/meta-progression.md docs/gameplay.md docs/architecture.md docs/story.md README.md source/minimap.ts
+git add docs/meta-progression.md docs/gameplay.md docs/architecture.md docs/story.md README.md source/minimap.ts source/death-screen.ts
 git commit -m "嗅覚の機能解放化に合わせて docs を更新する"
 ```
 
