@@ -1,6 +1,7 @@
-// ラン間で持ち越す恒久状態と強化テーブル。ラン状態（state.ts）と寿命が違うため
-// 分離する。state.ts と同様に実行時依存を持たない葉モジュールで、
-// Node（Vitest）でモックなしに評価できることが条件。
+// ラン間で持ち越す恒久状態・強化テーブル・拾った装備の段を持つ。ラン状態
+// （state.ts）とは寿命が違うため分離する。実行時 import は equipment.ts
+// （同じく葉モジュール）のみで、Node（Vitest）でモックなしに評価できることが
+// 条件（「一切持たない」から緩めた形で、条件自体は変わらない）。
 
 import { gear_max_tier, gear_slots } from './equipment'
 import type { gear_slot_t } from './equipment'
