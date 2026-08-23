@@ -7,7 +7,7 @@ function make_tiles(): Uint8Array {
 }
 
 describe('嗅覚の残り香探索', () => {
-  it('通路の先の目標への方角と BFS 距離を返す', () => {
+  it('目標タイルそのものと BFS 距離を返す（隣接床ではない）', () => {
     const tiles = make_tiles()
     // z=1 の横一列に床。目標タイル (10,1) は生成器と同じく壁（8）
     for (let x = 1; x <= 20; x++) { tiles[x + level_width] = 1 }
@@ -15,9 +15,11 @@ describe('嗅覚の残り香探索', () => {
 
     const r = sniff_find(tiles, 1, 1, [{ x: 10, z: 1 }])!
     expect(r).not.toBeNull()
+    // 距離を測るのに使う隣接床は (9,1) だが、返すのは目標タイル自身。
+    // ミニマップが明滅させるのはエンティティが立っているタイルなので
+    expect(r.x).toBe(10)
+    expect(r.z).toBe(1)
     expect(r.dist).toBe(9) // 隣接床 (9,1) まで 8 歩 + 1
-    expect(r.angle).toBeCloseTo(0, 6) // 真東
-    expect(r.path_angle).toBeCloseTo(0, 6) // 一直線なので angle と一致する
   })
 
   it('ユークリッド距離ではなく BFS 距離で最寄りを選ぶ', () => {
@@ -35,7 +37,8 @@ describe('嗅覚の残り香探索', () => {
 
     const r = sniff_find(tiles, 1, 1, [{ x: 2, z: 3 }, { x: 15, z: 0 }])!
     expect(r.dist).toBe(15) // 目標B: (15,1) まで 14 歩 + 1
-    expect(r.angle).toBeCloseTo(Math.atan2(0 - 1, 15 - 1), 6)
+    expect(r.x).toBe(15)
+    expect(r.z).toBe(0)
   })
 
   it('どの目標にも到達できなければ null', () => {
@@ -63,46 +66,16 @@ describe('嗅覚の残り香探索', () => {
     expect(r.dist).toBe(64)
   })
 
-  // Lv3 の価値そのもの: ユークリッド角は壁を指すが、経路の第一歩は通路を指す
-  it('L 字の通路では path_angle が通路の入口を指し、angle と食い違う', () => {
-    const tiles = make_tiles()
-    // 自機 (1,1) → 東へ (10,1) → 南へ (10,5) → 西へ (2,5) の 3 辺の通路。
-    // 目標 (1,5) は直線では真南だが、経路の第一歩は真東になる
-    for (let x = 1; x <= 10; x++) { tiles[x + 1 * level_width] = 1 }
-    for (let z = 1; z <= 5; z++) { tiles[10 + z * level_width] = 1 }
-    for (let x = 2; x <= 10; x++) { tiles[x + 5 * level_width] = 1 }
-    tiles[1 + 5 * level_width] = 8 // 目標は生成器と同じく壁
-
-    const r = sniff_find(tiles, 1, 1, [{ x: 1, z: 5 }])!
-    expect(r.dist).toBe(22) // 隣接床 (2,5) まで 21 歩 + 1
-    expect(r.angle).toBeCloseTo(Math.PI / 2, 6) // 真南（壁の向こう）
-    expect(r.path_angle).toBeCloseTo(0, 6) // 真東（通路の入口）
-  })
-
-  // ループ境界の変異を殺す: 第 1 レグを 1 タイルだけにして、1 歩ずれると
-  // 別方向のセグメントに落ちる配置にする。d > 0 なら自機タイルに乗って
-  // atan2(0,0) = 0、d > 2 なら 1 歩手前で -π/4 になり、どちらも落ちる
-  it('第一歩が 1 タイルで折れる通路でも path_angle が第一歩を指す', () => {
-    const tiles = make_tiles()
-    // 自機 (5,5) → 北へ 1 歩 (5,4) → 東へ (9,4)。目標 (10,4) は壁
-    tiles[5 + 5 * level_width] = 1
-    for (let x = 5; x <= 9; x++) { tiles[x + 4 * level_width] = 1 }
-    tiles[10 + 4 * level_width] = 8
-
-    const r = sniff_find(tiles, 5, 5, [{ x: 10, z: 4 }])!
-    expect(r.dist).toBe(6) // 隣接床 (9,4) まで 5 歩 + 1
-    expect(r.path_angle).toBeCloseTo(-Math.PI / 2, 6) // 真北（第一歩）
-  })
-
-  it('自機が目標に隣接していると path_angle は angle にフォールバックする', () => {
+  // 隣接床が自機タイル自身（距離 0）になる境界。0 + 1 で 1 になる
+  it('自機が目標に隣接していると距離は 1', () => {
     const tiles = make_tiles()
     tiles[1 + level_width] = 1 // 自機 (1,1)
     tiles[2 + level_width] = 8 // 目標 (2,1)。周囲の床は自機タイルだけ
 
     const r = sniff_find(tiles, 1, 1, [{ x: 2, z: 1 }])!
     expect(r.dist).toBe(1)
-    expect(r.angle).toBeCloseTo(0, 6)
-    expect(r.path_angle).toBe(r.angle)
+    expect(r.x).toBe(2)
+    expect(r.z).toBe(1)
   })
 
   it('目標が空なら null', () => {

@@ -92,7 +92,7 @@ export function meta_sniff_threshold(level: number): number {
   return level >= 2 ? 0.6 : 0.3
 }
 
-// 生存系（残り香・非常口）の方向は「追い詰められたときだけ働く救済」。
+// 生存系（残り香・非常口）の位置は「追い詰められたときだけ働く救済」。
 // ratio は state.nicotine / state.nicotine_max。
 // 収入系（meta_sniff_loot）はこの判定を通さない
 export function meta_sniff_active(ratio: number): boolean {
@@ -100,12 +100,8 @@ export function meta_sniff_active(ratio: number): boolean {
   return level > 0 && ratio <= meta_sniff_threshold(level)
 }
 
-// Lv3: 光跡が経路方向（BFS の第一歩）になり、距離も出る。どちらも同じ BFS の
-// 情報を読めるようになったこと 1 つの解放なので、同じ段に置く
-export function meta_sniff_path(level = meta.levels.sniff): boolean {
-  return level >= 3
-}
-
+// Lv3: 残り香までの道のり（BFS タイル距離）が出る。Lv1 で位置が見えている
+// ので直線距離は目測できる。この段が答えるのは「迷路を歩くと本当は何メートルか」
 export function meta_sniff_distance(level = meta.levels.sniff): boolean {
   return level >= 3
 }
@@ -118,7 +114,7 @@ export function meta_sniff_exit(level = meta.levels.sniff): boolean {
 
 // Lv5: ヤニ・清掃ドローン・押収品コンテナがミニマップに点灯する。しきい値を
 // 持たないのは、追い詰められている最中に拾いに行く余裕がなく狩りの道具に
-// ならないため。中核の問いを握っているのは喫煙所への方向だけなので、常時でも触れない
+// ならないため。中核の問いを握っているのは喫煙所の在り処だけなので、常時でも触れない
 export function meta_sniff_loot(level = meta.levels.sniff): boolean {
   return level >= 5
 }

@@ -9,7 +9,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
-- `sniff.ts` — 嗅覚の残り香探索。`level-generator.ts` の `bfs_distances` を自機タイル起点で呼ぶ純粋関数。ユークリッド角（`angle`）と経路の第一歩の方角（`path_angle`）を常に両方返し、段による選択は `minimap.ts` が行う。エンティティを知らないため、目標リストの組み立ては呼び出し側の責務
+- `sniff.ts` — 嗅覚の残り香探索。`level-generator.ts` の `bfs_distances` を自機タイル起点で呼ぶ純粋関数。最寄りの目標**タイル**（`x` / `z`）と BFS 距離（`dist`）を返す。返すのは距離を測るのに使った隣接床ではなく目標タイル自身で、これがエンティティのミニマップ座標（`x >> 3`, `z >> 3`）と一致するため、`minimap.ts` は添字の一致だけで「いま嗅いでいるのはどれか」を判定できる。エンティティを知らないため、目標リストの組み立ては呼び出し側の責務
 - `projection.ts` — ワールド座標→CSS ピクセル座標の変換。実行時 import を一切持たない、最も葉に近いモジュール。`renderer.ts` の GLSL 行列を JS 側に再現する（詳細は後述の「renderer.ts と projection.ts の定数複製」）
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
-  meta_sniff_distance, meta_sniff_exit, meta_sniff_loot, meta_sniff_path,
+  meta_sniff_distance, meta_sniff_exit, meta_sniff_loot,
   meta_sniff_threshold, meta_spare_count, meta_speed_factor,
   meta_upgrade_ids, meta_upgrade_price,
 } from './meta'
@@ -150,9 +150,7 @@ describe('嗅覚の段ごとの効果', () => {
     expect(meta_sniff_active(0.6)).toBe(true)
   })
 
-  it('経路方向と距離は 3 段から', () => {
-    expect(meta_sniff_path(2)).toBe(false)
-    expect(meta_sniff_path(3)).toBe(true)
+  it('道のり（残り香の距離）は 3 段から', () => {
     expect(meta_sniff_distance(2)).toBe(false)
     expect(meta_sniff_distance(3)).toBe(true)
   })
@@ -168,9 +166,8 @@ describe('嗅覚の段ごとの効果', () => {
   })
 
   it('解放 getter は既定で現在の段を読む', () => {
-    expect(meta_sniff_path()).toBe(false)
+    expect(meta_sniff_distance()).toBe(false)
     meta.levels.sniff = 5
-    expect(meta_sniff_path()).toBe(true)
     expect(meta_sniff_distance()).toBe(true)
     expect(meta_sniff_exit()).toBe(true)
     expect(meta_sniff_loot()).toBe(true)
