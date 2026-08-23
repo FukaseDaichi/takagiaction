@@ -12,7 +12,7 @@ import { push_block, push_light, push_sprite } from './renderer'
 import {
   complete_beats, ignite_flash_duration, smoke_puffs,
 } from './smoking-sequence-model'
-import { state } from './state'
+import { player_hp_max, state } from './state'
 import { terminal_show_notice } from './terminal'
 
 // 一服にかかる時間（秒）。この間ずっと触れ続けないと非常口は開かない。
@@ -203,7 +203,7 @@ export class entity_smoking_area_t extends entity_t {
     this._done = true
     state.smoke_count++
     state.nicotine = state.nicotine_max
-    player.h = Math.min(player.h + 1, 5)
+    player.h = Math.min(player.h + 1, player_hp_max)
     // 開通は演出を待たない。ここを遅らせると完了直後の死亡や降下との
     // 相互作用が生まれ、演出のためにコアループへ摩擦を足すことになる
     state.exit_open = 1
