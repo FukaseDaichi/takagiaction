@@ -36,6 +36,12 @@ const lines_interrupt = [
   'げほっ……！',
   'ちっ、落ち着いて吸わせろ……！',
 ]
+// 清掃ドローンの撃破。回収槽から吸い殻が出てきたことへの反応だけを書く
+const lines_drone_kill = [
+  'こんなに溜め込んでやがったのか……',
+  '……全部いただくぜ',
+  '返してもらうぞ、俺の分だ',
+]
 // 最期のひとこと。世界の危機ではなく、最期まで煙草のことしか考えていない
 const lines_death_enemy = [
   'まだ……吸ってない……',
@@ -57,6 +63,8 @@ const lines_stage: string[][] = [
 
 // フロア到達はターミナルの深度ログと同時に出さない（読む場所が割れる）
 const arrival_delay = 2
+// ドローン撃破も同じ理由で遅らせる。事実（飛散した額）はターミナルが先に出す
+const drone_kill_delay = 2
 // 離脱症状以降、何も表示していなければこの間隔で再つぶやきする
 const whisper_interval = 10
 
@@ -87,6 +95,9 @@ export function monologue_dummy(): void { say(lines_dummy, false) }
 export function monologue_all_done(): void { say(lines_all_done, false) }
 export function monologue_complete(): void { say(lines_complete, false) }
 export function monologue_interrupt(): void { say(lines_interrupt, false) }
+export function monologue_drone_kill(): void {
+  say(lines_drone_kill, false, drone_kill_delay)
+}
 
 // 段階遷移は悪化方向のみ発話する。改善方向（一服による回復）で黙るので、
 // ラン開始（満タン）やフロア持ち越しでも誤発話しない。
