@@ -161,8 +161,8 @@ describe('フロアの広さ', () => {
       }
       return total / 100
     }
-    const shallow = mean_floor_tiles(1) // 実測 400
-    const full = mean_floor_tiles(11) // 実測 1067
+    const shallow = mean_floor_tiles(1) // 実測 400.93
+    const full = mean_floor_tiles(11) // 実測 1067.18
     expect(shallow).toBeLessThan(full * 0.5)
     expect(full).toBeGreaterThan(1000)
   }, 60000)
@@ -404,7 +404,7 @@ describe('generate_level: 目標地点', () => {
   // 状態になり、フロアを狭めても探索の空振りだけが残る。深度 1〜4 は
   // 明滅するオレンジが 1 点だけ = 本物になる。
   // レビュー B-8: 空き部屋数でクランプしないと部屋数の少ないシードで足りなくなる
-  it('ダミーは深度 5 から出る。数は min(floor(深度/5), 3) を上限とし、空き部屋数でも抑えられる', () => {
+  it('通常フロアのダミーは深度 6 から出る。数は min(floor(深度/5), 3) を上限とし、空き部屋数でも抑えられる', () => {
     for (let seed = 1; seed <= 200; seed++) {
       // 5 の倍数ちょうどはボス階でダミーを置かないので、閾値は 4 と 6 で見る
       for (const depth of [1, 4, 6, 9, 11, 14, 16, 41]) {
@@ -608,6 +608,28 @@ describe('ボス階の闘技場', () => {
         expect(bfs_distance_floor(layout, p)).toBeGreaterThanOrEqual(8)
       }
     }
+  }, 30000)
+
+  // 隅を 1 つに固定する回帰は対角の検査を素通りする（対角の関係は固定された
+  // 隅でも成り立つ）。4 通りすべてが出ることをここで押さえる
+  it('開始地点は 4 隅のいずれかで、シードによって 4 通りすべてが出る', () => {
+    const cx = level_width >> 1
+    const cz = level_height >> 1
+    const half = arena_side >> 1
+    const corners = new Set([
+      `${cx - half + 2},${cz - half + 2}`,
+      `${cx + half - 2},${cz - half + 2}`,
+      `${cx + half - 2},${cz + half - 2}`,
+      `${cx - half + 2},${cz + half - 2}`,
+    ])
+    const seen = new Set<string>()
+    for (let seed = 1; seed <= 200; seed++) {
+      const { start } = generate_level(5, seed)
+      const key = `${start.x},${start.z}`
+      expect(corners.has(key)).toBe(true)
+      seen.add(key)
+    }
+    expect(seen.size).toBe(4)
   }, 30000)
 
   it('開始地点と非常口が対角の隅にある', () => {

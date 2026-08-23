@@ -332,9 +332,11 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
   for (let i = 1; i < ranked.length; i++) {
     if (i !== k && i !== exit_rank) { eligible.push(i) }
   }
-  // 深度 5 から。深度 1〜4 でダミーを出すと、ミニマップに明滅するオレンジが
-  // 複数あって片方はハズレという状態になり、フロアを狭めても探索の空振りだけが
-  // 残る。浅い層は明滅するオレンジ 1 点 = 本物にして、明滅をそのまま答えにする。
+  // 実際に最初にダミーが出るのは深度 6（式は深度 5 から 1 個だが、5 の倍数は
+  // ボス階でダミーを置かない）。浅い層でダミーを出すと、ミニマップに明滅する
+  // オレンジが複数あって片方はハズレという状態になり、フロアを狭めても探索の
+  // 空振りだけが残る。浅い層は明滅するオレンジ 1 点 = 本物にして、明滅をそのまま
+  // 答えにする。
   const dummy_target = Math.min(Math.floor(depth / 5), 3)
   const dummies: tile_pos_t[] = []
   while (dummies.length < dummy_target && eligible.length > 0) {
@@ -412,8 +414,8 @@ function build_arena(seed: number): level_layout_t {
 
   build_walls(tiles)
 
-  // 隅は外周の輪郭壁から 2 タイル内側。順序を時計回りにしてあるので、
-  // +2 で必ず対角になる
+  // 隅は一番外側の床から 2 タイル内側（輪郭壁からは 3 タイル）。順序を
+  // 時計回りにしてあるので、+2 で必ず対角になる
   const corners: tile_pos_t[] = [
     { x: cx - half + 2, z: cz - half + 2 },
     { x: cx + half - 2, z: cz - half + 2 },
@@ -448,7 +450,9 @@ function build_arena(seed: number): level_layout_t {
     tiles, rooms: [room], start, smoking_area, dummies: [], exit,
     spiders: [], sentries: [], health: take_from(spawnable, random_int(2, 4)),
     yani: [], drones: [],
-    boss: smoking_area, boss_spin,
+    // smoking_area と同じタイルだが別オブジェクトにする。参照を共有すると、
+    // 片方だけを動かす変更が構造比較のテストを素通りしてしまう
+    boss: { x: cx, z: cz }, boss_spin,
   }
 }
 
