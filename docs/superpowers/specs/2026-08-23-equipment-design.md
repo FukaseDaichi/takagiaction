@@ -215,7 +215,9 @@ HUD は `docs/gameplay.md`「HUD は安全なときに黙る」に従う。**刃
 
 `equipment.ts` と `equip-screen.ts` の分割は、既存の `death-screen-model.ts` / `death-screen.ts` とまったく同じ形である（数値と DOM を割り、数値側だけをテストする）。
 
-変更するもの: `state.ts`（`equipping` / `melee_active`）・`meta.ts`（`gear` の保存とクランプ）・`input.ts`（Tab）・`entity-player.ts`（薙ぎ・持ち替え・ソール加算）・`entity-sentry.ts`（30% ドロップ）・`game.ts`（ポーズ 2 か所）・`nicotine.ts`（`player_speed()` の加算引数）・`hud.ts` / `hud-model.ts`（武器スロット）・`death-screen.ts`（装備 3 行）・`minimap.ts`（収入系にコンテナ）・`sound-effects.ts`（斬撃音・解錠音）・`tools/atlas.py`（`TILE_RANGE` を 42 まで）。
+変更するもの: `state.ts`（`equipping` / `melee_active`）・`meta.ts`（`gear` の保存とクランプ）・`input.ts`（Tab）・`entity-player.ts`（薙ぎ・持ち替え・ソール加算）・`entity-sentry.ts`（30% ドロップ）・`game.ts`（ポーズ 2 か所）・`nicotine.ts`（`player_speed()` の加算引数と `swing_interval()`）・`hud.ts` / `hud-model.ts`（武器スロット）・`death-screen.ts`（装備 3 行）・`minimap.ts`（収入系にコンテナ）・`tools/atlas.py`（`TILE_RANGE` を 42 まで）。
+
+**新しい音色は足さない。** 薙ぎは `audio_sfx_hit`、解錠は `audio_sfx_door`、開封の当たりは `audio_sfx_pickup`、持ち替えと決定は `audio_sfx_beep` を流用する。防災扉の駆動音がコンテナの封印解除に流用できるのは偶然ではなく、どちらも「施設の機構が開く音」である。耳で聞いて足りなければ後から `sound-effects.ts` に足せばよく、最初から `sonantx` のインストゥルメント定義を増やす理由はない。
 
 `equipment.ts` は `entity_t` のサブクラスを宣言せず、実行時 import も持たないので、`docs/architecture.md`「循環参照の不変条件」に新しい辺を足さない。`entity-container.ts` は既存の循環クラスタに加わる（`entity-player` を参照するため）が、クラスタ内の循環はメソッド本体からの実行時参照のみで、この不変条件は保たれる。
 
