@@ -21,6 +21,12 @@ export interface sniff_result_t {
 
 const neighbor_offsets = [[1, 0], [-1, 0], [0, 1], [0, -1]]
 
+// 範囲外か。level_width で割った添字は範囲チェックを外すと前後の行へ回り込む
+// （x = -1 が前の行の x = 63 を指す）。過去にこれで最寄り判定が壊れている
+function out_of_bounds(x: number, z: number): boolean {
+  return x < 0 || x >= level_width || z < 0 || z >= level_height
+}
+
 // 経路の第一歩のタイル。自機起点の距離場を、目標に隣接する床タイル（entry）から
 // 1 ずつ下って辿る。entry が自機タイル自身なら経路に一歩もないので null。
 // 距離場では距離 > 0 のタイルが必ず距離 − 1 の近傍を持つので、d を毎周無条件に
@@ -37,7 +43,7 @@ function sniff_first_step(
     for (const [dx, dz] of neighbor_offsets) {
       const nx = x + dx
       const nz = z + dz
-      if (nx < 0 || nx >= level_width || nz < 0 || nz >= level_height) { continue }
+      if (out_of_bounds(nx, nz)) { continue }
       if (dist[nx + nz * level_width] === d - 1) {
         x = nx
         z = nz
@@ -64,7 +70,7 @@ export function sniff_find(
     for (const [dx, dz] of neighbor_offsets) {
       const nx = target.x + dx
       const nz = target.z + dz
-      if (nx < 0 || nx >= level_width || nz < 0 || nz >= level_height) { continue }
+      if (out_of_bounds(nx, nz)) { continue }
       const n = dist[nx + nz * level_width]
       if (n === -1) { continue }
       if (d === -1 || n < d) { d = n; entry_x = nx; entry_z = nz }

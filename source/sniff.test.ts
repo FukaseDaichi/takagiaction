@@ -79,6 +79,21 @@ describe('嗅覚の残り香探索', () => {
     expect(r.path_angle).toBeCloseTo(0, 6) // 真東（通路の入口）
   })
 
+  // ループ境界の変異を殺す: 第 1 レグを 1 タイルだけにして、1 歩ずれると
+  // 別方向のセグメントに落ちる配置にする。d > 0 なら自機タイルに乗って
+  // atan2(0,0) = 0、d > 2 なら 1 歩手前で -π/4 になり、どちらも落ちる
+  it('第一歩が 1 タイルで折れる通路でも path_angle が第一歩を指す', () => {
+    const tiles = make_tiles()
+    // 自機 (5,5) → 北へ 1 歩 (5,4) → 東へ (9,4)。目標 (10,4) は壁
+    tiles[5 + 5 * level_width] = 1
+    for (let x = 5; x <= 9; x++) { tiles[x + 4 * level_width] = 1 }
+    tiles[10 + 4 * level_width] = 8
+
+    const r = sniff_find(tiles, 5, 5, [{ x: 10, z: 4 }])!
+    expect(r.dist).toBe(6) // 隣接床 (9,4) まで 5 歩 + 1
+    expect(r.path_angle).toBeCloseTo(-Math.PI / 2, 6) // 真北（第一歩）
+  })
+
   it('自機が目標に隣接していると path_angle は angle にフォールバックする', () => {
     const tiles = make_tiles()
     tiles[1 + level_width] = 1 // 自機 (1,1)

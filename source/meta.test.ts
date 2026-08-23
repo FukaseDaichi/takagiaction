@@ -6,6 +6,7 @@ import {
   meta_sniff_threshold, meta_spare_count, meta_speed_factor,
   meta_upgrade_ids, meta_upgrade_price,
 } from './meta'
+import { nicotine_edgy_ratio, nicotine_withdrawal_ratio } from './nicotine'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
 function meta_reset(): void {
@@ -126,9 +127,12 @@ describe('嗅覚の段ごとの効果', () => {
   })
 
   it('しきい値は 30% と 60% の 2 値（ニコチン段階の境界）', () => {
-    expect(meta_sniff_threshold(1)).toBeCloseTo(0.3, 6)
-    expect(meta_sniff_threshold(2)).toBeCloseTo(0.6, 6)
-    expect(meta_sniff_threshold(5)).toBeCloseTo(0.6, 6)
+    // リテラルではなく nicotine.ts の定数と比べる。この 2 値が段階境界と
+    // 同一であることが Lv1「離脱症状になったら」/ Lv2「そわそわし始めたら」の
+    // 根拠なので、境界を動かしたときにここが落ちないと嘘が残る
+    expect(meta_sniff_threshold(1)).toBeCloseTo(nicotine_withdrawal_ratio, 6)
+    expect(meta_sniff_threshold(2)).toBeCloseTo(nicotine_edgy_ratio, 6)
+    expect(meta_sniff_threshold(5)).toBeCloseTo(nicotine_edgy_ratio, 6)
   })
 
   it('1 段はゲージ 30% 以下で発動する', () => {
