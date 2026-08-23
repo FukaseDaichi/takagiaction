@@ -179,8 +179,10 @@ function minimap_draw(): void {
     const e = state.entities[i]
     const index = (e.x >> 3) + (e.z >> 3) * level_width
 
-    // 収入系は明滅させない。喫煙所のオレンジ（238,153,0）と色相が近いので、
-    // 明滅の有無が 1 ピクセルでも読める区別になる
+    // 収入系は明滅させない。明滅の有無は生存系（行き先）と収入系（機会）を分ける
+    // 印であり（「明滅は行き先を意味する」の規約をそのまま使う）、ヤニと光跡
+    // （255,220,100）の見分けは色ではなく形（光跡は自機に隣接する 3 連の
+    // ピクセル）が担う
     if (e instanceof entity_yani_t) {
       if (loot) { minimap_set_pixel(index, 215, 195, 110) }
       continue
