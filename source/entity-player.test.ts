@@ -515,6 +515,40 @@ describe('近接攻撃と持ち替え', () => {
     expect(boss.h).toBe(before - 5) // blade_damage(5) = tier
   })
 
+  // ボス（幅 14）は他 3 種（幅 9）と違って中心が entity.x/z からずれる。dx/dz を
+  // 原点の差のまま測ると、近づく向きによって中心間の実際の距離を過大／過小
+  // 評価してしまい、片側からは届いても反対側からは届かないという非対称が
+  // 出る（entity-player.ts の dx/dz のコメント参照）。最低段（reach 9.6）で
+  // 中心間距離を reach ぎりぎり内側（9）に固定したまま四方から振らせ、
+  // どの向きでも等しく届くことを固定する
+  it('最低段の刃でも、ボスには四方どこから近づいても届く', () => {
+    meta.gear.blade = 1
+    state.melee_active = 1
+    const boss_half = 7 // entity-boss.ts の boss_hitbox(14) / 2
+    // [dx の符号, dz の符号, その向きから振るための自機の向き]
+    const approaches: Array<[number, number, number]> = [
+      [1, 0, 0], // ボスは自機の +x 側
+      [-1, 0, Math.PI], // ボスは自機の -x 側（原点基準では届かなかった側）
+      [0, 1, Math.PI / 2], // ボスは自機の +z 側
+      [0, -1, -Math.PI / 2], // ボスは自機の -z 側（同上）
+    ]
+    for (const [dx_sign, dz_sign, angle] of approaches) {
+      const p = new entity_player_t(64, 0, 64, 5, 18)
+      state.entity_player = p
+      p._angle = angle
+      const player_cx = p.x + p.w / 2
+      const player_cz = p.z + p.w / 2
+      const boss = new entity_boss_t(
+        player_cx + dx_sign * 9 - boss_half, 0,
+        player_cz + dz_sign * 9 - boss_half, 0, 45,
+      )
+      const before = boss.h
+      keys[key_shoot] = 1
+      p._update()
+      expect(boss.h).toBe(before - 1) // blade_damage(1) = tier
+    }
+  })
+
   // ボスは kills のどの項にも現れない。Lv9 以上の一撃必殺（全段対象）が
   // 通ると耐久で作った戦いが丸ごと消えるため、ここが最も壊れやすい —
   // kills にボスを足すと即座に 999 ダメージが入り、このテストが失敗する

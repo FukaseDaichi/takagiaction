@@ -179,8 +179,12 @@ export class entity_player_t extends entity_t {
       const boss = e instanceof entity_boss_t
       if (!spider && !drone && !sentry && !boss) { continue }
 
-      const dx = e.x - t.x
-      const dz = e.z - t.z
+      // 中心（entity.x/z + w/2）の差で測る。原点の差のままだと w が等しい
+      // 相手（蜘蛛・清掃ドローン・セントリーはすべて既定の 9）では中心の差と
+      // 一致するので変わらないが、w が違うボス（14）だと中心が原点からずれる
+      // ぶんだけ、近づく向きによって実際の距離を過大／過小評価してしまう
+      const dx = (e.x + e.w / 2) - (t.x + t.w / 2)
+      const dz = (e.z + e.w / 2) - (t.z + t.w / 2)
       if (dx * dx + dz * dz > reach * reach) { continue }
 
       // 角度差を -π..π に畳んでから半角と比べる（生の引き算だと 2π を

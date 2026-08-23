@@ -458,8 +458,11 @@ describe('ボス', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
     const before = boss.h
-    // 判定（幅 14）の中に置いて止める。灰皿タイルは壁なので、動かすと
-    // 当たる前に _did_collide() で消える。見たいのは配線だけなので静止させる
+    // 判定（幅 14）の中に置いて止める。この座標も灰皿タイル＝壁の上なので、
+    // 弾は静止させても自分の _update() の壁判定で消える（動かしても同じ）。
+    // ただしボスは弾より先に生まれていて entities の添字が小さいため、
+    // ダメージはボス側の内側ループが弾の更新より前に当てている。見たいのは
+    // 配線だけなので、弾の生死には左右されないよう静止させて座標を単純にする
     const shot = new entity_plasma_t(boss.x + 10, 0, boss.z, 0, 26, 0)
     shot.vx = 0
     shot.vz = 0
