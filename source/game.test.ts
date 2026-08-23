@@ -70,6 +70,7 @@ vi.mock('./death-screen', () => ({
 }))
 vi.mock('./dom', () => ({ fade_el: harness.fade }))
 vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
+vi.mock('./boss-reward', () => ({ boss_reward_show: () => {} }))
 
 import { run_start } from './game'
 import { entity_t } from './entity'

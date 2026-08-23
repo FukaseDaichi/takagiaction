@@ -2,12 +2,15 @@ import { audio_play, audio_sfx_explode } from './audio'
 import {
   boss_arm_angles, boss_bullet_speed, boss_hp, boss_spin_rate, boss_volleys,
 } from './boss-model'
+import { boss_reward_show } from './boss-reward'
+import { reward_any_available } from './boss-reward-model'
 import { entity_t } from './entity'
 import { entity_container_t } from './entity-container'
 import { entity_explosion_t } from './entity-explosion'
 import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
 import { gear_roll_slot, gear_roll_tier } from './equipment'
+import { meta } from './meta'
 import { camera, push_light, push_quad } from './renderer'
 import { state } from './state'
 
@@ -156,6 +159,14 @@ export class entity_boss_t extends entity_t {
     audio_play(audio_sfx_explode, false, 0.18)
 
     drop_container(cx, cz)
+
+    if (reward_any_available(meta.levels, state.boss_levels)) {
+      boss_reward_show()
+    } else {
+      // 6 本すべてが上限。まだ意味が残っている報酬は装備の段だけなので、
+      // コンテナをもう 1 個落とす
+      drop_container(cx + 10, cz)
+    }
   }
 }
 

@@ -1,0 +1,45 @@
+/* ボス撃破の報酬ダイアログ。開封ダイアログ（#eq）と同じく、背後のフロアを
+   隠しきらない中央パネルにする — 倒した相手が残骸として見えていることが、
+   この報酬が何の対価なのかの答え合わせになる */
+#br {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #b9dcc4;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  z-index: 12;
+  user-select: none;
+}
+#br .br-box {
+  width: 34vw;
+  padding: 1.4vw 1.6vw;
+  border: 1px solid #f0932a;
+  border-radius: 0.5vw;
+  background: rgba(4, 10, 7, 0.94);
+  box-shadow: 0 0 2vw #f0932a44;
+  animation: brf 0.25s ease-out;
+}
+@keyframes brf { from { transform: scale(0.94); opacity: 0; } }
+#br .br-head { font-size: 1.1vw; text-align: center; color: #f0932a; }
+/* 効果はラン中には現れない。ここを読み落とすと報酬が壊れて見えるので、
+   見出しの直下に必ず出す */
+#br .br-sub { font-size: 0.75vw; text-align: center; opacity: 0.75; margin-bottom: 0.8vw; }
+#br .br-row {
+  display: grid;
+  grid-template-columns: 2vw 1fr auto;
+  align-items: center;
+  gap: 0.6vw;
+  padding: 0.35vw 0.5vw;
+  border: 1px solid transparent;
+  border-radius: 0.3vw;
+}
+#br .br-row.on { border-color: currentColor; background: rgba(255, 255, 255, 0.06); }
+#br .br-row.maxed { opacity: 0.35; }
+#br .br-row img { width: 2vw; }
+#br .br-name { font-size: 0.9vw; }
+#br .br-name small { display: block; font-size: 0.65vw; opacity: 0.6; color: #b9dcc4; }
+#br .br-stat { font-size: 0.8vw; white-space: nowrap; }
+#br .br-stat b { font-weight: 700; }
+#br .br-keys { margin-top: 0.8vw; text-align: center; font-size: 0.7vw; opacity: 0.7; }
