@@ -54,8 +54,8 @@ vi.mock('./minimap', () => ({ minimap_reset: () => {}, minimap_update: () => {} 
 vi.mock('./monologue', () => ({
   monologue_arrival: () => {},
   monologue_all_done: () => {},
-  monologue_boss_arrival: () => {},
-  monologue_boss_kill: () => {},
+  monologue_boss_arrival: vi.fn(),
+  monologue_boss_kill: vi.fn(),
   monologue_complete: () => {},
   monologue_death: () => {},
   monologue_drone_kill: () => {},
@@ -87,6 +87,7 @@ import { entity_yani_t } from './entity-yani'
 import * as equipment from './equipment'
 import { key_shoot, keys } from './input'
 import { meta, meta_max_level, meta_upgrade_ids } from './meta'
+import { monologue_boss_arrival, monologue_boss_kill } from './monologue'
 import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -430,12 +431,23 @@ describe('ボス', () => {
     expect(bosses.length).toBe(1)
     expect(bosses[0].h).toBe(60)
     expect(state.boss_alive).toBe(1)
+    // 到達通知はボス階側の文言で、つぶやきもボス用に分岐していること
+    expect(harness.notices[harness.notices.length - 1]).toBe(
+      '深度 5 に到達___大型作業機の稼働音を検知',
+    )
+    expect(monologue_boss_arrival).toHaveBeenCalled()
   })
 
   it('通常フロアには湧かない', () => {
     descend_to(4)
     expect(state.entities.some((e) => e instanceof entity_boss_t)).toBe(false)
     expect(state.boss_alive).toBe(0)
+    // if 側（ボス階）の分岐と対をなす防波堤。ここを崩すと分岐が入れ替わっても
+    // 気づけない（通常フロアの到達通知・つぶやきがボス用になってしまう）
+    expect(harness.notices[harness.notices.length - 1]).toBe(
+      '深度 4 に到達___喫煙所の残り香を探知中...',
+    )
+    expect(monologue_boss_arrival).not.toHaveBeenCalled()
   })
 
   // 何発が何度から出るかは boss-model.test.ts が固定する。ここで見るのは
@@ -526,6 +538,11 @@ describe('ボス', () => {
     expect(state.boss_alive).toBe(0)
     expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(false)
     expect(state.entities.filter((e) => e instanceof entity_container_t).length).toBe(1)
+    // 撃破の事実はターミナルへ、感情はつぶやきへ（docs/story.md「声の使い分け」）
+    expect(harness.notices[harness.notices.length - 1]).toBe(
+      '灰皿撤去ユニットの応答が途絶___区画の封鎖を解除',
+    )
+    expect(monologue_boss_kill).toHaveBeenCalled()
   })
 
   // コンテナの座標は撃破した boss.x/z ではなく灰皿タイルの中心（centre_x/z）で
