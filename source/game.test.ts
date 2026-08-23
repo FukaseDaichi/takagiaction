@@ -54,6 +54,7 @@ vi.mock('./monologue', () => ({
   monologue_all_done: () => {},
   monologue_complete: () => {},
   monologue_death: () => {},
+  monologue_drone_kill: () => {},
   monologue_dummy: () => {},
   monologue_interrupt: () => {},
   monologue_notify_stage: () => {},
@@ -70,10 +71,12 @@ vi.mock('./dom', () => ({ fade_el: harness.fade }))
 vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 
 import { run_start } from './game'
+import { entity_drone_t } from './entity-drone'
 import { entity_health_t } from './entity-health'
+import { entity_plasma_t } from './entity-plasma'
 import { entity_yani_t } from './entity-yani'
 import { key_shoot, keys } from './input'
-import { state } from './state'
+import { level_data, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
 // state.death_elapsed に丸め誤差が溜まらず、ビートの境界をまたぐ位置が動かない
@@ -288,5 +291,40 @@ describe('装備の入れ替え中はゲームが止まる', () => {
     state.equipping = 1
     advance(2)
     expect(state.descend_timer).toBe(0.5)
+  })
+})
+
+// 撃破ドロップはループの衝突判定を通ってはじめて成立する。エンティティ単体の
+// テスト（entity-drone.test.ts）は _receive_damage を直に呼ぶので、死体が
+// 同一フレームに残ることで起きる取り合いを捕まえられない
+describe('清掃ドローンの撃破ドロップ', () => {
+  function live_yani(): entity_yani_t[] {
+    return state.entities.filter(
+      (e): e is entity_yani_t => e instanceof entity_yani_t && !e._dead,
+    )
+  }
+
+  beforeEach(() => {
+    start_run()
+    level_data.fill(1) // 壁でプラズマが自壊しないよう全面を床にする
+  })
+
+  it('ばら撒いたヤニが撃破したドローンの死体に回収されない', () => {
+    const player = state.entity_player!
+    state.depth = 4 // 1 個あたりの価値 = 深度。合計が数と別の数字になる
+    // 自機から遠くで撃破する（近いと自機が拾って症状が隠れる）
+    const x = player.x + 200
+    const z = player.z + 200
+    const drone = new entity_drone_t(x, 0, z, 5, 39)
+    drone.h = 1
+    new entity_plasma_t(x, 0, z, 1, 26, 0)
+    const before = live_yani()
+
+    step()
+
+    expect(drone._dead).toBe(true)
+    const dropped = live_yani().filter((y) => before.indexOf(y) === -1)
+    expect(dropped.length).toBe(30)
+    expect(dropped.reduce((sum, y) => sum + y._value, 0)).toBe(120)
   })
 })

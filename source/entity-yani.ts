@@ -24,9 +24,10 @@ export class entity_yani_t extends entity_t {
       audio_play(audio_sfx_pickup)
     }
 
-    // 清掃ドローンに回収される。プレイヤーと同フレームで触れたときは
-    // 先に処理された側が取る（_dead ガードで二重には数えない）
-    else if (!this._dead && other instanceof entity_drone_t) {
+    // 清掃ドローンに回収される。プレイヤーと同フレームで触れたときは先に
+    // 処理された側が取る（死んだものを衝突ループが飛ばすので、二重には
+    // 数えない。同じ理由で、撃破されたドローンの死体は回収しない）
+    else if (other instanceof entity_drone_t) {
       this._kill()
       other._collect()
     }

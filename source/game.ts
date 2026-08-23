@@ -314,9 +314,15 @@ function game_tick(): void {
       e1._update()
 
       // check for collisions between entities - it's quadratic and nobody cares \o/
-      for (let j = i + 1; j < entities.length; j++) {
+      // フレーム途中で死んだものは当たり判定から外す。死体が entities から
+      // 消えるのはフレーム末尾なので、それまで触れ続ける。外側の _dead
+      // スキップだけでは足りない — e1 は自分の内側ループの最中に死にうる
+      // （撃破の処理が走るのは e2._check(e1) の側で、清掃ドローンのように
+      // _kill() がドロップを entities の末尾へ積むと、この j がそのまま
+      // 回ってきて自分が落としたものを死体が回収してしまう）
+      for (let j = i + 1; j < entities.length && !e1._dead; j++) {
         const e2 = entities[j]
-        if (e1 === corpse || e2 === corpse) { continue }
+        if (e2._dead || e1 === corpse || e2 === corpse) { continue }
         if (!(
           e1.x >= e2.x + 9 ||
           e1.x + 9 <= e2.x ||
