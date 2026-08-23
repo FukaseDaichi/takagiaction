@@ -206,8 +206,11 @@ export class entity_player_t extends entity_t {
       hit = true
       // 刃は弾より派手に散らす。敵側の 3〜5 個に上乗せする（数を抑えるのは
       // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）。
-      // ボスだけ entity.x/z が判定の中心からオフセットしているので、
-      // 真の中心（entity-boss.ts の boss_centre）で補正する
+      // entity.x/z が中心から + w/2 だけずれているのは全員共通（上の reach 判定
+      // と同じ）。ボスは既定の w=9（半分 4.5）より大きい w=14（半分 7 =
+      // boss_centre）で、_render() など他の場所もすでにその中心を使っているため、
+      // ここも合わせて補正する。蜘蛛・清掃ドローン・セントリーは角のまま
+      // （4.5 ぶん動かす変更にはしない）
       const px = boss ? e.x + boss_centre : e.x
       const pz = boss ? e.z + boss_centre : e.z
       spawn_particles(px, pz, 4)

@@ -146,7 +146,14 @@ export class entity_boss_t extends entity_t {
     }
     spawn_particles(cx, cz, 32)
     camera.shake = 8
+    // 単発だと蜘蛛・セントリー・清掃ドローンの撃破と同じ音になり、シェイク 8
+    // （ラン最大）に音が追いつかない。新しい音色は増やさず、既存の explode を
+    // 時間差で 3 発重ねて連続爆発に聞かせる。0.09 秒刻みはアタック＋サステイン
+    // （約 32ms）より十分後ろに置いて前の打鍵と分離させつつ、リリース
+    // （約 0.5 秒）の中に収めて重なりを保つ間隔
     audio_play(audio_sfx_explode)
+    audio_play(audio_sfx_explode, false, 0.09)
+    audio_play(audio_sfx_explode, false, 0.18)
 
     drop_container(cx, cz)
   }

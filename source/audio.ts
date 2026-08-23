@@ -122,7 +122,9 @@ export function audio_music_restore(): void {
   music_gain.gain.setValueAtTime(1, now)
 }
 
-export function audio_play(buffer: AudioBuffer | undefined, loop = false): void {
+// delay（秒）は同じ音を時間差で重ねる用途専用（entity-boss.ts の撃破音）。
+// 既定 0 なら currentTime + 0 = currentTime で、即時再生と挙動は変わらない
+export function audio_play(buffer: AudioBuffer | undefined, loop = false, delay = 0): void {
   if (!audio_unlocked) { return }
   // このガードは AudioBuffer | undefined という型を満たすためのもの。
   // 効果音は sonantxr_generate_sound が同期的にコールバックを呼ぶため
@@ -132,7 +134,7 @@ export function audio_play(buffer: AudioBuffer | undefined, loop = false): void 
   source.buffer = buffer
   source.loop = loop
   source.connect(audio_gain)
-  source.start()
+  source.start(audio_ctx.currentTime + delay)
 }
 
 export function audio_toggle(): void {
