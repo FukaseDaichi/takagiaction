@@ -71,6 +71,7 @@ vi.mock('./dom', () => ({ fade_el: harness.fade }))
 vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 
 import { run_start } from './game'
+import { entity_t } from './entity'
 import { entity_drone_t } from './entity-drone'
 import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
@@ -326,5 +327,32 @@ describe('清掃ドローンの撃破ドロップ', () => {
     const dropped = live_yani().filter((y) => before.indexOf(y) === -1)
     expect(dropped.length).toBe(30)
     expect(dropped.reduce((sum, y) => sum + y._value, 0)).toBe(120)
+  })
+})
+
+describe('衝突判定の幅', () => {
+  class probe_t extends entity_t {
+    hits = 0
+    override _check(_other: entity_t): void { this.hits++ }
+  }
+
+  beforeEach(() => { start_run() })
+
+  // フロアの外の虚空（タイル値 0）に置く。壁ではないので _collides に
+  // 引っかからず、他のエンティティとも重ならない
+  it('既定の幅 9 では 9 離れると当たらない', () => {
+    const a = new probe_t(490, 0, 490, 0, 0)
+    new probe_t(499, 0, 490, 0, 0)
+    step()
+    expect(a.hits).toBe(0)
+  })
+
+  it('幅を広げた側は広げた分だけ当たる', () => {
+    const a = new probe_t(490, 0, 490, 0, 0)
+    a.w = 14
+    const b = new probe_t(499, 0, 490, 0, 0)
+    step()
+    expect(a.hits).toBe(1)
+    expect(b.hits).toBe(1)
   })
 })

@@ -324,10 +324,10 @@ function game_tick(): void {
         const e2 = entities[j]
         if (e2._dead || e1 === corpse || e2 === corpse) { continue }
         if (!(
-          e1.x >= e2.x + 9 ||
-          e1.x + 9 <= e2.x ||
-          e1.z >= e2.z + 9 ||
-          e1.z + 9 <= e2.z
+          e1.x >= e2.x + e2.w ||
+          e1.x + e1.w <= e2.x ||
+          e1.z >= e2.z + e2.w ||
+          e1.z + e1.w <= e2.z
         )) {
           e1._check(e2)
           e2._check(e1)
