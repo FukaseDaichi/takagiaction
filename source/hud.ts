@@ -1,8 +1,10 @@
 import { minimap_canvas, sniff_el } from './dom'
 import {
   hp_reveal_idle, hp_reveal_step, hud_percent_visible, hud_spare_urgent,
+  hud_weapon_visible,
 } from './hud-model'
 import type { hp_reveal_t } from './hud-model'
+import { meta } from './meta'
 import {
   nicotine_edgy_ratio, nicotine_stage_limit, nicotine_stage_withdrawal,
   nicotine_withdrawal_ratio,
@@ -39,6 +41,7 @@ root.innerHTML =
     '<div class="meter-row">' +
       '<div class="hp"></div>' +
       '<div class="spare"></div>' +
+      '<div class="weapon"><i class="w-gun">銃</i><i class="w-blade">刃</i><b>Tab</b></div>' +
     '</div>' +
   '</div>' +
   '<div class="hud-map"><div class="hud-map-frame">' +
@@ -64,6 +67,9 @@ const cig_percent = pick('.cig-percent')
 const meter_row = pick('.meter-row')
 const hp_row = pick('.hp')
 const spare_row = pick('.spare')
+const weapon_row = pick('.weapon')
+const w_gun = pick('.w-gun')
+const w_blade = pick('.w-blade')
 const map_depth = pick('.map-depth')
 
 // ♥ は最大 HP ぶん作り置きし、点灯／消灯はクラスで切り替える
@@ -152,8 +158,18 @@ export function hud_update(stage: number): void {
     }
   }
 
-  // 両方消えたら行を畳む。左上がタバコ 1 本だけの状態に戻る
-  set_style(meter_row, 'display', hp_reveal.visible || spares > 0 ? 'flex' : 'none')
+  const weapon = hud_weapon_visible(meta.gear.blade)
+  set_style(weapon_row, 'display', weapon ? 'flex' : 'none')
+  if (weapon) {
+    set_class(w_gun, 'w-gun' + (state.melee_active ? '' : ' on'))
+    set_class(w_blade, 'w-blade' + (state.melee_active ? ' on' : ''))
+  }
+
+  // 3 つとも消えたら行を畳む。左上がタバコ 1 本だけの状態に戻る
+  set_style(
+    meter_row, 'display',
+    hp_reveal.visible || spares > 0 || weapon ? 'flex' : 'none',
+  )
 
   set_text(map_depth, 'B' + state.depth)
 }

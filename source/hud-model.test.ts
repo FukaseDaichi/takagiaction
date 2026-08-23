@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   hp_reveal_hold, hp_reveal_idle, hp_reveal_step, hud_percent_visible, hud_spare_urgent,
+  hud_weapon_visible,
 } from './hud-model'
 import {
   nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
@@ -66,5 +67,14 @@ describe('予備の一本の使いどき', () => {
     expect(hud_spare_urgent(nicotine_stage_edgy)).toBe(false)
     expect(hud_spare_urgent(nicotine_stage_withdrawal)).toBe(true)
     expect(hud_spare_urgent(nicotine_stage_limit)).toBe(true)
+  })
+})
+
+describe('武器スロット', () => {
+  // 刃物を持っていない間は持ち替える先が無い。表示されていること自体が
+  // 「持ち替えられる」の合図になるので、ラベルを持たせずに済む
+  it('刃物を持っていない間は出さない', () => {
+    expect(hud_weapon_visible(0)).toBe(false)
+    expect(hud_weapon_visible(1)).toBe(true)
   })
 })

@@ -222,3 +222,24 @@
   #hud .cig.smoking .cig-ember,
   #hud .hp.blink { animation: none; }
 }
+
+/* 武器スロット。予備の一本の行（.spare）と同じ組みにして、
+   キーキャップの位置も揃える */
+#hud .weapon { display: none; align-items: center; gap: 0.3vw; }
+#hud .weapon i {
+  font-style: normal;
+  font-size: 0.85vw;
+  line-height: 1;
+  padding: 0.2vw 0.35vw;
+  border: 1px solid #4a4a4a;
+  border-radius: 0.2vw;
+  color: #6a6a6a;
+}
+#hud .weapon i.on { border-color: #e90; color: #ffc; text-shadow: 0 0 6px #f70; }
+#hud .weapon b {
+  font-size: 0.7vw;
+  padding: 0.15vw 0.3vw;
+  border: 1px solid #4a4a4a;
+  border-radius: 0.2vw;
+  color: #8a8a8a;
+}

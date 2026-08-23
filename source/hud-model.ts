@@ -45,3 +45,10 @@ export function hp_reveal_step(
   const hold = prev.hold - dt
   return hold > 0 ? { visible: true, hold } : { visible: false, hold: 0 }
 }
+
+// 武器スロット。刃物を 1 本も持っていない間は出さない（持ち替える先が無い）。
+// 構えている側がラン中に行動を変えられる値なので、常設の除外規約
+// （所持ヤニ・撃破数などは出さない）には触れない
+export function hud_weapon_visible(blade_tier: number): boolean {
+  return blade_tier > 0
+}

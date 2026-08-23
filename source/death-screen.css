@@ -63,6 +63,11 @@
 #ds .ds-record-row img { width: 1.4vw; height: 1.4vw; }
 #ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
 
+/* position: relative は .ds-record と同じ理由（絶対配置の .ds-hero の下に
+   隠れないようにする重ね順の土台） */
+#ds .ds-gear { width: 45%; position: relative; }
+#ds .ds-gear-none { color: #5d7a68; }
+
 #ds .ds-hero {
   position: absolute;
   inset: 0;

@@ -4,6 +4,8 @@ import {
   condition_texts, death_message, format_run_time,
 } from './death-screen-model'
 import type { run_result_t } from './death-screen-model'
+import { gear_grade, gear_grades, gear_name, gear_slots } from './equipment'
+import type { gear_slot_t } from './equipment'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
   meta_power_factor, meta_spare_count, meta_speed_factor, meta_upgrade_price,
@@ -160,6 +162,21 @@ function record_row(icon: string, label: string, value: string): string {
     label + '<b>' + value + '</b></div>'
 }
 
+const gear_slot_labels: Record<gear_slot_t, string> = {
+  blade: '刃物', sole: 'ソール', patch: 'パッチ',
+}
+
+function gear_row(slot: gear_slot_t): string {
+  const tier = meta.gear[slot]
+  if (tier === 0) {
+    return '<div class="ds-record-row">' + gear_slot_labels[slot] +
+      '<b class="ds-gear-none">未所持</b></div>'
+  }
+  return '<div class="ds-record-row">' + gear_slot_labels[slot] +
+    '<b style="color:' + gear_grades[gear_grade(tier)].color + '">' +
+    gear_name(slot, tier) + '</b></div>'
+}
+
 function blocks(on: number, total: number): string {
   let html = '<span class="ds-blocks">'
   for (let i = 0; i < total; i++) {
@@ -208,6 +225,16 @@ function render(): void {
       blocks(Math.round(condition.craving_ratio * 10), 10) +
       '<b>' + (craving_percent >= 100 ? 'MAX' : craving_percent + '%') + '</b></div>' +
       '</div>' +
+      '</div>'
+  }
+
+  // 装備は死んでも持ち越すので、購入動線（右列）ではなく振り返り側に出す。
+  // 1 つも持っていないときは出さない（初回起動で「未所持 ×3」を並べても
+  // 読むものが無い）
+  if (gear_slots.some((slot) => meta.gear[slot] > 0)) {
+    left += '<div class="ds-panel ds-gear">' +
+      '<div class="ds-panel-title">装備</div>' +
+      gear_slots.map(gear_row).join('') +
       '</div>'
   }
 
