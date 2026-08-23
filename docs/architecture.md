@@ -13,12 +13,15 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `projection.ts` — ワールド座標→CSS ピクセル座標の変換。実行時 import を一切持たない、最も葉に近いモジュール。`renderer.ts` の GLSL 行列を JS 側に再現する（詳細は後述の「renderer.ts と projection.ts の定数複製」）
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
+- `entity-container.ts` — 押収品コンテナ
 - `game.ts` — ゲームループとレベル遷移
 - `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
 - `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）。実行時 import を一切持たない、最も葉に近いモジュール
 - `nicotine.ts` — ニコチンの数値ロジック。実行時 import を一切持たない、最も葉に近いモジュール
-- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル。実行時 import を一切持たず、Node でモックなしに評価できる
+- `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。実行時 import を一切持たない葉モジュールで、画像も DOM も知らない
+- `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコン 30 枚の静的 import はここが持つ。スタイルは `equip-screen.css`
+- `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル、拾った装備の段。実行時 import は `equipment.ts`（同じく葉モジュール）のみで、Node でモックなしに評価できる
 - `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・ミニマップの枠）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコは画像を使わず CSS だけで描く
 - `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
 - `monologue-model.ts` — 高木の内心の吹き出しのタイプライター状態機械とセリフ抽選。実行時 import を一切持たない、最も葉に近いモジュール
@@ -60,7 +63,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 ## 循環参照の不変条件
 
-実行時 import のグラフには 10 モジュール（entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, entity-yani, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
+実行時 import のグラフには 11 モジュール（entity-container, entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, entity-yani, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
 
 （`audio.ts` と `terminal.ts` も互いを import し合い、別に独立した 2 モジュールの循環を作っている。これも同じ理由で無害だが、どちらも `entity_t` のサブクラスを宣言しないため、上のクラスタや下の不変条件とは無関係。）
 
@@ -94,13 +97,15 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚を合わせた 15 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚、開封ダイアログ（`equip-screen.ts`）が使う装備アイコン 30 枚を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
 
 これに加えて、イントロの hero 画像（`m/hero.webp`）だけは静的 import ではなく、`index.html` の `<style>` 内の `url(m/hero.webp)` から参照する。Vite はインライン `<style>` も CSS として処理するため、この参照も静的 import と同様にビルドで解決される（ハッシュ付きで `dist/assets/` に出力され、`dist/index.html` がその URL を指す）。禁止されているのは Vite が静的に検出できない JS 側の文字列連結であって、`index.html` 内の静的な CSS 参照は使ってよい。ただし効くのは CSS として解釈される位置に限る。`m/` へのパスを `<style>` の外（属性値の文字列など）へ動かすと `dist` に出なくなる。
 
 ### 画像の形式
 
-配信する画像 15 枚は WebP のロッシー圧縮（`quality=85`）で、変換は `tools/webp.py` が行う。ロッシーにするのは、イラスト 2 枚（`m/hero.webp` と `m/ui/hero.webp`）だけで `dist` の大半を占めるうえ、ロスレス WebP では PNG の 8 割程度にしか縮まないため。品質 85 は、劣化が最も出やすい `m/ui/hero.webp` の看板の日本語とラップトップの細い赤文字で原本と差が出ない下限である。表示サイズは `background-size: cover` でほぼ等倍になるので、寸法は縮小していない。
+配信する画像 45 枚は WebP のロッシー圧縮（`quality=85`）で、変換は `tools/webp.py` が行う。ロッシーにするのは、イラスト 2 枚（`m/hero.webp` と `m/ui/hero.webp`）だけで 447KB と `dist`（約 1.2MB）の 4 割を占めるうえ、ロスレス WebP では PNG の 8 割程度にしか縮まないため。品質 85 は、劣化が最も出やすい `m/ui/hero.webp` の看板の日本語とラップトップの細い赤文字で原本と差が出ない下限である。表示サイズは `background-size: cover` でほぼ等倍になるので、寸法は縮小していない。
+
+装備アイコン 30 枚（`m/ui/gear-*.webp`）は合計 571KB（1 枚あたり約 19KB）で、`dist` の 2 番目に大きい塊になる。**ネオンの発光をアルファ付きで持つ絵は、既存アイコン（2〜13KB）ほど WebP が縮まない。** 枚数を削らないのは、品ごとに絵が違うことが開封の報酬そのものだから（docs/equipment.md「画像」）。
 
 変換元の PNG はリポジトリに残していない。イラストを差し替えるときは新しい PNG を `tools/webp.py` に通し、出力した WebP だけをコミットする。
 
@@ -108,7 +113,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ### アトラスの焼き込み
 
-喫煙所まわりのタイル（アトラス 33〜38）は `tools/atlas.py` が `m/q2.png` に焼き込む。番号が 33 から始まるのは 32 以下を既存のスプライトが使い切っているため（32 はセンチネル）。この番号は tool と `entity-smoking-area.ts` / `entity-smoke.ts` が共有する契約で、片方だけ動かすと別の絵が出る。焼き込みは元画像の左上ピクセルを背景キーとみなして近い色を透過に落とし、貼る前に貼り先を消すので、同じ入力なら何度流しても結果は同じ（冪等）。ブロックの面に使うタイルでも背景キーは効くため、四隅が透過して面取りされた輪郭になる。焼き込み元の画像はリポジトリに含めていないため、`m/q2.png` に焼き込み済みの 16×16 ピクセルが唯一の原本であり、この tool で今の絵を再生成することはできない。
+喫煙所まわりのタイル（33〜38）と押収品コンテナ（42）は `tools/atlas.py` が `m/q2.png` に焼き込む（`TILE_RANGE` は 33〜42）。番号が 33 から始まるのは 32 以下を既存のスプライトが使い切っているため（32 はセンチネル）。この番号は tool と `entity-smoking-area.ts` / `entity-smoke.ts` / `entity-sentry.ts`（コンテナの生成側）が共有する契約で、片方だけ動かすと別の絵が出る。焼き込みは元画像の左上ピクセルを背景キーとみなして近い色を透過に落とし、貼る前に貼り先を消すので、同じ入力なら何度流しても結果は同じ（冪等）。ブロックの面に使うタイルでも背景キーは効くため、四隅が透過して面取りされた輪郭になる。焼き込み元の画像はリポジトリに含めていないため、`m/q2.png` に焼き込み済みの 16×16 ピクセルが唯一の原本であり、この tool で今の絵を再生成することはできない。
 
 ## renderer.ts と projection.ts の定数複製
 

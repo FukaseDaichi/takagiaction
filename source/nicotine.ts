@@ -1,6 +1,7 @@
 // ニコチンの数値ロジック。副作用を持たず、実行時 import も持たない。
 // Node 環境（Vitest）でモックなしに評価できることがこのモジュールの条件。
-// entity-player / game / minimap / hud の四者から読まれるため、式をここに一本化する。
+// entity-player / game / minimap / hud / death-screen / monologue など複数の
+// モジュールから読まれるため、式をここに一本化する。
 
 export const nicotine_stage_normal = 0 // 100〜61%
 export const nicotine_stage_edgy = 1 // 60〜31% そわそわ

@@ -36,6 +36,7 @@ npm run dev
 | 移動 | `W` `A` `S` `D` または `↑` `←` `↓` `→` |
 | 射撃 | `スペース`（押しっぱなしで連射。押している間は向きが固定） |
 | 予備の一本 | `E` |
+| 武器の持ち替え（銃 / 刃） | `Tab`（刃物を持っているときだけ） |
 | 音声 ON / OFF | `M` |
 | ゲーム開始 | 画面をクリック |
 
@@ -49,6 +50,7 @@ npm run dev
 | [docs/gameplay.md](docs/gameplay.md) | 中核ループ、操作、ニコチンゲージ、一服、死亡シーケンス、フロア生成、HUD |
 | [docs/enemies.md](docs/enemies.md) | 敵 3 体（蜘蛛・セントリー・清掃ドローン）の役割・体数・挙動・撃破報酬 |
 | [docs/meta-progression.md](docs/meta-progression.md) | 通貨「ヤニ」、恒久強化テーブル、嗅覚、死亡画面とスコア、保存 |
+| [docs/equipment.md](docs/equipment.md) | 装備 3 系統 × 10 段、押収品コンテナ、レア度と等級、近接攻撃、品目表 |
 | [docs/story.md](docs/story.md) | ストーリーと世界観、声の使い分け、全体のトーン |
 
 読み方:
