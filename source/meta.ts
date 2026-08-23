@@ -2,6 +2,9 @@
 // 分離する。state.ts と同様に実行時依存を持たない葉モジュールで、
 // Node（Vitest）でモックなしに評価できることが条件。
 
+import { gear_max_tier, gear_slots } from './equipment'
+import type { gear_slot_t } from './equipment'
+
 export const meta_upgrade_ids =
   ['lung', 'tolerance', 'sniff', 'leg', 'power', 'spare'] as const
 export type meta_upgrade_id_t = (typeof meta_upgrade_ids)[number]
@@ -18,6 +21,9 @@ export const meta = {
   persistent: true,
   levels: { lung: 0, tolerance: 0, sniff: 0, leg: 0, power: 0, spare: 0 } as
     Record<meta_upgrade_id_t, number>,
+  // 押収品コンテナで拾った装備。系統ごとに 1 つ・段が全順序なので、
+  // 所持状態は「その系統で持っている段」の整数 1 つに還元できる（0 = 未所持）
+  gear: { blade: 0, sole: 0, patch: 0 } as Record<gear_slot_t, number>,
 }
 
 // 全トラック共通の価格曲線（15/30/55/90/135/190/255/330/415/510）。
@@ -136,12 +142,16 @@ export function meta_load(): void {
   if (!raw) { return }
   try {
     const data = JSON.parse(raw) as {
-      yani?: unknown, best_depth?: unknown, levels?: Record<string, unknown>,
+      yani?: unknown, best_depth?: unknown,
+      levels?: Record<string, unknown>, gear?: Record<string, unknown>,
     }
     meta.yani = meta_clamp_int(data.yani)
     meta.best_depth = meta_clamp_int(data.best_depth)
     for (const id of meta_upgrade_ids) {
       meta.levels[id] = Math.min(meta_clamp_int(data.levels?.[id]), meta_max_level[id])
+    }
+    for (const slot of gear_slots) {
+      meta.gear[slot] = Math.min(meta_clamp_int(data.gear?.[slot]), gear_max_tier)
     }
   } catch {
     // 壊れた保存データは捨てて初期値のまま始める
@@ -151,7 +161,8 @@ export function meta_load(): void {
 export function meta_save(): void {
   try {
     localStorage.setItem(meta_storage_key, JSON.stringify({
-      yani: meta.yani, best_depth: meta.best_depth, levels: meta.levels,
+      yani: meta.yani, best_depth: meta.best_depth,
+      levels: meta.levels, gear: meta.gear,
     }))
   } catch {
     meta.persistent = false

@@ -7,6 +7,7 @@ import {
   meta_upgrade_ids, meta_upgrade_price,
 } from './meta'
 import { nicotine_edgy_ratio, nicotine_withdrawal_ratio } from './nicotine'
+import { gear_max_tier, gear_slots } from './equipment'
 
 // meta はモジュールレベルの可変オブジェクトなので、テストごとに手で初期化する
 function meta_reset(): void {
@@ -14,6 +15,7 @@ function meta_reset(): void {
   meta.best_depth = 0
   meta.persistent = true
   for (const id of meta_upgrade_ids) { meta.levels[id] = 0 }
+  for (const slot of gear_slots) { meta.gear[slot] = 0 }
 }
 
 // Node には localStorage が無い。保存・読込のテストではスタブを差す
@@ -229,5 +231,43 @@ describe('保存と読み込み', () => {
     expect(meta.levels.sniff).toBe(5)
     expect(meta.levels.tolerance).toBe(2)
     expect(meta.levels.power).toBe(0)
+  })
+})
+
+describe('装備の持ち越し', () => {
+  beforeEach(meta_reset)
+  afterEach(() => { delete (globalThis as { localStorage?: unknown }).localStorage })
+
+  it('初期状態は 3 系統とも未所持', () => {
+    for (const slot of gear_slots) { expect(meta.gear[slot]).toBe(0) }
+  })
+
+  it('保存して読み直すと段が戻る', () => {
+    stub_storage()
+    meta.gear.blade = 7
+    meta.gear.patch = 3
+    meta_save()
+    meta_reset()
+    meta_load()
+    expect(meta.gear.blade).toBe(7)
+    expect(meta.gear.sole).toBe(0)
+    expect(meta.gear.patch).toBe(3)
+  })
+
+  it('範囲外の値は最大段に丸める', () => {
+    const store = stub_storage()
+    store.takagi_meta = JSON.stringify({ gear: { blade: 999, sole: -5, patch: 'x' } })
+    meta_load()
+    expect(meta.gear.blade).toBe(gear_max_tier)
+    expect(meta.gear.sole).toBe(0)
+    expect(meta.gear.patch).toBe(0)
+  })
+
+  it('gear を持たない古い保存データでも壊れない', () => {
+    const store = stub_storage()
+    store.takagi_meta = JSON.stringify({ yani: 40 })
+    meta_load()
+    expect(meta.yani).toBe(40)
+    for (const slot of gear_slots) { expect(meta.gear[slot]).toBe(0) }
   })
 })
