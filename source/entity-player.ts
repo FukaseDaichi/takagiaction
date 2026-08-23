@@ -4,7 +4,7 @@ import {
 } from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
-import { entity_boss_t } from './entity-boss'
+import { boss_centre, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
@@ -205,8 +205,12 @@ export class entity_player_t extends entity_t {
       e._receive_damage(t, kills ? 999 : blade_damage(tier))
       hit = true
       // 刃は弾より派手に散らす。敵側の 3〜5 個に上乗せする（数を抑えるのは
-      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）
-      spawn_particles(e, 4)
+      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）。
+      // ボスだけ entity.x/z が判定の中心からオフセットしているので、
+      // 真の中心（entity-boss.ts の boss_centre）で補正する
+      const px = boss ? e.x + boss_centre : e.x
+      const pz = boss ? e.z + boss_centre : e.z
+      spawn_particles(px, pz, 4)
       // 決めは清掃ドローンとセントリーに絞る。蜘蛛は全段が一撃で落とすので
       // （docs/equipment.md）、雑魚で出すと光りっぱなしになる
       if (kills && !spider) { finisher = true }

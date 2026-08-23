@@ -1,9 +1,13 @@
+import { audio_play, audio_sfx_explode } from './audio'
 import {
   boss_arm_angles, boss_bullet_speed, boss_hp, boss_spin_rate, boss_volleys,
 } from './boss-model'
 import { entity_t } from './entity'
+import { entity_container_t } from './entity-container'
+import { entity_explosion_t } from './entity-explosion'
 import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
+import { gear_roll_slot, gear_roll_tier } from './equipment'
 import { camera, push_light, push_quad } from './renderer'
 import { state } from './state'
 
@@ -29,7 +33,7 @@ const boss_hitbox = 14
 // [x, x+w] なので、中心は半辺のところにある。3 つが別々の中心を持つと
 // 「絵の左上に撃った弾がすり抜け、右下の素の床で当たる」ことになり、
 // w を広げた意味が消える
-const boss_centre = boss_hitbox / 2
+export const boss_centre = boss_hitbox / 2
 // 生成位置の補正。上の中心を灰皿タイル（8×8）の中心 = tile * 8 + 4 に重ねる
 // ための戻し量で、game.ts が生成時に足す
 export const boss_spawn_offset = 4 - boss_centre
@@ -107,7 +111,8 @@ export class entity_boss_t extends entity_t {
     super._receive_damage(from, amount)
     // ノックバックを受けない。据え置きの砲台であることが被弾の反応で読める
     // （docs/enemies.md「被弾のノックバックは硬さの表現である」）
-    spawn_particles(this, 3)
+    // 中心は entity.x/z から boss_centre ぶん離れている（_render() と同じ理由）
+    spawn_particles(this.x + boss_centre, this.z + boss_centre, 3)
   }
 
   override _check(other: entity_t): void {
@@ -122,6 +127,28 @@ export class entity_boss_t extends entity_t {
     super._kill()
     state.kills++
     state.boss_alive = 0
+
+    // 残弾を消す。消さないと、勝った直後に流れ弾で一服が中断され
+    // （docs/gameplay.md「一服」）、勝利の実感が濁る
+    for (const e of state.entities) {
+      if (e instanceof entity_boss_plasma_t) { e._expire() }
+    }
+
+    // 中心は entity.x/z から boss_centre ぶん離れている（_render() と同じ理由）。
+    // 撃破演出はラン中で最も大きくする。序列は 蜘蛛 1 < セントリー 3 <
+    // 銘品 4 < 自機の死 5 < 清掃ドローン 6 < ボス 8 で、docs/enemies.md の
+    // 1 本の尺度に載せる。爆発を 1 点に重ねると光が固まって「割れた」感が
+    // 出ないので、機体の周囲にずらして 5 発置く（ドローンの 3 発と同じ理屈）
+    const cx = this.x + boss_centre
+    const cz = this.z + boss_centre
+    for (const [dx, dz] of [[0, 0], [7, 4], [-7, -4], [0, 9], [0, -9]]) {
+      new entity_explosion_t(cx + dx, 0, cz + dz, 0, 26)
+    }
+    spawn_particles(cx, cz, 32)
+    camera.shake = 8
+    audio_play(audio_sfx_explode)
+
+    drop_container(cx, cz)
   }
 }
 
@@ -153,4 +180,17 @@ export class entity_boss_plasma_t extends entity_t {
       this._kill()
     }
   }
+}
+
+// 押収品コンテナを 1 個落とす。段は 2 回引いて高いほうを採る（best-of-2）。
+// 段を底上げする専用テーブルを持たせると「段の抽選は深度で重み付けられる」
+// （docs/equipment.md）が壊れる。best-of-2 なら重み付けの形はそのままで
+// 期待値だけ上がるので、深く潜るほど良い装備という関係が保たれる
+function drop_container(x: number, z: number): void {
+  const container = new entity_container_t(x, 0, z, 5, 42)
+  container._slot = gear_roll_slot(Math.random())
+  container._tier = Math.max(
+    gear_roll_tier(state.depth, Math.random()),
+    gear_roll_tier(state.depth, Math.random()),
+  )
 }

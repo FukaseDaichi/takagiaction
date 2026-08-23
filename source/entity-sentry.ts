@@ -66,7 +66,7 @@ export class entity_sentry_t extends entity_t {
     super._receive_damage(from, amount)
     this.vx = from.vx * 0.1
     this.vz = from.vz * 0.1
-    spawn_particles(this, 3)
+    spawn_particles(this.x, this.z, 3)
   }
 
   protected override _kill(): void {

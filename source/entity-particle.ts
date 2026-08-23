@@ -22,9 +22,13 @@ export class entity_particle_t extends entity_t {
 // entity.ts の _spawn_particles メソッドから移した自由関数。
 // 基底クラスが特定のサブクラスを new すると ESM の初期化時に循環して
 // TDZ エラーになるため、基底側には置けない。
-export function spawn_particles(source: entity_t, amount: number): void {
+//
+// 座標は entity ではなく x/z を直接受け取る。ボスは判定・絵の中心が
+// entity.x/z からオフセットした位置にあり（entity-boss.ts の boss_centre）、
+// entity を渡す形だと呼び出し元がそのズレを補正できない
+export function spawn_particles(x: number, z: number, amount: number): void {
   for (let i = 0; i < amount; i++) {
-    const particle = new entity_particle_t(source.x, 0, source.z, 1, 30)
+    const particle = new entity_particle_t(x, 0, z, 1, 30)
     particle.vx = (Math.random() - 0.5) * 128
     particle.vy = Math.random() * 96
     particle.vz = (Math.random() - 0.5) * 128

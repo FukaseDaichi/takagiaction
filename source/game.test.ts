@@ -74,11 +74,13 @@ vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 import { run_start } from './game'
 import { entity_t } from './entity'
 import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
+import { entity_container_t } from './entity-container'
 import { entity_drone_t } from './entity-drone'
 import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_yani_t } from './entity-yani'
+import * as equipment from './equipment'
 import { key_shoot, keys } from './input'
 import { level_data, level_height, level_width, state } from './state'
 
@@ -402,6 +404,7 @@ describe('ボス', () => {
   }
 
   beforeEach(() => { start_run() })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('ボス階でだけ湧き、耐久が深度で決まる', () => {
     descend_to(5)
@@ -492,5 +495,64 @@ describe('ボス', () => {
     player.z = smoking_area.z
     advance(0.5)
     expect(state.smoking).toBe(1)
+  })
+
+  it('撃破で残弾が消え、コンテナが必ず 1 個落ちる', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    advance(1) // 弾を出させる
+    expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(true)
+
+    boss._receive_damage(state.entity_player!, 999)
+    step()
+    expect(state.boss_alive).toBe(0)
+    expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(false)
+    expect(state.entities.filter((e) => e instanceof entity_container_t).length).toBe(1)
+  })
+
+  // コンテナの座標は撃破した boss.x/z ではなく灰皿タイルの中心（centre_x/z）で
+  // 見る。boss.x/z 自身を基準にすると、_kill() が同じズレたオフセットを
+  // そのまま使う実装でも通ってしまう
+  it('落ちたコンテナは撃破位置（灰皿タイルの中心）に立つ', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    boss._receive_damage(state.entity_player!, 999)
+    step()
+    const container = state.entities.find(
+      (e): e is entity_container_t => e instanceof entity_container_t,
+    )!
+    expect(container.x).toBe(centre_x)
+    expect(container.z).toBe(centre_z)
+  })
+
+  // 2 回とも同じ depth で引くので、gear_roll_tier を実装と差し替えて戻り値だけ
+  // 差し替える。順序を入れ替えた 2 本で「先勝ち」「後勝ち」のどちらでもないことを見る
+  it('段は 2 回引いた高いほうを採る（先の引きが高い場合）', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const roll = vi.spyOn(equipment, 'gear_roll_tier')
+    roll.mockReturnValueOnce(8).mockReturnValueOnce(3)
+
+    boss._receive_damage(state.entity_player!, 999)
+    step()
+    const container = state.entities.find(
+      (e): e is entity_container_t => e instanceof entity_container_t,
+    )!
+    expect(container._tier).toBe(8)
+    expect(roll).toHaveBeenCalledTimes(2)
+  })
+
+  it('段は 2 回引いた高いほうを採る（後の引きが高い場合）', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const roll = vi.spyOn(equipment, 'gear_roll_tier')
+    roll.mockReturnValueOnce(3).mockReturnValueOnce(8)
+
+    boss._receive_damage(state.entity_player!, 999)
+    step()
+    const container = state.entities.find(
+      (e): e is entity_container_t => e instanceof entity_container_t,
+    )!
+    expect(container._tier).toBe(8)
   })
 })
