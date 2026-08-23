@@ -4,6 +4,7 @@ import {
 } from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
+import { entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
@@ -175,7 +176,8 @@ export class entity_player_t extends entity_t {
       const spider = e instanceof entity_spider_t
       const drone = e instanceof entity_drone_t
       const sentry = e instanceof entity_sentry_t
-      if (!spider && !drone && !sentry) { continue }
+      const boss = e instanceof entity_boss_t
+      if (!spider && !drone && !sentry && !boss) { continue }
 
       const dx = e.x - t.x
       const dz = e.z - t.z
@@ -186,6 +188,9 @@ export class entity_player_t extends entity_t {
       const raw = Math.atan2(dz, dx) - t._angle
       if (Math.abs(Math.atan2(Math.sin(raw), Math.cos(raw))) > arc) { continue }
 
+      // ボスはどの項にも現れない。刃物 Lv9 以上の「硬さを無視して一撃で
+      // 落とす」がボスに効くと、耐久で作った戦いが丸ごと消える。通常の
+      // blade_damage() は通すので、刃物ビルドが締め出されることはない
       const kills =
         spider ||
         (drone && oneshot >= blade_oneshot_drone) ||

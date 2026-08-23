@@ -77,6 +77,7 @@ import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
+import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_yani_t } from './entity-yani'
 import { key_shoot, keys } from './input'
 import { level_data, level_height, level_width, state } from './state'
@@ -391,6 +392,15 @@ describe('ボス', () => {
     return probe
   }
 
+  // 喫煙所エンティティ（本物）を見つける。ボス階では灰皿と同じタイルに
+  // 立つが、当たり判定の中心はボスの補正（boss_spawn_offset）とは無関係に
+  // 別々に決まるので、接触位置は喫煙所エンティティ自身の座標から作る
+  function find_smoking_area(): entity_smoking_area_t {
+    return state.entities.find(
+      (e): e is entity_smoking_area_t => e instanceof entity_smoking_area_t && e.is_real,
+    )!
+  }
+
   beforeEach(() => { start_run() })
 
   it('ボス階でだけ湧き、耐久が深度で決まる', () => {
@@ -442,5 +452,42 @@ describe('ボス', () => {
     step()
     expect(edge.hits).toBe(1)
     expect(bare.hits).toBe(0)
+  })
+
+  it('自機のプラズマでダメージが入る', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const before = boss.h
+    // 判定（幅 14）の中に置いて止める。灰皿タイルは壁なので、動かすと
+    // 当たる前に _did_collide() で消える。見たいのは配線だけなので静止させる
+    const shot = new entity_plasma_t(boss.x + 10, 0, boss.z, 0, 26, 0)
+    shot.vx = 0
+    shot.vz = 0
+    step()
+    expect(boss.h).toBe(before - 1)
+  })
+
+  it('ボスが生きている間は一服が始まらない', () => {
+    descend_to(5)
+    const player = state.entity_player!
+    const smoking_area = find_smoking_area()
+    // 喫煙所エンティティ（幅 9）に重なる位置。灰皿タイルの脇からボスの
+    // 攻撃範囲にも入るが、見たいのは一服が始まらないことだけ
+    player.x = smoking_area.x - 4
+    player.z = smoking_area.z
+    advance(0.5)
+    expect(state.smoking).toBe(0)
+    expect(state.exit_open).toBe(0)
+  })
+
+  it('ボスを倒すと一服できる', () => {
+    descend_to(5)
+    state.boss_alive = 0
+    const player = state.entity_player!
+    const smoking_area = find_smoking_area()
+    player.x = smoking_area.x - 4
+    player.z = smoking_area.z
+    advance(0.5)
+    expect(state.smoking).toBe(1)
   })
 })

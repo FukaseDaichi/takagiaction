@@ -43,6 +43,7 @@ vi.mock('./monologue', () => ({
 }))
 
 import { entity_player_t } from './entity-player'
+import { entity_boss_t } from './entity-boss'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_sentry_t } from './entity-sentry'
 import { entity_slash_t } from './entity-slash'
@@ -501,6 +502,32 @@ describe('近接攻撃と持ち替え', () => {
     keys[key_shoot] = 1
     player._update()
     expect(sentry._dead).toBe(true)
+  })
+
+  it('薙ぎでボスにダメージが入る', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    player._angle = 0
+    const boss = new entity_boss_t(player.x + 8, 0, player.z, 0, 45)
+    const before = boss.h
+    keys[key_shoot] = 1
+    player._update()
+    expect(boss.h).toBe(before - 5) // blade_damage(5) = tier
+  })
+
+  // ボスは kills のどの項にも現れない。Lv9 以上の一撃必殺（全段対象）が
+  // 通ると耐久で作った戦いが丸ごと消えるため、ここが最も壊れやすい —
+  // kills にボスを足すと即座に 999 ダメージが入り、このテストが失敗する
+  it('Lv9 以上の刃でもボスは一撃で落ちない', () => {
+    meta.gear.blade = 9
+    state.melee_active = 1
+    player._angle = 0
+    const boss = new entity_boss_t(player.x + 8, 0, player.z, 0, 45)
+    const before = boss.h
+    keys[key_shoot] = 1
+    player._update()
+    expect(boss._dead).toBe(false)
+    expect(boss.h).toBe(before - 9) // 一撃必殺ではなく blade_damage(9) が通る
   })
 
   // 音が空振りと当たりを区別しないと、耳では常に「当たった」と言われ続ける。
