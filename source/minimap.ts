@@ -172,9 +172,9 @@ function minimap_draw(): void {
   // 消える側ではなく白く強くなる側に振るのは、1 タイル 1 ピクセルしかないため
   // 暗くすると見失うから。
   const blink = blink_timer < blink_period / 2
-  // 嗅覚 Lv5: ヤニと清掃ドローンは未探索タイルでも点灯する。しきい値は
-  // 持たない（meta.ts）が、リザルト表示中に前のランの分を映さないため
-  // game_running のガードは生存系と同じく通す
+  // 嗅覚 Lv5: ヤニ・清掃ドローン・押収品コンテナは未探索タイルでも点灯する。
+  // しきい値は持たない（meta.ts）が、リザルト表示中に前のランの分を映さない
+  // ため game_running のガードは生存系と同じく通す
   const loot = state.game_running && meta_sniff_loot()
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]

@@ -741,7 +741,7 @@ with six small light points scattered around. Main hue gold #f0c93a, no accent.
 ### 押収品コンテナ
 
 1. `container.png`（512×512、背景マゼンタ）を任意の作業ディレクトリに置く
-2. 開発者が `42.png` にリネームし、`uv run --with pillow python tools/atlas.py <そのディレクトリ>` を流して `m/q2.png` のタイル 42 に焼き込む（`tools/atlas.py` の `TILE_RANGE` は現在 33〜38 なので、42 を焼くには開発者側で範囲を広げる）
+2. 開発者が `42.png` にリネームし、`uv run --with pillow python tools/atlas.py <そのディレクトリ>` を流して `m/q2.png` のタイル 42 に焼き込む（`tools/atlas.py` の `TILE_RANGE` は既に 33〜42 なので、追加の変更は不要）
 3. 焼き込み後の 16×16 ピクセルが唯一の原本になる。元の PNG はリポジトリに含めない
 
 ### 受け入れ確認の観点

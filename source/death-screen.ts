@@ -4,7 +4,7 @@ import {
   condition_texts, death_message, format_run_time,
 } from './death-screen-model'
 import type { run_result_t } from './death-screen-model'
-import { gear_grade, gear_grades, gear_name, gear_slots } from './equipment'
+import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
 import type { gear_slot_t } from './equipment'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
@@ -68,7 +68,7 @@ const upgrade_rows: upgrade_row_t[] = [
     // その段で解放されるものの名前を出す。効果は累積で前の段の分は消えないが、
     // 行の形（現在値 → 次の段の値）はスカラー向けなので stat を「解放」にして読ませる
     value: (level) => [
-      'なし', '方向', 'ゲージ60%以下', '経路＋距離', '非常口', 'ヤニ・ドローン',
+      'なし', '方向', 'ゲージ60%以下', '経路＋距離', '非常口', 'ヤニ・ドローン・箱',
     ][level],
   },
   {
@@ -160,10 +160,6 @@ function on_key(event: KeyboardEvent): void {
 function record_row(icon: string, label: string, value: string): string {
   return '<div class="ds-record-row"><img src="' + icon + '" alt="">' +
     label + '<b>' + value + '</b></div>'
-}
-
-const gear_slot_labels: Record<gear_slot_t, string> = {
-  blade: '刃物', sole: 'ソール', patch: 'パッチ',
 }
 
 function gear_row(slot: gear_slot_t): string {

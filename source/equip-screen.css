@@ -21,14 +21,21 @@
   border-radius: 0.5vw;
   background: rgba(4, 10, 7, 0.94);
   text-align: center;
-  transition: border-color 0.25s, box-shadow 0.25s;
 }
+/* render() が root.innerHTML を丸ごと差し替えるため transition は開始値を
+   持てず一度も走らない。新しく作られた要素でもアニメーションは走る性質を
+   使い、@keyframes に置き換える。to を書かないことで、終端はインライン
+   style（等級色）にそのまま合流する。.just-revealed は三幕目の最初の描画
+   だけに付き、←→ の再描画では付かないので、フラッシュは開封の瞬間だけ走る */
+#eq .eq-box.just-revealed { animation: eqf 0.25s ease-out; }
+@keyframes eqf { from { border-color: #8a8a8a; box-shadow: 0 0 2vw #8a8a8a44; } }
 #eq .eq-head { font-size: 1vw; letter-spacing: 0.2em; color: #7fe0a8; }
 #eq .eq-wait { font-size: 1.6vw; padding: 2.4vw 0; letter-spacing: 0.1em; }
 #eq .eq-wait b { animation: eqd 1s steps(4) infinite; }
 @keyframes eqd { to { clip-path: inset(0 100% 0 0); } }
 #eq .eq-grade { font-size: 1.1vw; font-weight: bold; letter-spacing: 0.3em; margin-top: 0.6vw; }
-#eq .eq-item { animation: eqp 0.28s ease-out; }
+/* .just-revealed が無い（←→ の再描画）ときはポップインを再生しない */
+#eq .eq-item.just-revealed { animation: eqp 0.28s ease-out; }
 @keyframes eqp { from { transform: scale(0.7); opacity: 0; } }
 #eq .eq-item img { width: 8vw; height: 8vw; image-rendering: pixelated; }
 #eq .eq-name { font-size: 1.5vw; font-weight: bold; }
@@ -60,5 +67,5 @@
 #eq .eq-choice i { font-style: normal; font-size: 0.85vw; color: #7fa892; }
 #eq .eq-keys { margin-top: 0.8vw; font-size: 0.85vw; color: #6f9c80; }
 @media (prefers-reduced-motion: reduce) {
-  #eq .eq-item, #eq .eq-wait b { animation: none; }
+  #eq .eq-box.just-revealed, #eq .eq-item.just-revealed, #eq .eq-wait b { animation: none; }
 }

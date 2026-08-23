@@ -116,9 +116,9 @@ export function meta_sniff_exit(level = meta.levels.sniff): boolean {
   return level >= 4
 }
 
-// Lv5: ヤニと清掃ドローンがミニマップに点灯する。しきい値を持たないのは、
-// 追い詰められている最中に拾いに行く余裕がなく狩りの道具にならないため。
-// 中核の問いを握っているのは喫煙所への方向だけなので、常時でも触れない
+// Lv5: ヤニ・清掃ドローン・押収品コンテナがミニマップに点灯する。しきい値を
+// 持たないのは、追い詰められている最中に拾いに行く余裕がなく狩りの道具に
+// ならないため。中核の問いを握っているのは喫煙所への方向だけなので、常時でも触れない
 export function meta_sniff_loot(level = meta.levels.sniff): boolean {
   return level >= 5
 }

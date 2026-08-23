@@ -63,7 +63,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 ## 循環参照の不変条件
 
-実行時 import のグラフには 11 モジュール（entity-container, entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, entity-yani, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
+実行時 import のグラフには 7 モジュール（entity-container, entity-drone, entity-plasma, entity-player, entity-sentry, entity-spider, entity-yani）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
 
 （`audio.ts` と `terminal.ts` も互いを import し合い、別に独立した 2 モジュールの循環を作っている。これも同じ理由で無害だが、どちらも `entity_t` のサブクラスを宣言しないため、上のクラスタや下の不変条件とは無関係。）
 

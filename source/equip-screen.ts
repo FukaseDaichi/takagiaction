@@ -1,8 +1,9 @@
 import { audio_play, audio_sfx_beep, audio_sfx_door, audio_sfx_pickup } from './audio'
 import {
-  gear_grade, gear_grades, gear_name, gear_scrap_value, gear_stats,
+  gear_grade, gear_grades, gear_name, gear_scrap_value, gear_slot_labels, gear_stats,
 } from './equipment'
 import type { gear_slot_t } from './equipment'
+import { key_spare, key_swap, keys } from './input'
 import { meta, meta_save } from './meta'
 import { camera } from './renderer'
 import { state } from './state'
@@ -62,10 +63,6 @@ const gear_icons: Record<gear_slot_t, string[]> = {
   ],
 }
 
-const slot_labels: Record<gear_slot_t, string> = {
-  blade: '刃物', sole: 'ソール', patch: 'パッチ',
-}
-
 // 等級ごとの解錠のため（秒）。ためている間は等級を伏せるので、
 // ための長さそのものが等級のヒントになり、待たされている間に期待が育つ
 const grade_delay = [0.4, 0.7, 1.0, 1.3, 1.6]
@@ -74,6 +71,9 @@ let root: HTMLElement | null = null
 let slot: gear_slot_t = 'blade'
 let tier = 1
 let revealed = false
+// 三幕目（開封）の最初の描画かどうか。枠のフラッシュとポップインは開封の
+// 瞬間だけの演出なので、←→ による再描画（on_key）ではこのフラグを立てない
+let just_revealed = false
 let selected = 0 // 0 = 手元に残す、1 = 転売する
 let reveal_id: ReturnType<typeof setTimeout> = 0
 
@@ -81,9 +81,11 @@ export function equip_screen_show(next_slot: gear_slot_t, next_tier: number): vo
   slot = next_slot
   tier = next_tier
   revealed = false
+  just_revealed = false
   // 既定は「良いほうを残す」に置く。上位互換の全順序なので既定が常に正解に
-  // なるが、下位を敢えて選ぶ余地は残す（転売額は段で決まるため意味は無いが、
-  // 選べないことを説明するほうが複雑になる）
+  // なるが、下位を敢えて選ぶ余地は残す（同じ段への入れ替えなら転売額は
+  // 変わらないが、違う段では損得が生じる。それでも選べないことを説明する
+  // ほうが複雑になる）
   selected = tier > meta.gear[next_slot] ? 0 : 1
   state.equipping = 1
 
@@ -105,6 +107,7 @@ export function equip_screen_show(next_slot: gear_slot_t, next_tier: number): vo
 
 function reveal(): void {
   revealed = true
+  just_revealed = true
   audio_play(audio_sfx_pickup)
   // 銘品だけカメラシェイクを足す。序列は 蜘蛛 1 < セントリー 3 < 銘品 4 <
   // 自機の死 5 < 清掃ドローン 6 で、docs/enemies.md の 1 本の尺度に載せる
@@ -133,6 +136,11 @@ function close(keep: boolean): void {
 
   audio_play(audio_sfx_beep)
   state.equipping = 0
+  // ポーズ中も input.ts のハンドラは生きているが _update() は飛ぶので、
+  // エッジ検出のフラグ（E・Tab）だけが取り残される。ここで戻さないと、
+  // ポーズ中に押した E/Tab がダイアログを閉じた直後の 1 フレームで消費される
+  keys[key_spare] = 0
+  keys[key_swap] = 0
 
   // 操作の指示はターミナルが担い、吹き出しは高木の感情専用（docs/story.md
   // 「声の使い分け」）。ポーズが解けた後に出すことで、表示チェーンが通常の
@@ -159,8 +167,13 @@ function render(): void {
   const grade = gear_grade(tier)
   const color = revealed ? gear_grades[grade].color : '#8a8a8a'
   const owned = meta.gear[slot]
+  // 三幕目の最初の描画だけ演出クラスを付ける。新しく作られた要素でも
+  // アニメーションは走る（トランジションと違って開始値を必要としない）ので、
+  // このクラスの有無だけで「開封の瞬間だけ演出する」を実現できる
+  const flash = just_revealed ? ' just-revealed' : ''
+  just_revealed = false
 
-  let html = '<div class="eq-box" style="border-color:' + color +
+  let html = '<div class="eq-box' + flash + '" style="border-color:' + color +
     ';box-shadow:0 0 2vw ' + color + '44">' +
     '<div class="eq-head">押収品コンテナ</div>'
 
@@ -171,12 +184,12 @@ function render(): void {
 
   html += '<div class="eq-grade" style="color:' + color + '">' +
       gear_grades[grade].name + '</div>' +
-    '<div class="eq-item">' +
+    '<div class="eq-item' + flash + '">' +
       '<img src="' + gear_icons[slot][tier - 1] +
         '" alt="" style="filter:drop-shadow(0 0 0.8vw ' + color + ')">' +
       '<div class="eq-name" style="color:' + color + '">' +
         gear_name(slot, tier) + '</div>' +
-      '<div class="eq-slot">' + slot_labels[slot] + '</div>' +
+      '<div class="eq-slot">' + gear_slot_labels[slot] + '</div>' +
     '</div>' +
     '<div class="eq-stats">'
 

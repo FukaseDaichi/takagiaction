@@ -8,6 +8,12 @@
 export const gear_slots = ['blade', 'sole', 'patch'] as const
 export type gear_slot_t = (typeof gear_slots)[number]
 
+// 系統名のラベル。equip-screen.ts（開封ダイアログ）と death-screen.ts
+// （死亡画面の装備欄）の両方が表示に使う
+export const gear_slot_labels: Record<gear_slot_t, string> = {
+  blade: '刃物', sole: 'ソール', patch: 'パッチ',
+}
+
 export const gear_max_tier = 10
 
 // 品名は闇サイトの怪しい通販文体（docs/story.md「全体のトーン」）。
