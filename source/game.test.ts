@@ -79,7 +79,7 @@ import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_yani_t } from './entity-yani'
 import { key_shoot, keys } from './input'
-import { level_data, state } from './state'
+import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
 // state.death_elapsed に丸め誤差が溜まらず、ビートの境界をまたぐ位置が動かない
@@ -359,8 +359,9 @@ describe('衝突判定の幅', () => {
   })
 })
 
-// 深度 5 まで降りる。非常口の開通を待たずに次のフロアへ行けるよう、
-// 降下は state を直接触らずに game.ts の予約経路を使う
+// 目的の深度まで降りる。state.depth を直に書き換えず、非常口を開通させて
+// 降下予約（descend_timer）を積み、game_tick に next_level() を呼ばせる。
+// 一服してゲージを回復する手間なしにフロアを跨げる
 function descend_to(depth: number): void {
   while (state.depth < depth) {
     state.exit_open = 1
@@ -370,6 +371,26 @@ function descend_to(depth: number): void {
 }
 
 describe('ボス', () => {
+  // 灰皿タイル（闘技場の中心）の中心。判定・絵・銃口が共有する 1 点で、
+  // ボスの entity.x/z が中心から半辺ぶん手前にある実装とは独立に決まる
+  const centre_x = (level_width >> 1) * 8 + 4
+  const centre_z = (level_height >> 1) * 8 + 4
+
+  // 幅 0 の点で判定の縁を測る。ボス以外の接触は数えない（中央のタイルには
+  // 喫煙所のエンティティも重なっている）
+  class boss_probe_t extends entity_t {
+    hits = 0
+    override _check(other: entity_t): void {
+      if (other instanceof entity_boss_t) { this.hits++ }
+    }
+  }
+
+  function probe_at(x: number, z: number): boss_probe_t {
+    const probe = new boss_probe_t(x, 0, z, 0, 0)
+    probe.w = 0
+    return probe
+  }
+
   beforeEach(() => { start_run() })
 
   it('ボス階でだけ湧き、耐久が深度で決まる', () => {
@@ -395,12 +416,31 @@ describe('ボス', () => {
     expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(true)
   })
 
-  it('動かない', () => {
+  it('被弾しても動かず、ノックバックも受けない', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
     const { x, z } = boss
+    // 速度を持つ弾から食らわせる。セントリーは from の速度の 0.1 倍で弾かれる
+    // （docs/enemies.md）ので、止まっている相手から食らうとノックバックを
+    // 足してもこのテストが通ってしまう
+    const shot = new entity_plasma_t(boss.x + 40, 0, boss.z + 40, 1, 26, -Math.PI * 0.75)
+    boss._receive_damage(shot, 1)
+    expect(boss.vx).toBe(0)
+    expect(boss.vz).toBe(0)
     advance(2)
     expect(boss.x).toBe(x)
     expect(boss.z).toBe(z)
+  })
+
+  // 判定・絵・銃口が灰皿タイルの中心を共有していること。ずれると、絵の輪郭に
+  // 撃った弾がすり抜けて素の床で当たる（w を 14 に広げた目的そのもの）
+  it('当たり判定は絵と同じ中心を持つ', () => {
+    descend_to(5)
+    // 絵は中心 ±6（一辺 12）、判定は ±7（一辺 14）
+    const edge = probe_at(centre_x - 6, centre_z - 6) // 絵の左上の角
+    const bare = probe_at(centre_x + 8, centre_z + 8) // 絵の右下 2 外の素の床
+    step()
+    expect(edge.hits).toBe(1)
+    expect(bare.hits).toBe(0)
   })
 })

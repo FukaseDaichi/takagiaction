@@ -5,7 +5,7 @@ import {
   death_beats, death_body_y, death_drone_y, death_fade_opacity,
 } from './death-sequence-model'
 import { fade_el } from './dom'
-import { entity_boss_t } from './entity-boss'
+import { boss_spawn_offset, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
@@ -190,7 +190,12 @@ function load_level(depth: number): void {
   // ボス階だけ。灰皿と同じタイルに立つので、生きている間は自機が
   // 喫煙所に触れられない
   if (layout.boss) {
-    const boss = new entity_boss_t(layout.boss.x * 8, 0, layout.boss.z * 8, 0, 45)
+    // 生成位置をずらすのは、当たり判定・絵・銃口の中心を灰皿タイルの中心に
+    // 揃えるため（entity-boss.ts の boss_spawn_offset）
+    const boss = new entity_boss_t(
+      layout.boss.x * 8 + boss_spawn_offset, 0,
+      layout.boss.z * 8 + boss_spawn_offset, 0, 45,
+    )
     boss._spin = layout.boss_spin
     boss._arms = boss_arms(depth)
     state.boss_alive = 1
