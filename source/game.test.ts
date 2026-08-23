@@ -24,6 +24,7 @@ const harness = vi.hoisted(() => {
 
 vi.mock('./renderer', () => ({
   camera: { x: 0, y: 0, z: 0, shake: 0 },
+  push_quad: () => {},
   push_sprite: () => {},
   push_block: () => {},
   push_floor: () => {},
@@ -72,6 +73,7 @@ vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 
 import { run_start } from './game'
 import { entity_t } from './entity'
+import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
@@ -354,5 +356,51 @@ describe('衝突判定の幅', () => {
     step()
     expect(a.hits).toBe(1)
     expect(b.hits).toBe(1)
+  })
+})
+
+// 深度 5 まで降りる。非常口の開通を待たずに次のフロアへ行けるよう、
+// 降下は state を直接触らずに game.ts の予約経路を使う
+function descend_to(depth: number): void {
+  while (state.depth < depth) {
+    state.exit_open = 1
+    state.descend_timer = 0.01
+    advance(0.125)
+  }
+}
+
+describe('ボス', () => {
+  beforeEach(() => { start_run() })
+
+  it('ボス階でだけ湧き、耐久が深度で決まる', () => {
+    descend_to(5)
+    const bosses = state.entities.filter((e) => e instanceof entity_boss_t)
+    expect(bosses.length).toBe(1)
+    expect(bosses[0].h).toBe(60)
+    expect(state.boss_alive).toBe(1)
+  })
+
+  it('通常フロアには湧かない', () => {
+    descend_to(4)
+    expect(state.entities.some((e) => e instanceof entity_boss_t)).toBe(false)
+    expect(state.boss_alive).toBe(0)
+  })
+
+  // 何発が何度から出るかは boss-model.test.ts が固定する。ここで見るのは
+  // 「弾が生まれて生き残る」配線だけ — 銃口が灰皿タイルの中にあると、
+  // 生まれた次のフレームで壁判定に消される
+  it('掃射で弾を吐き、その弾が壁で即死しない', () => {
+    descend_to(5)
+    advance(1)
+    expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(true)
+  })
+
+  it('動かない', () => {
+    descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const { x, z } = boss
+    advance(2)
+    expect(boss.x).toBe(x)
+    expect(boss.z).toBe(z)
   })
 })

@@ -1,9 +1,11 @@
 import { audio_music_restore } from './audio'
+import { boss_arms } from './boss-model'
 import { death_screen_show } from './death-screen'
 import {
   death_beats, death_body_y, death_drone_y, death_fade_opacity,
 } from './death-sequence-model'
 import { fade_el } from './dom'
+import { entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
@@ -59,6 +61,7 @@ export function run_start(): void {
   state.death_elapsed = 0
   state.paused = 0
   state.melee_active = 0
+  state.boss_alive = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
@@ -120,6 +123,7 @@ function load_level(depth: number): void {
   state.entities_to_kill = []
   state.exit_open = 0
   state.smoking = 0
+  state.boss_alive = 0
   // 降下予約の解除。ラン終了中は game_tick が予約を進めないので、非常口に
   // 触れた直後に死ぬと予約が残ったままリザルトへ抜ける。ここで消さないと
   // 次のランの 1 階が数秒で勝手に降下する
@@ -182,6 +186,15 @@ function load_level(depth: number): void {
   for (const p of layout.health) { new entity_health_t(p.x * 8, 0, p.z * 8, 5, 31) }
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
   for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
+
+  // ボス階だけ。灰皿と同じタイルに立つので、生きている間は自機が
+  // 喫煙所に触れられない
+  if (layout.boss) {
+    const boss = new entity_boss_t(layout.boss.x * 8, 0, layout.boss.z * 8, 0, 45)
+    boss._spin = layout.boss_spin
+    boss._arms = boss_arms(depth)
+    state.boss_alive = 1
+  }
 
   const player = state.entity_player!
   camera.x = -player.x

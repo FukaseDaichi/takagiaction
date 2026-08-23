@@ -38,6 +38,10 @@ export const state = {
   // 跨いでは保持し、run_start() が 0 に戻す
   melee_active: 0,
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
+  // ボスが生きている間は 1。灰皿に居座っているので一服できない
+  // （entity-smoking-area.ts のガード）。load_level が立て、
+  // entity-boss の _kill() が下ろす
+  boss_alive: 0,
   // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
   // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに
   // 載せると、演出中の別の通知が terminal_cancel() で予約ごと消してしまい
