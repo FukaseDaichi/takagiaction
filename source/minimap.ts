@@ -1,7 +1,9 @@
 import { minimap_canvas, sniff_el } from './dom'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
-import { meta_sniff_active, meta_sniff_distance, meta_sniff_path } from './meta'
+import {
+  meta_sniff_active, meta_sniff_distance, meta_sniff_exit, meta_sniff_path,
+} from './meta'
 import { minimap_radius, nicotine_stage } from './nicotine'
 import { sniff_find } from './sniff'
 import type { sniff_result_t } from './sniff'
@@ -73,6 +75,16 @@ function minimap_sniff(): void {
     for (const e of state.entities) {
       // 本物もダミーも「残り香」。消費済み（吸い終わり・灰皿撤去判明）は外す
       if (e instanceof entity_smoking_area_t && !e._done) {
+        targets.push({ x: e.x >> 3, z: e.z >> 3 })
+      }
+      // 嗅覚 Lv4: 開通済みの非常口も嗅ぐ。「残り香 > 非常口」の優先順位は
+      // 分岐なしで成り立つ — 目標が空になるのは本物を吸い終えたときだけ
+      // （フロアには本物が必ず 1 つある）なので、残り香が残っている間は
+      // BFS 距離の比較で残り香が勝つ。埋まるのは「一服後に非常口を探して
+      // 歩き回り、ゲージが再び落ちた」局面で、それまで嗅覚は沈黙していた
+      else if (
+        e instanceof entity_exit_t && state.exit_open && meta_sniff_exit()
+      ) {
         targets.push({ x: e.x >> 3, z: e.z >> 3 })
       }
     }
