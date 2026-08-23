@@ -29,6 +29,8 @@ export interface level_layout_t {
   health: tile_pos_t[]
   yani: tile_pos_t[] // 床に散在する吸い殻
   drones: tile_pos_t[] // 清掃ドローン。0〜1 体
+  boss: tile_pos_t | null // ボス。ボス階（深度が 5 の倍数）以外は null
+  boss_spin: number // 砲塔の回転方向（1 / -1）。ボス階以外は 0
 }
 
 // renderer.ts の max_verts（1024*64 = 65536）から、エンティティのスプライトと
@@ -43,6 +45,18 @@ const room_count_floor = 3 // これを下回るシードは棄却して次の�
 const layout_attempts = 8
 const rng_warmup = 8 // 下の build_layout のコメントを参照
 const spawn_min_distance = 8 // 開始地点からの BFS タイル距離。ここより近くには湧かせない
+
+// ボス階（深度が 5 の倍数）の闘技場。一辺は深度で変えない — レンダラの霧が
+// smoothstep(112, 16, 深度) で切れるので、中央から端まで 88px（11 タイル）なら
+// どこに立ってもボスが見える。闘技場は相手が見えていないと成立しない。
+// 広さを深度で動かすと、掃射の間合いが深度ごとに別物になる
+export const arena_side = 23
+// 柱は中心から半径 6 タイルのリングに 45° ごと 8 本、1 本 2×2。格子状に
+// しないのは、中央のボスから見て全方向に等しく遮蔽が要るため（格子だと
+// 隅が空いて安全地帯が偏り、周回が 360° 成立しない）
+const arena_pillar_radius = 6
+const arena_pillar_count = 8
+const arena_pillar_size = 2
 
 // 深度 1 → 10 でフロアを「狭い浅層」から満寸へ開く進行度。
 // 満寸のまま浅い層を出すと、開始から非常口まで常に約 75 タイル歩かされる
@@ -238,6 +252,19 @@ export function level_vert_cost(tiles: Uint8Array): number {
   return cost
 }
 
+// 候補から重複なく取り出す。候補が尽きたら取れた分で打ち切るので、
+// 呼ぶ順序がそのまま優先度になる（docs/enemies.md「総数の内訳」）
+function take_from(spawnable: number[], count: number): tile_pos_t[] {
+  const out: tile_pos_t[] = []
+  for (let i = 0; i < count && spawnable.length > 0; i++) {
+    const pick = random_int(0, spawnable.length - 1)
+    const index = spawnable[pick]
+    spawnable.splice(pick, 1)
+    out.push({ x: index % level_width, z: (index / level_width) | 0 })
+  }
+  return out
+}
+
 function build_layout(depth: number, seed: number): level_layout_t | null {
   random_seed(seed)
 
@@ -337,32 +364,99 @@ function build_layout(depth: number, seed: number): level_layout_t | null {
     }
   }
 
-  // 候補から重複なく取り出す。候補が尽きたら取れた分で打ち切る。
-  const take = (count: number): tile_pos_t[] => {
-    const out: tile_pos_t[] = []
-    for (let i = 0; i < count && spawnable.length > 0; i++) {
-      const pick = random_int(0, spawnable.length - 1)
-      const index = spawnable[pick]
-      spawnable.splice(pick, 1)
-      out.push({ x: index % level_width, z: (index / level_width) | 0 })
-    }
-    return out
-  }
-
-  const sentries = take(sentry_count(depth))
-  const spiders = take(enemy_count(depth, floor_tiles) - sentries.length)
-  const health = take(random_int(2, 4))
-  const yani = take(random_int(1, 3)) // 床への散在: 1 フロアあたり 1〜3（設計書）
+  const sentries = take_from(spawnable, sentry_count(depth))
+  const spiders = take_from(spawnable, enemy_count(depth, floor_tiles) - sentries.length)
+  const health = take_from(spawnable, random_int(2, 4))
+  // 床への散在: 1 フロアあたり 1〜3（設計書）
+  const yani = take_from(spawnable, random_int(1, 3))
   // 清掃ドローンは「まれに」= 1/4 のフロアに 1 体。敵予算には数えない（非武装）
-  const drones = take(random_int(0, 3) === 0 ? 1 : 0)
+  const drones = take_from(spawnable, random_int(0, 3) === 0 ? 1 : 0)
 
   return {
     tiles, rooms, start, smoking_area, dummies, exit,
     spiders, sentries, health, yani, drones,
+    boss: null, boss_spin: 0,
+  }
+}
+
+export function is_boss_depth(depth: number): boolean {
+  return depth % 5 === 0
+}
+
+function build_arena(seed: number): level_layout_t {
+  random_seed(seed)
+  for (let i = 0; i < rng_warmup; i++) { random_int(0, 1) }
+
+  const tiles = new Uint8Array(level_width * level_height)
+  const cx = level_width >> 1
+  const cz = level_height >> 1
+  const half = arena_side >> 1
+  const room: room_t = { x: cx - half, z: cz - half, w: arena_side, h: arena_side }
+  carve_room(tiles, room)
+
+  // 柱は掘ったあとに床を消し、build_walls() に壁として立ててもらう。
+  // 2×2 は偶数辺なので中心タイルに対する厳密な鏡像は取れない。正方向は
+  // 中心 + r、負方向は中心 - r - 1 に頭を置くと、両側が中心をまたいで対称になる
+  for (let i = 0; i < arena_pillar_count; i++) {
+    const angle = (i * Math.PI * 2) / arena_pillar_count
+    const dx = Math.round(Math.cos(angle) * arena_pillar_radius)
+    const dz = Math.round(Math.sin(angle) * arena_pillar_radius)
+    const px = cx + (dx < 0 ? dx - arena_pillar_size + 1 : dx)
+    const pz = cz + (dz < 0 ? dz - arena_pillar_size + 1 : dz)
+    for (let z = 0; z < arena_pillar_size; z++) {
+      for (let x = 0; x < arena_pillar_size; x++) {
+        tiles[tile_index(px + x, pz + z)] = 0
+      }
+    }
+  }
+
+  build_walls(tiles)
+
+  // 隅は外周の輪郭壁から 2 タイル内側。順序を時計回りにしてあるので、
+  // +2 で必ず対角になる
+  const corners: tile_pos_t[] = [
+    { x: cx - half + 2, z: cz - half + 2 },
+    { x: cx + half - 2, z: cz - half + 2 },
+    { x: cx + half - 2, z: cz + half - 2 },
+    { x: cx - half + 2, z: cz + half - 2 },
+  ]
+  const start_corner = random_int(0, 3)
+  const start = corners[start_corner]
+  const exit = corners[(start_corner + 2) % 4]
+  const smoking_area: tile_pos_t = { x: cx, z: cz }
+  // 向きをシードで決める。固定すると間取りの暗記と同じことが起きる
+  // （docs/gameplay.md「シード方針」）
+  const boss_spin = random_int(0, 1) ? 1 : -1
+
+  // 喫煙所と非常口はブロックとして立つので当たり判定を壁にする
+  // （build_layout と同じ理由。見た目はエンティティが毎フレーム描く）
+  for (const p of [smoking_area, exit]) {
+    tiles[tile_index(p.x, p.z)] = 8
+  }
+
+  const dist = bfs_distances(tiles, start)
+  const spawnable: number[] = []
+  for (let i = 0; i < dist.length; i++) {
+    const t = tiles[i]
+    if (t > 0 && t < 8 && dist[i] >= spawn_min_distance) { spawnable.push(i) }
+  }
+
+  // ヘルスパックだけ置く。柱の陰に散るので、掃射の合間に取りに動くかが
+  // 判断になる。雑魚・ダミー・床のヤニ・清掃ドローンを置かない理由は
+  // docs/gameplay.md「ボス階」にある
+  return {
+    tiles, rooms: [room], start, smoking_area, dummies: [], exit,
+    spiders: [], sentries: [], health: take_from(spawnable, random_int(2, 4)),
+    yani: [], drones: [],
+    boss: smoking_area, boss_spin,
   }
 }
 
 export function generate_level(depth: number, seed: number): level_layout_t {
+  // 闘技場は形が決まっているので、間取りの棄却（layout_attempts）も
+  // 頂点コストの検査も要らない。床 495 + 壁 130 タイルで 6090 頂点（上限 60000）
+  if (is_boss_depth(depth)) { return build_arena(seed) }
+
   for (let attempt = 0; attempt < layout_attempts; attempt++) {
     const layout = build_layout(depth, seed + attempt * 104729)
     if (layout && level_vert_cost(layout.tiles) <= max_level_verts) {
