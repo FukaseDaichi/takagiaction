@@ -33,6 +33,9 @@ export const state = {
   // game_tick が time_elapsed を 0 にしてエンティティの更新と衝突判定を飛ばす
   // （equip-screen.ts が立てて下ろす）
   equipping: 0,
+  // 1 = 刃物を構えている（0 = 銃）。Tab で切り替わるラン状態で、フロアを
+  // 跨いでは保持し、run_start() が 0 に戻す
+  melee_active: 0,
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
   // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
   // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに

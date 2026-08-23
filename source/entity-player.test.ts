@@ -34,7 +34,9 @@ vi.mock('./monologue', () => ({
 
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
-import { key_right, key_shoot, key_spare, keys } from './input'
+import { entity_sentry_t } from './entity-sentry'
+import { entity_spider_t } from './entity-spider'
+import { key_right, key_shoot, key_spare, key_swap, keys } from './input'
 import { meta } from './meta'
 import { level_data, state } from './state'
 
@@ -376,5 +378,115 @@ describe('死亡シーケンス', () => {
     mocks.sprite_calls = 0
     for (let i = 0; i < 12; i++) { player._render() }
     expect(mocks.sprite_calls).toBe(12)
+  })
+})
+
+describe('近接攻撃と持ち替え', () => {
+  let player: entity_player_t
+
+  beforeEach(() => {
+    // 直前の「死亡シーケンス」describe の最終テストが state.dying = 1 のまま
+    // 抜けるため、他の describe と同じ一式（entities・time_elapsed・dying・
+    // player の再生成）をここでも揃える。dying を戻さないと _update() が
+    // 冒頭の早期 return で持ち替え・薙ぎの分岐に到達しない
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.dying = 0
+    meta.gear.blade = 0
+    state.melee_active = 0
+    state.game_running = 1
+    keys[key_swap] = 0
+    keys[key_shoot] = 0
+    player = new entity_player_t(64, 0, 64, 5, 18)
+    state.entity_player = player
+  })
+
+  it('刃物を持っていないと Tab を押しても持ち替わらない', () => {
+    keys[key_swap] = 1
+    player._update()
+    expect(state.melee_active).toBe(0)
+  })
+
+  it('刃物を持っていれば Tab で持ち替わる', () => {
+    meta.gear.blade = 1
+    keys[key_swap] = 1
+    player._update()
+    expect(state.melee_active).toBe(1)
+    keys[key_swap] = 1
+    player._update()
+    expect(state.melee_active).toBe(0)
+  })
+
+  // リザルト表示中もエンティティのループは回り続ける。死亡画面は Tab を
+  // 「地下へ戻る」に使うので、そちらへ横取りされないようにする
+  it('リザルト表示中は持ち替えない', () => {
+    meta.gear.blade = 5
+    state.game_running = 0
+    keys[key_swap] = 1
+    player._update()
+    expect(state.melee_active).toBe(0)
+  })
+
+  it('刃物を構えているとスペースで弾が出ない', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    keys[key_shoot] = 1
+    const before = state.entities.filter((e) => e instanceof entity_plasma_t).length
+    player._update()
+    expect(state.entities.filter((e) => e instanceof entity_plasma_t).length).toBe(before)
+  })
+
+  it('射程内の正面にいる蜘蛛は、最低段の刃物でも一撃で落ちる', () => {
+    meta.gear.blade = 1
+    state.melee_active = 1
+    player._angle = 0 // +x 方向
+    const spider = new entity_spider_t(player.x + 8, 0, player.z, 5, 27)
+    keys[key_shoot] = 1
+    player._update()
+    expect(spider._dead).toBe(true)
+  })
+
+  it('射程の外の蜘蛛には届かない', () => {
+    meta.gear.blade = 1
+    state.melee_active = 1
+    player._angle = 0
+    const spider = new entity_spider_t(player.x + 40, 0, player.z, 5, 27)
+    keys[key_shoot] = 1
+    player._update()
+    expect(spider._dead).toBe(false)
+  })
+
+  it('半角の外にいる蜘蛛には届かない', () => {
+    meta.gear.blade = 1
+    state.melee_active = 1
+    player._angle = 0 // +x を向いているのに、相手は -x 側
+    const spider = new entity_spider_t(player.x - 8, 0, player.z, 5, 27)
+    keys[key_shoot] = 1
+    player._update()
+    expect(spider._dead).toBe(false)
+  })
+
+  // 全段を一撃必殺にするとレア度に載せる軸が残らないので、対象を段で広げる
+  it('Lv8 の刃はセントリーを一撃では落とさず、段ぶんのダメージを与える', () => {
+    meta.gear.blade = 8
+    state.melee_active = 1
+    player._angle = 0
+    const sentry = new entity_sentry_t(player.x + 8, 0, player.z, 5, 24)
+    keys[key_shoot] = 1
+    player._update()
+    expect(sentry._dead).toBe(false)
+    expect(sentry.h).toBe(12) // 20 - 8
+  })
+
+  it('Lv9 の刃はセントリーも一撃で落とす', () => {
+    meta.gear.blade = 9
+    state.melee_active = 1
+    player._angle = 0
+    const sentry = new entity_sentry_t(player.x + 8, 0, player.z, 5, 24)
+    keys[key_shoot] = 1
+    player._update()
+    expect(sentry._dead).toBe(true)
   })
 })

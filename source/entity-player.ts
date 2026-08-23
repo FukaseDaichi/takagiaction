@@ -1,15 +1,23 @@
 import {
-  audio_music_death, audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot,
+  audio_music_death, audio_play, audio_sfx_beep, audio_sfx_hit, audio_sfx_hurt,
+  audio_sfx_pickup, audio_sfx_shoot,
 } from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
+import { entity_drone_t } from './entity-drone'
 import { entity_plasma_t } from './entity-plasma'
-import { sole_speed_bonus } from './equipment'
-import { key_down, key_left, key_right, key_shoot, key_spare, key_up, keys } from './input'
+import { entity_sentry_t } from './entity-sentry'
+import { entity_spider_t } from './entity-spider'
+import {
+  blade_arc, blade_damage, blade_interval, blade_oneshot_all, blade_oneshot_drone,
+  blade_oneshot_level, blade_reach, sole_speed_bonus,
+} from './equipment'
+import { key_down, key_left, key_right, key_shoot, key_spare, key_swap, key_up, keys } from './input'
 import { meta, meta_power_factor, meta_speed_factor } from './meta'
 import { monologue_death } from './monologue'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
+  swing_interval,
 } from './nicotine'
 import { camera, push_light } from './renderer'
 import { state } from './state'
@@ -82,15 +90,33 @@ export class entity_player_t extends entity_t {
       }
     }
 
+    // 持ち替え: Tab。刃物を 1 本も持っていないときは持ち替える先が無いので
+    // 無視する。game_running を見るのは、リザルト表示中もエンティティの
+    // ループが回り続けており（docs/gameplay.md）、死亡画面が Tab を
+    // 「地下へ戻る」に使っているため
+    if (keys[key_swap]) {
+      keys[key_swap] = 0
+      if (state.game_running && meta.gear.blade > 0) {
+        state.melee_active = state.melee_active ? 0 : 1
+        audio_play(audio_sfx_beep)
+      }
+    }
+
     if (!smoking && keys[key_shoot] && t._last_shot < 0) {
-      audio_play(audio_sfx_shoot)
-      // 元の実装の -0.11..+0.09 と同じ非対称さを保ったまま幅だけ広げる
-      const spread = shot_spread(stage)
-      new entity_plasma_t(
-        t.x, 0, t.z, 0, 26,
-        t._angle + Math.random() * spread - spread * 0.55,
-      )
-      t._last_shot = shot_interval(stage, meta_power_factor())
+      if (state.melee_active) {
+        audio_play(audio_sfx_hit)
+        t._swing()
+        t._last_shot = swing_interval(stage, blade_interval(meta.gear.blade))
+      } else {
+        audio_play(audio_sfx_shoot)
+        // 元の実装の -0.11..+0.09 と同じ非対称さを保ったまま幅だけ広げる
+        const spread = shot_spread(stage)
+        new entity_plasma_t(
+          t.x, 0, t.z, 0, 26,
+          t._angle + Math.random() * spread - spread * 0.55,
+        )
+        t._last_shot = shot_interval(stage, meta_power_factor())
+      }
     }
 
     super._update()
@@ -106,6 +132,51 @@ export class entity_player_t extends entity_t {
     // 見える範囲はフラグメントシェーダの霧と環境光が決めている
     const stage = nicotine_stage(state.nicotine, state.nicotine_max)
     push_light(this.x, 4, this.z + 6, 1, 0.5, 0, player_light_falloff(stage))
+  }
+
+  // 薙ぎ。振るたびに敵を 1 周する。敵は最大 100 体で振り間隔は 0.3〜0.9 秒
+  // あるので、O(n) の走査は問題にならない
+  private _swing(): void {
+    const t = this
+    const tier = meta.gear.blade
+    const reach = blade_reach(tier)
+    const arc = blade_arc(tier)
+    const oneshot = blade_oneshot_level(tier)
+
+    for (const e of state.entities) {
+      if (e._dead) { continue }
+      const spider = e instanceof entity_spider_t
+      const drone = e instanceof entity_drone_t
+      const sentry = e instanceof entity_sentry_t
+      if (!spider && !drone && !sentry) { continue }
+
+      const dx = e.x - t.x
+      const dz = e.z - t.z
+      if (dx * dx + dz * dz > reach * reach) { continue }
+
+      // 角度差を -π..π に畳んでから半角と比べる（生の引き算だと 2π を
+      // またぐ位置で符号が反転して、真正面が範囲外になる）
+      const raw = Math.atan2(dz, dx) - t._angle
+      if (Math.abs(Math.atan2(Math.sin(raw), Math.cos(raw))) > arc) { continue }
+
+      const kills =
+        spider ||
+        (drone && oneshot >= blade_oneshot_drone) ||
+        (sentry && oneshot >= blade_oneshot_all)
+      // 一撃必殺に専用の即死経路を作らない。3 体すべてに実装が要るうえ、
+      // _kill() の中のドロップ処理（ヤニ 50%、コンテナ 30%、カメラシェイク、
+      // 爆発）を通らなくなる
+      e._receive_damage(t, kills ? 999 : blade_damage(tier))
+    }
+
+    // 軌跡。弧の上に短命の白点を 3 つ置くだけで、スプライトを増やさない。
+    // 半角が広いほど点が離れるので、刃のレア度が絵でも読める
+    for (let i = -1; i <= 1; i++) {
+      const a = t._angle + arc * i
+      new entity_slash_t(
+        t.x + Math.cos(a) * reach * 0.7, 0, t.z + Math.sin(a) * reach * 0.7, 0, 26,
+      )
+    }
   }
 
   // 死＝死亡シーケンスの開始（docs/gameplay.md「死亡シーケンス」）。
@@ -148,5 +219,20 @@ export class entity_player_t extends entity_t {
       state.death_cause = death_cause_nicotine
       this._kill()
     }
+  }
+}
+
+// 薙ぎの軌跡。物理も衝突も持たない、光る白点だけの短命エンティティ
+class entity_slash_t extends entity_t {
+  private _lifetime = 0.12
+
+  override _update(): void {
+    this._lifetime -= state.time_elapsed
+    if (this._lifetime < 0) { this._kill() }
+  }
+
+  override _render(): void {
+    super._render()
+    push_light(this.x, 4, this.z + 6, 1, 1, 1, 0.2)
   }
 }

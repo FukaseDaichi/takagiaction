@@ -58,6 +58,7 @@ export function run_start(): void {
   state.dying = 0
   state.death_elapsed = 0
   state.equipping = 0
+  state.melee_active = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
