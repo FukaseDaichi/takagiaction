@@ -52,7 +52,7 @@ vi.mock('./audio', () => ({
 vi.mock('./hud', () => ({ hud_hide: () => {}, hud_show: () => {}, hud_update: () => {} }))
 vi.mock('./minimap', () => ({ minimap_reset: () => {}, minimap_update: () => {} }))
 vi.mock('./monologue', () => ({
-  monologue_arrival: () => {},
+  monologue_arrival: vi.fn(),
   monologue_all_done: () => {},
   monologue_boss_arrival: vi.fn(),
   monologue_boss_kill: vi.fn(),
@@ -87,7 +87,9 @@ import { entity_yani_t } from './entity-yani'
 import * as equipment from './equipment'
 import { key_shoot, keys } from './input'
 import { meta, meta_max_level, meta_upgrade_ids } from './meta'
-import { monologue_boss_arrival, monologue_boss_kill } from './monologue'
+import {
+  monologue_arrival, monologue_boss_arrival, monologue_boss_kill,
+} from './monologue'
 import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -448,6 +450,9 @@ describe('ボス', () => {
       '深度 4 に到達___喫煙所の残り香を探知中...',
     )
     expect(monologue_boss_arrival).not.toHaveBeenCalled()
+    // else 側（通常フロア）自身が実際に発話したことも固定する。else を丸ごと
+    // 落として何も呼ばなくても、上のアサーションだけでは気づけない
+    expect(monologue_arrival).toHaveBeenCalled()
   })
 
   // 何発が何度から出るかは boss-model.test.ts が固定する。ここで見るのは
