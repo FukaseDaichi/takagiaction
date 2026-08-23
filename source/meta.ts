@@ -67,7 +67,7 @@ export function meta_power_factor(level = meta.levels.power): number {
 
 // player_speed() に渡す移動速度係数。10 段で 1.5625（速度 128 → 200）。
 // Lv4（156.8）で清掃ドローンの逃走終端速度（150）を追い越す。素の足では
-// 追いつけないドローン狩りを解禁する投資として意図した強化（docs/gameplay.md）
+// 追いつけないドローン狩りを解禁する投資として意図した強化（docs/enemies.md）
 export function meta_speed_factor(level = meta.levels.leg): number {
   return 1 + 0.05625 * level
 }

@@ -9,7 +9,7 @@ import { state } from './state'
 // スプライトは 26（HP バーと同じ白点）を火種に見立て、専用の絵は用意しない
 export class entity_yani_t extends entity_t {
   // 1 個あたりの価値。清掃ドローンの撃破ドロップだけが 1 より大きい値を入れる
-  // （深度 × 30 を 30 個に割るため。docs/gameplay.md「清掃ドローン」）。
+  // （深度 × 30 を 30 個に割るため。docs/enemies.md「清掃ドローン」）。
   // 代入は生成後に行う — _init() は基底のフィールドにしか書けない（entity.ts）
   _value = 1
 

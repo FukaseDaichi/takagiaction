@@ -54,6 +54,10 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_clear()`（表示内容と `terminal_text_buffer` を対で戻す）を呼んでから隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
 
+## ターミナルのテキストに `_` を書かない
+
+`terminal_prepare_text()` は `_` を改行 10 個に置き換える（`text.replace(/_/g, '\n'.repeat(10))`）。表示は 1 行ごとに待ちを挟むため、`_` 1 個が約 1 秒の間になる。**間を置きたい位置に `_` を書く**のが記法であり、文中の記号として `_` を使うと意図しない長い空白が入る。効くのはターミナルに流すテキストすべて（`terminal.ts` のイントロ・ストーリーと、`terminal_show_notice()` に渡す通知）で、通知の出どころは複数モジュールに散っているため、文言を足す側が守る規則になる。
+
 ## 循環参照の不変条件
 
 実行時 import のグラフには 10 モジュール（entity-exit, entity-health, entity-plasma, entity-player, entity-sentry, entity-smoking-area, entity-spider, entity-yani, game, minimap）からなる単一の循環クラスタが存在するが、これは**許容する**。クラスタ内の循環はすべてメソッド本体からの実行時参照であり、モジュール初期化時には評価されないため。
@@ -124,12 +128,13 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 解錠済みかどうかはモジュール変数のフラグで持つ。`audio_ctx.state` を見る形は使えない: Chrome では `resume()` の直後に同期で読んでもまだ `'suspended'` のままで（実機で確認済み）、`audio_unlock()` 自身が鳴らす BGM がそこで落ちる。
 
-この結果、自動再生が許可されている環境（Media Engagement Index が高いなど）でもイントロは無音になる。クリックまで音が出ないのは README の操作説明どおりの挙動であり、環境によって鳴る／鳴らないが変わらないほうが望ましい。
+この結果、自動再生が許可されている環境（Media Engagement Index が高いなど）でもイントロは無音になる。クリックまで音が出ないのは docs/gameplay.md「操作」に書いたとおりの挙動であり、環境によって鳴る／鳴らないが変わらないほうが望ましい。
 
 ## ビルドとデプロイ
 
 - `vite.config.ts` の `base: './'` は必須。GitHub Pages のプロジェクトページは `<user>.github.io/takagiaction/` 配下で配信されるため、絶対パスでは資産を解決できない
 - リポジトリ設定の Pages → Source は「GitHub Actions」（`build_type: workflow`）でなければならない。`legacy` のままだと **CI が全ジョブ success を返したまま**未ビルドの `index.html` が直配信され、`/source/main.ts` が `video/mp2t` の MIME で返ってゲームが起動しない（実際に起きた）。デプロイの検証は CI の結果ではなく、公開 URL の `index.html` が `./assets/` のバンドルを参照していることの確認で行う
+- 4096 バイト未満の画像は Vite の既定設定でデータ URI としてバンドルに埋め込まれ、それより大きいものだけが `dist/assets/` にハッシュ付きの別ファイルとして出る。`dist/assets/` に見当たらない画像は欠けているのではなくインライン化されている（死亡画面の小さいアイコンが該当する）
 
 ## テストと localStorage
 
