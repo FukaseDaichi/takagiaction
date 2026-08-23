@@ -51,6 +51,13 @@ describe('ヤニ', () => {
     expect(yani._dead).toBe(true)
   })
 
+  it('価値を持たせたヤニは、その分だけまとめて増える', () => {
+    const yani = new entity_yani_t(64, 0, 64, 5, 26)
+    yani._value = 7
+    yani._check(player)
+    expect(state.yani_run).toBe(7)
+  })
+
   // レビュー Finding 4d: run_end() は state.yani_run を meta へ合算・保存してから
   // 抜ける。そのあとに拾わせても加算は保存に乗らず、静かに 1 本消える
   it('ラン終了後は拾えない', () => {
