@@ -149,4 +149,18 @@ describe('差分行', () => {
       }
     }
   })
+
+  // 「一撃」の rank は段そのものではなく一撃必殺の解放段（blade_oneshot_level）
+  // を使う。段 9 と段 10 はどちらも blade_oneshot_all で表示テキストが
+  // 変わらないので、rank も並んで色が付かないのが正しい
+  it('一撃の rank は解放段が同じ段どうしで並び、解放段をまたぐと上がる', () => {
+    const tier9 = gear_stats('blade', 9)[3]
+    const tier10 = gear_stats('blade', 10)[3]
+    expect(tier9.label).toBe('一撃')
+    expect(tier9.rank).toBe(tier10.rank)
+
+    const tier4 = gear_stats('blade', 4)[3]
+    const tier5 = gear_stats('blade', 5)[3]
+    expect(tier5.rank).toBeGreaterThan(tier4.rank)
+  })
 })

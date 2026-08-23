@@ -6,6 +6,7 @@ import type { gear_slot_t } from './equipment'
 import { meta, meta_save } from './meta'
 import { camera } from './renderer'
 import { state } from './state'
+import { terminal_show_notice } from './terminal'
 import './equip-screen.css'
 
 import blade_01 from '../m/ui/gear-blade-01.webp'
@@ -119,6 +120,10 @@ function close(keep: boolean): void {
   // 手元に残さなかったほうがヤニに化ける。どちらを選んでも手ぶらにならないので、
   // 開封に「無駄だった」という結果が存在しない
   const scrapped = keep ? meta.gear[slot] : tier
+  // 「初めて刃物を持った」に専用の保存フラグは持たせない。meta.gear.blade は
+  // 一度上がると 0 に戻らないので、上書き前の旧値（keep 時の scrapped と同じ値）
+  // が 0 だったことだけで「初回」が成立する
+  const first_blade = keep && slot === 'blade' && scrapped === 0
   if (keep) {
     meta.gear[slot] = tier
     meta_save()
@@ -128,6 +133,13 @@ function close(keep: boolean): void {
 
   audio_play(audio_sfx_beep)
   state.equipping = 0
+
+  // 操作の指示はターミナルが担い、吹き出しは高木の感情専用（docs/story.md
+  // 「声の使い分け」）。ポーズが解けた後に出すことで、表示チェーンが通常の
+  // 実行状態で走る
+  if (first_blade) {
+    terminal_show_notice('刃物の携行を検知___[Tab] で銃と持ち替え')
+  }
 }
 
 function on_key(event: KeyboardEvent): void {

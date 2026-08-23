@@ -205,7 +205,10 @@ export function gear_stats(slot: gear_slot_t, tier: number): gear_stat_t[] {
       { label: '射程', text: blade_reach(tier).toFixed(1), rank: blade_reach(tier) },
       { label: '振り間隔', text: interval.toFixed(2) + ' 秒', rank: -interval },
       { label: '薙ぎ半角', text: '±' + Math.round(arc * 180 / Math.PI) + '°', rank: arc },
-      { label: '一撃', text: blade_oneshot_texts[oneshot], rank: tier },
+      // rank は表示テキスト（blade_oneshot_texts[oneshot]）と同じ情報にする。
+      // tier をそのまま rank にすると、一撃対象が変わらない段（9→10 など）でも
+      // 表示が変わらないのに良化（緑）扱いになってしまう
+      { label: '一撃', text: blade_oneshot_texts[oneshot], rank: oneshot },
     ]
   }
   if (slot === 'sole') {
