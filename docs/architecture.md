@@ -5,7 +5,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 ## モジュール構成
 
 - `state.ts` — 共有可変データ。**実行時 import を一切持たない**（`import type` のみ）
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。`random.ts` と `state.ts`（定数のみ）以外の実行時 import を持たない、葉に近いモジュール
@@ -14,6 +14,9 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `renderer.ts` — WebGL。`camera` オブジェクトを公開し、頂点カウンタは内部に隠蔽
 - `entity.ts` — 基底クラス `entity_t`。サブクラスは `entity-*.ts`
 - `entity-container.ts` — 押収品コンテナ
+- `entity-slash.ts` — 薙ぎの弧。`slash-model.ts` の形を `push_quad` で積むだけの、判定を持たない絵のエンティティ
+- `slash-model.ts` — 薙ぎの弧のジオメトリ（掃引の進み具合と三日月の 4 隅）。実行時 import を一切持たない、最も葉に近いモジュール。3D の見た目を自動では確認できないため、形の性質はここでテストする
+- `screen-slash.ts` — 一撃必殺の決めの閃光（`#sl` のクラス付け替え）。CSS は `index.html` が持つ
 - `game.ts` — ゲームループとレベル遷移
 - `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
 - `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）。実行時 import は `nicotine.ts` のみで、Node でモックなしに評価できる
@@ -125,6 +128,8 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 ### アトラスの焼き込み
 
 喫煙所まわりのタイル（33〜38）と押収品コンテナ（42）は `tools/atlas.py` が `m/q2.png` に焼き込む（`TILE_RANGE` は 33〜42）。番号が 33 から始まるのは 32 以下を既存のスプライトが使い切っているため（32 はセンチネル）。この番号は tool と `entity-smoking-area.ts` / `entity-smoke.ts` / `entity-sentry.ts`（コンテナの生成側）が共有する契約で、片方だけ動かすと別の絵が出る。焼き込みは元画像の左上ピクセルを背景キーとみなして近い色を透過に落とし、貼る前に貼り先を消すので、同じ入力なら何度流しても結果は同じ（冪等）。ブロックの面に使うタイルでも背景キーは効くため、四隅が透過して面取りされた輪郭になる。焼き込み元の画像はリポジトリに含めていないため、`m/q2.png` に焼き込み済みの 16×16 ピクセルが唯一の原本であり、この tool で今の絵を再生成することはできない。
+
+薙ぎの帯（43・44）だけは別で、`tools/slash_tiles.py` が**元画像を取らずコードから生成する**。この 2 枚は絵ではなく「横方向に一様な帯」で、幅方向の色とディザ密度しか情報を持たないため、生成側が原本になる。したがってこの 2 枚は再生成できる。
 
 ## renderer.ts と projection.ts の定数複製
 

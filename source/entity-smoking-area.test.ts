@@ -44,6 +44,7 @@ vi.mock('./monologue', () => ({
   monologue_dummy: () => { mocks.monologue.push('dummy') },
   monologue_interrupt: () => { mocks.monologue.push('interrupt') },
 }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_smoke_t } from './entity-smoke'

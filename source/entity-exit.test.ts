@@ -29,6 +29,7 @@ vi.mock('./terminal', () => ({
 }))
 // entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
 vi.mock('./monologue', () => ({ monologue_death: () => {} }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_player_t } from './entity-player'

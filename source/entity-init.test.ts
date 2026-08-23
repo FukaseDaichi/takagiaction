@@ -33,6 +33,7 @@ vi.mock('./monologue', () => ({
   monologue_interrupt: () => {},
 }))
 vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'

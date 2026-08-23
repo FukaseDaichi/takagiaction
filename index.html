@@ -18,6 +18,14 @@
 		#b::after{content:'';position:absolute;left:50%;bottom:-.35vw;margin-left:-.35vw;border:.35vw solid transparent;border-bottom:0;border-top-color:#e90;}
 		#b.tr{animation:tr .12s infinite;}
 		@keyframes tr{25%{margin:-2px 0 0 1px;}75%{margin:2px 0 0 -1px;}}
+		/* 一撃必殺の決め。詳細は source/screen-slash.ts。z-index は白フェード(#wf)の下 */
+		#sl{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:19;opacity:0;}
+		#sl::before{content:'';position:absolute;left:0;top:50%;width:190%;height:2.4vw;transform:translate(-115%,-50%) rotate(-19deg);background:linear-gradient(90deg,transparent,var(--c,#fff) 16%,#fff 50%,var(--c,#fff) 84%,transparent);filter:blur(.28vw);}
+		#sl.on{animation:slf .2s linear;}
+		#sl.on::before{animation:sls .2s ease-out;}
+		@keyframes sls{from{transform:translate(-115%,-50%) rotate(-19deg);}to{transform:translate(55%,-50%) rotate(-19deg);}}
+		@keyframes slf{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
+		@media (prefers-reduced-motion: reduce){#sl{display:none;}}
 		#wf{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
 		#wf.f{animation:wfo .6s forwards;}
 		@keyframes wfo{from{opacity:1}to{opacity:0}}
@@ -32,6 +40,7 @@
 	<canvas id="m" width=64 height=64></canvas>
 	<code id="sn"></code>
 	<code id="b"></code>
+	<div id="sl"></div>
 	<div id="wf"></div>
 	<script type="module" src="/source/main.ts"></script>
 </body></html>

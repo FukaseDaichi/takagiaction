@@ -325,3 +325,39 @@ export const sound_door: SonantInstrument = {
   lfo_amt: 0,
   lfo_waveform: 0,
 }
+
+// 薙ぎの風切り音。オシレータを切ってノイズだけを鳴らし、バンドパスの
+// 中心周波数を LFO で振ることで「ヒュッ」という抜けを作る。ディレイは
+// 持たせない — 残響が付くと 0.30 秒間隔（Lv10）の連打で音が濁る。
+// 減衰は絵の 0.14 秒に合わせてある。試聴による調整はまだ行っていない
+export const sound_swing: SonantInstrument = {
+  osc1_oct: 8,
+  osc1_det: 0,
+  osc1_detune: 0,
+  osc1_xenv: 0,
+  osc1_vol: 0,
+  osc1_waveform: 0,
+  osc2_oct: 8,
+  osc2_det: 0,
+  osc2_detune: 0,
+  osc2_xenv: 0,
+  osc2_vol: 0,
+  osc2_waveform: 0,
+  noise_fader: 255,
+  env_attack: 200,
+  env_sustain: 300,
+  env_release: 5200,
+  env_master: 170,
+  fx_filter: 3,
+  fx_freq: 3200,
+  fx_resonance: 160,
+  fx_delay_time: 0,
+  fx_delay_amt: 0,
+  fx_pan_freq: 0,
+  fx_pan_amt: 0,
+  lfo_osc1_freq: 0,
+  lfo_fx_freq: 1,
+  lfo_freq: 9,
+  lfo_amt: 200,
+  lfo_waveform: 0,
+}

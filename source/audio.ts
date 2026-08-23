@@ -3,7 +3,7 @@ import { death_duration, death_tape_stop_duration } from './death-sequence-model
 import { music_dark_meat_beat } from './music-dark-meat-beat'
 import {
   sound_beep, sound_door, sound_exhale, sound_explode, sound_hit, sound_hurt,
-  sound_lighter, sound_pickup, sound_shoot, sound_terminal,
+  sound_lighter, sound_pickup, sound_shoot, sound_swing, sound_terminal,
 } from './sound-effects'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
@@ -33,6 +33,7 @@ export let audio_sfx_explode: AudioBuffer | undefined
 export let audio_sfx_lighter: AudioBuffer | undefined
 export let audio_sfx_exhale: AudioBuffer | undefined
 export let audio_sfx_door: AudioBuffer | undefined
+export let audio_sfx_swing: AudioBuffer | undefined
 
 // 自動再生ポリシーの下では、ユーザー操作より前に生成した AudioContext は
 // suspended で始まり、操作があっても自動では再開されない。suspended のまま
@@ -68,6 +69,7 @@ export function audio_init(callback: () => void): void {
   sonantxr_generate_sound(audio_ctx, sound_lighter, 160, (b) => { audio_sfx_lighter = b })
   sonantxr_generate_sound(audio_ctx, sound_exhale, 140, (b) => { audio_sfx_exhale = b })
   sonantxr_generate_sound(audio_ctx, sound_door, 110, (b) => { audio_sfx_door = b })
+  sonantxr_generate_sound(audio_ctx, sound_swing, 140, (b) => { audio_sfx_swing = b })
 }
 
 // ユーザー操作起点で AudioContext を再開し、BGM を鳴らし始める。

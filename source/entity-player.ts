@@ -1,16 +1,19 @@
 import {
   audio_music_death, audio_play, audio_sfx_beep, audio_sfx_hit, audio_sfx_hurt,
-  audio_sfx_pickup, audio_sfx_shoot,
+  audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing,
 } from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
 import { entity_drone_t } from './entity-drone'
+import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_sentry_t } from './entity-sentry'
+import { spawn_slash } from './entity-slash'
 import { entity_spider_t } from './entity-spider'
 import {
   blade_arc, blade_damage, blade_interval, blade_oneshot_all, blade_oneshot_drone,
-  blade_oneshot_level, blade_reach, sole_speed_bonus,
+  blade_oneshot_level, blade_reach, gear_grade, gear_grades, gear_lights,
+  sole_speed_bonus,
 } from './equipment'
 import { key_down, key_left, key_right, key_shoot, key_spare, key_swap, key_up, keys } from './input'
 import { meta, meta_power_factor, meta_speed_factor } from './meta'
@@ -20,8 +23,19 @@ import {
   swing_interval,
 } from './nicotine'
 import { camera, push_light } from './renderer'
+import { screen_slash } from './screen-slash'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
+
+// 振りの踏み込み量。摩擦 5 なので 1 振りで約 5px 前に出る。姿勢の表現と、
+// 敵のノックバック（from.vx）の両方をこの 1 つが担う
+const swing_lunge = 26
+
+// 弧の中心。判定は原点同士（e.x - t.x）の比較で、敵味方の当たり箱が同じ
+// 大きさなので実質は中心同士の比較になる。絵もそれに合わせて当たり箱
+// （6x4）の真ん中へ置く
+const swing_center_x = 3
+const swing_center_z = 2
 
 export class entity_player_t extends entity_t {
   // minimap.ts が自機の向きを 1px で描くために読む
@@ -29,6 +43,7 @@ export class entity_player_t extends entity_t {
 
   private _bob = 0
   private _frame = 0
+  private _swing_dir = 1
   private _last_shot = 0
   private _last_damage = 0
 
@@ -104,7 +119,6 @@ export class entity_player_t extends entity_t {
 
     if (!smoking && keys[key_shoot] && t._last_shot < 0) {
       if (state.melee_active) {
-        audio_play(audio_sfx_hit)
         t._swing()
         t._last_shot = swing_interval(stage, blade_interval(meta.gear.blade))
       } else {
@@ -142,7 +156,20 @@ export class entity_player_t extends entity_t {
     const reach = blade_reach(tier)
     const arc = blade_arc(tier)
     const oneshot = blade_oneshot_level(tier)
+    const grade = gear_grade(tier)
 
+    // 1 振りごとに掃引の向きを反転させる。右薙ぎ→左薙ぎと交互になることで、
+    // 連打が「同じ判子を押し続ける」ではなく「振り続けている」に見える
+    t._swing_dir = -t._swing_dir
+
+    // 踏み込み。判定より前に足すのが要点で、敵はノックバックを from.vx から
+    // 読むため（entity-spider.ts ほか）、これが無いと立ち止まって振ったときに
+    // 速度 0 が入り、斬った相手がその場で固定される
+    t.vx += Math.cos(t._angle) * swing_lunge
+    t.vz += Math.sin(t._angle) * swing_lunge
+
+    let hit = false
+    let finisher = false
     for (const e of state.entities) {
       if (e._dead) { continue }
       const spider = e instanceof entity_spider_t
@@ -167,16 +194,26 @@ export class entity_player_t extends entity_t {
       // _kill() の中のドロップ処理（ヤニ 50%、コンテナ 30%、カメラシェイク、
       // 爆発）を通らなくなる
       e._receive_damage(t, kills ? 999 : blade_damage(tier))
+      hit = true
+      // 刃は弾より派手に散らす。敵側の 3〜5 個に上乗せする（数を抑えるのは
+      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）
+      spawn_particles(e, 4)
+      // 決めは清掃ドローンとセントリーに絞る。蜘蛛は全段が一撃で落とすので
+      // （docs/equipment.md）、雑魚で出すと光りっぱなしになる
+      if (kills && !spider) { finisher = true }
     }
 
-    // 軌跡。弧の上に短命の白点を 3 つ置くだけで、スプライトを増やさない。
-    // 半角が広いほど点が離れるので、刃のレア度が絵でも読める
-    for (let i = -1; i <= 1; i++) {
-      const a = t._angle + arc * i
-      new entity_slash_t(
-        t.x + Math.cos(a) * reach * 0.7, 0, t.z + Math.sin(a) * reach * 0.7, 0, 26,
-      )
-    }
+    // 空振り＝風切りだけ、当たり＝風切り＋当たり、撃破＝さらに撃破音。
+    // この 3 段が耳だけで読めることが要件。無条件に当たり音を鳴らすと、耳が
+    // 常に「当たった」と言い続け、唯一重要な情報を運ばなくなる
+    audio_play(audio_sfx_swing)
+    if (hit) { audio_play(audio_sfx_hit) }
+    if (finisher) { screen_slash(gear_grades[grade].color) }
+
+    spawn_slash(
+      t.x + swing_center_x, t.z + swing_center_z,
+      t._angle, arc, reach, t._swing_dir, gear_lights[grade],
+    )
   }
 
   // 死＝死亡シーケンスの開始（docs/gameplay.md「死亡シーケンス」）。
@@ -219,20 +256,5 @@ export class entity_player_t extends entity_t {
       state.death_cause = death_cause_nicotine
       this._kill()
     }
-  }
-}
-
-// 薙ぎの軌跡。物理も衝突も持たない、光る白点だけの短命エンティティ
-class entity_slash_t extends entity_t {
-  private _lifetime = 0.12
-
-  override _update(): void {
-    this._lifetime -= state.time_elapsed
-    if (this._lifetime < 0) { this._kill() }
-  }
-
-  override _render(): void {
-    super._render()
-    push_light(this.x, 4, this.z + 6, 1, 1, 1, 0.2)
   }
 }

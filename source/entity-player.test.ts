@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
 const mocks = vi.hoisted(() => ({
   light_calls: [] as number[][],
+  audio_calls: [] as string[],
+  screen_slash_calls: [] as string[],
   sprite_calls: 0,
   camera: { x: 0, y: 0, z: 0, shake: 0 },
   music_death_calls: 0,
@@ -13,19 +15,27 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./renderer', () => ({
   push_sprite: () => { mocks.sprite_calls++ },
   push_block: () => {},
+  push_quad: () => {},
   push_light: (...args: number[]) => { mocks.light_calls.push(args) },
   camera: mocks.camera,
 }))
+// dom.ts を経由して document を触るため、Node 環境のテストでは差し替える
+vi.mock('./screen-slash', () => ({
+  screen_slash: (color: string) => { mocks.screen_slash_calls.push(color) },
+}))
+// どの音が鳴ったかを見分けるため、バッファの代わりに名前を入れておく。
+// audio_play() は受け取った値をそのまま記録する
 vi.mock('./audio', () => ({
-  audio_play: () => {},
+  audio_play: (buffer: unknown) => { mocks.audio_calls.push(buffer as string) },
   audio_toggle: () => {},
   audio_music_death: () => { mocks.music_death_calls++ },
-  audio_sfx_shoot: undefined,
-  audio_sfx_hit: undefined,
-  audio_sfx_hurt: undefined,
-  audio_sfx_beep: undefined,
-  audio_sfx_pickup: undefined,
-  audio_sfx_explode: undefined,
+  audio_sfx_shoot: 'shoot',
+  audio_sfx_hit: 'hit',
+  audio_sfx_hurt: 'hurt',
+  audio_sfx_beep: 'beep',
+  audio_sfx_pickup: 'pickup',
+  audio_sfx_explode: 'explode',
+  audio_sfx_swing: 'swing',
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 vi.mock('./monologue', () => ({
@@ -35,6 +45,7 @@ vi.mock('./monologue', () => ({
 import { entity_player_t } from './entity-player'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_sentry_t } from './entity-sentry'
+import { entity_slash_t } from './entity-slash'
 import { entity_spider_t } from './entity-spider'
 import { key_right, key_shoot, key_spare, key_swap, keys } from './input'
 import { meta } from './meta'
@@ -394,6 +405,8 @@ describe('近接攻撃と持ち替え', () => {
     state.entities_to_kill = []
     state.time_elapsed = 1 / 60
     state.dying = 0
+    mocks.audio_calls.length = 0
+    mocks.screen_slash_calls.length = 0
     meta.gear.blade = 0
     state.melee_active = 0
     state.game_running = 1
@@ -488,5 +501,88 @@ describe('近接攻撃と持ち替え', () => {
     keys[key_shoot] = 1
     player._update()
     expect(sentry._dead).toBe(true)
+  })
+
+  // 音が空振りと当たりを区別しないと、耳では常に「当たった」と言われ続ける。
+  // 刃物で唯一重要な情報が当たったかどうかなので、ここを分ける
+  it('空振りは風切り音だけで、当たり音は鳴らない', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    keys[key_shoot] = 1
+    player._update()
+    expect(mocks.audio_calls).toContain('swing')
+    expect(mocks.audio_calls).not.toContain('hit')
+  })
+
+  it('当たると風切り音に当たり音が重なる', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    player._angle = 0
+    new entity_spider_t(player.x + 8, 0, player.z, 5, 27)
+    keys[key_shoot] = 1
+    player._update()
+    expect(mocks.audio_calls).toContain('swing')
+    expect(mocks.audio_calls).toContain('hit')
+  })
+
+  // 振っても体が動かないと、判定と絵だけが出たように見える。踏み込みは
+  // 姿勢の表現と、敵のノックバック（下のテスト）の両方を兼ねる
+  it('振ると自機が向いている方向へ踏み込む', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    player._angle = 0 // +x
+    keys[key_shoot] = 1
+    player._update()
+    expect(player.vx).toBeGreaterThan(10)
+  })
+
+  // 向きが毎回同じだと、連打がまったく同じ絵の繰り返しになる
+  it('振るたびに掃引の向きが反転する', () => {
+    meta.gear.blade = 5
+    state.nicotine = state.nicotine_max // 離脱症状の 1.8 倍を挟まない
+    state.melee_active = 1
+    keys[key_shoot] = 1
+    // 振り間隔（Lv5 で 0.65 秒）を挟んで 3 回振らせる
+    for (let i = 0; i < 130; i++) { player._update() }
+    const dirs = state.entities
+      .filter((e): e is entity_slash_t => e instanceof entity_slash_t)
+      .map((e) => e._dir)
+    expect(dirs.length).toBeGreaterThanOrEqual(3)
+    for (let i = 1; i < dirs.length; i++) {
+      expect(dirs[i]).toBe(-dirs[i - 1])
+    }
+  })
+
+  // 全段が蜘蛛を一撃で落とすので、蜘蛛で光らせると出っぱなしになる
+  it('蜘蛛の一撃では画面の閃光を出さない', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    player._angle = 0
+    new entity_spider_t(player.x + 8, 0, player.z, 5, 27)
+    keys[key_shoot] = 1
+    player._update()
+    expect(mocks.screen_slash_calls).toHaveLength(0)
+  })
+
+  it('セントリーを一撃で落としたときは等級色で画面の閃光を出す', () => {
+    meta.gear.blade = 9
+    state.melee_active = 1
+    player._angle = 0
+    new entity_sentry_t(player.x + 8, 0, player.z, 5, 24)
+    keys[key_shoot] = 1
+    player._update()
+    expect(mocks.screen_slash_calls).toEqual(['#f0c93a']) // 銘品
+  })
+
+  // 敵は from.vx をノックバックに使う（entity-spider.ts ほか）。立ち止まって
+  // 振ると速度 0 が入り、斬った相手がその場で固定されていた
+  it('当たった敵は斬った方向へ押される', () => {
+    meta.gear.blade = 1 // セントリーは一撃にならないので押された結果が残る
+    state.melee_active = 1
+    player._angle = 0
+    const sentry = new entity_sentry_t(player.x + 8, 0, player.z, 5, 24)
+    keys[key_shoot] = 1
+    player._update()
+    expect(sentry.vx).toBeGreaterThan(0)
   })
 })

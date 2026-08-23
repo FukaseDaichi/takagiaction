@@ -134,7 +134,12 @@ export function renderer_end_frame(): void {
   gl.drawArrays(gl.TRIANGLES, 0, num_verts)
 }
 
-function push_quad(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, x4: number, y4: number, z4: number, nx: number, ny: number, nz: number, tile: number): void {
+// 任意の 4 隅を取る唯一のプリミティブ。push_floor / push_block / push_sprite は
+// どれもこれの薄い包みで、スプライトが billboard（回転もスケールもできない）
+// なのはここに固定の 4 隅を渡しているからにすぎない。薙ぎの弧のように向きの
+// ある板を描く側はこれを直接呼ぶ。
+// UV の割り当ては p1=(u,0) p2=(u+f,0) p3=(u,1) p4=(u+f,1) で、v=0 が画像の行 0
+export function push_quad(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, x4: number, y4: number, z4: number, nx: number, ny: number, nz: number, tile: number): void {
   const u = tile * tile_fraction + px_nudge
   buffer_data.set([
     x1, y1, z1, u, 0, nx, ny, nz,
