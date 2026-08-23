@@ -6,8 +6,7 @@ import {
 import type { run_result_t } from './death-screen-model'
 import {
   meta, meta_buy, meta_drain_factor, meta_max_level, meta_nicotine_max,
-  meta_power_factor, meta_sniff_distance, meta_sniff_threshold,
-  meta_spare_count, meta_speed_factor, meta_upgrade_price,
+  meta_power_factor, meta_spare_count, meta_speed_factor, meta_upgrade_price,
 } from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { nicotine_stage_normal, player_speed } from './nicotine'
@@ -59,11 +58,13 @@ const upgrade_rows: upgrade_row_t[] = [
   },
   {
     id: 'sniff', name: '嗅覚', icon: icon_nose_url, color: '#3af08a',
-    flavor: '利き煙草。ゲージ低下時に残り香の方向が分かる', stat: '発動',
-    value: (level) => level === 0
-      ? 'なし'
-      : 'ゲージ' + Math.round(meta_sniff_threshold(level) * 100) + '%以下' +
-        (meta_sniff_distance(level) ? '＋距離' : ''),
+    flavor: '利き煙草。段ごとに嗅げるものが増える', stat: '解放',
+    // 段ごとに別の能力が解放されるトラックなので、スカラーの「現在値」ではなく
+    // その段で解放されるものの名前を出す。効果は累積で前の段の分は消えないが、
+    // 行の形（現在値 → 次の段の値）はスカラー向けなので stat を「解放」にして読ませる
+    value: (level) => [
+      'なし', '方向', 'ゲージ60%以下', '経路＋距離', '非常口', 'ヤニ・ドローン',
+    ][level],
   },
   {
     id: 'leg', name: '脚力', icon: icon_leg_url, color: '#f0568c',
