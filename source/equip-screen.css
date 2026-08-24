@@ -40,7 +40,45 @@
 #eq .eq-item img { width: 8vw; height: 8vw; image-rendering: pixelated; }
 #eq .eq-name { font-size: 1.5vw; font-weight: bold; }
 #eq .eq-slot { font-size: 0.9vw; color: #6f9c80; }
-#eq .eq-stats { margin: 1vw 0; display: grid; gap: 0.25vw; }
+/* 判定 — 段は全順序（上位は下位の完全な上位互換）なので、差分行を読み比べる
+   前に結論が 1 語で出る。等級色は「いくらになるか」の軸で、ここは「強くなるか」
+   の軸。混ぜないために、良し悪しは差分行と同じ固定の緑と赤で出す。
+   色は .eq-verdict に 1 回だけ置き、判定語・左の帯・段メーターの差分セルが
+   currentColor で受ける */
+#eq .eq-verdict {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.9vw;
+  margin-top: 0.8vw;
+  padding: 0.5vw 0.7vw;
+  border: 1px solid rgba(46, 107, 79, 0.45);
+  border-left: 0.3vw solid currentColor;
+  border-radius: 0.3vw;
+  background: rgba(6, 20, 12, 0.7);
+  color: #b9dcc4; /* 同格。推奨がないことを、緑でも赤でもない本文色で言う */
+}
+#eq .eq-verdict.up, #eq .eq-verdict.new { color: #7fe0a8; }
+#eq .eq-verdict.down { color: #e0705f; }
+#eq .eq-verdict b { font-size: 1.15vw; letter-spacing: 0.25em; }
+#eq .eq-verdict i {
+  font-style: normal;
+  font-size: 0.9vw;
+  color: #7fa892;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 段メーター。両方が持つ段までが地の色、そこから上の差分だけが判定色。
+   塗り分けの境目が現在の装備の位置になるので、目盛りを別に描かない */
+#eq .eq-ladder { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.15vw; }
+#eq .eq-ladder span { height: 0.7vw; background: rgba(46, 107, 79, 0.16); }
+#eq .eq-ladder span.b { background: #63846f; }
+#eq .eq-ladder span.d { background: currentColor; }
+/* 開封の二拍目。品名のポップイン（0.28 秒）が終わる頃に判定が入る。
+   backwards で待ちの間は消えたまま置く */
+#eq .eq-verdict.just-revealed { animation: eqv 0.3s ease-out 0.22s backwards; }
+@keyframes eqv { from { opacity: 0; transform: translateY(0.5vw); } }
+#eq .eq-stats { margin: 0.8vw 0 1vw; display: grid; gap: 0.25vw; }
 #eq .eq-stat {
   display: grid;
   grid-template-columns: 9vw 1fr 1.6vw 1fr;
@@ -49,6 +87,14 @@
   border-bottom: 1px solid rgba(46, 107, 79, 0.35);
   padding: 0.2vw 0;
 }
+#eq .eq-stat.eq-cols {
+  border-bottom: none;
+  font-size: 0.8vw;
+  color: #6f9c80;
+  letter-spacing: 0.15em;
+  padding-bottom: 0;
+}
+#eq .eq-stat.eq-cols i, #eq .eq-stat.eq-cols b { color: #6f9c80; font-weight: normal; }
 #eq .eq-stat span { text-align: left; color: #7fa892; }
 #eq .eq-stat i { font-style: normal; color: #6f8a7a; text-align: right; }
 #eq .eq-stat em { font-style: normal; color: #4f6f5c; }
@@ -57,15 +103,38 @@
 #eq .eq-stat b.down { color: #e0705f; }
 #eq .eq-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8vw; }
 #eq .eq-choice {
+  position: relative;
   border: 1px solid #2e6b4f;
   border-radius: 0.3vw;
   padding: 0.5vw;
   background: rgba(6, 20, 12, 0.7);
 }
 #eq .eq-choice.on { border-color: #ffaa2b; background: rgba(60, 36, 4, 0.7); }
+/* 推奨札。既定のカーソルは推奨の上にあるので橙の枠と重なることが多い。
+   「どちらが得か」と「いまどちらを指しているか」が混ざらないよう、
+   カーソルは枠と地、推奨は上辺の札と、見せ方そのものを分ける。
+   地は不透明にして、またいでいる枠線を断つ */
+#eq .eq-rec {
+  position: absolute;
+  top: -0.62vw;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 0.45vw;
+  font-size: 0.72vw;
+  letter-spacing: 0.22em;
+  color: #7fe0a8;
+  background: #071710;
+  border: 1px solid #7fe0a8;
+  border-radius: 0.2vw;
+  white-space: nowrap;
+}
+/* 同格の札は緑にしない。緑は「良い」の色で、どちらでも同じことは良くも
+   悪くもない — 判定の帯が同格で本文色になるのと同じ理由 */
+#eq .eq-rec.even { color: #b9dcc4; border-color: #4f6f5c; }
 #eq .eq-choice b { display: block; font-size: 1.1vw; }
 #eq .eq-choice i { font-style: normal; font-size: 0.85vw; color: #7fa892; }
 #eq .eq-keys { margin-top: 0.8vw; font-size: 0.85vw; color: #6f9c80; }
 @media (prefers-reduced-motion: reduce) {
-  #eq .eq-box.just-revealed, #eq .eq-item.just-revealed, #eq .eq-wait b { animation: none; }
+  #eq .eq-box.just-revealed, #eq .eq-item.just-revealed, #eq .eq-wait b,
+  #eq .eq-verdict.just-revealed { animation: none; }
 }

@@ -3,8 +3,8 @@ import {
   blade_arc, blade_damage, blade_interval, blade_oneshot_all, blade_oneshot_drone,
   blade_oneshot_level, blade_oneshot_spider, blade_reach, drain_floor, gear_grade,
   gear_grades, gear_lights, gear_max_tier, gear_name, gear_roll_center,
-  gear_roll_slot, gear_roll_tier, gear_scrap_value, gear_slots, gear_stats,
-  patch_drain_bonus, sole_speed_bonus,
+  gear_recommend_keep, gear_roll_slot, gear_roll_tier, gear_scrap_value, gear_slots,
+  gear_stats, gear_verdict, gear_verdict_labels, patch_drain_bonus, sole_speed_bonus,
 } from './equipment'
 
 describe('品目表', () => {
@@ -162,5 +162,72 @@ describe('差分行', () => {
     const tier4 = gear_stats('blade', 4)[3]
     const tier5 = gear_stats('blade', 5)[3]
     expect(tier5.rank).toBeGreaterThan(tier4.rank)
+  })
+})
+
+describe('開封の判定', () => {
+  it('未所持は新規、上は強化、下は格下、並びは同格', () => {
+    expect(gear_verdict(0, 5)).toBe('new')
+    expect(gear_verdict(4, 7)).toBe('up')
+    expect(gear_verdict(8, 3)).toBe('down')
+    expect(gear_verdict(6, 6)).toBe('same')
+  })
+
+  // 判定は段だけで決まってよい。段が全順序で上位が下位の完全な上位互換だから
+  // 成り立つ性質なので、差分行の rank と食い違わないことを全組み合わせで見る
+  it('強化と判定した組は、差分行がひとつも悪化しない', () => {
+    for (const slot of gear_slots) {
+      for (let owned = 1; owned <= gear_max_tier; owned++) {
+        for (let tier = 1; tier <= gear_max_tier; tier++) {
+          const verdict = gear_verdict(owned, tier)
+          const prev = gear_stats(slot, owned)
+          const next = gear_stats(slot, tier)
+          for (let i = 0; i < next.length; i++) {
+            if (verdict === 'up') {
+              expect(next[i].rank).toBeGreaterThanOrEqual(prev[i].rank)
+            } else if (verdict === 'down') {
+              expect(next[i].rank).toBeLessThanOrEqual(prev[i].rank)
+            } else {
+              expect(next[i].rank).toBe(prev[i].rank)
+            }
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('推奨', () => {
+  it('良いほうを残す — 強化と新規は手元に、格下は転売', () => {
+    expect(gear_recommend_keep('new')).toBe(true)
+    expect(gear_recommend_keep('up')).toBe(true)
+    expect(gear_recommend_keep('down')).toBe(false)
+  })
+
+  // 同格は装備も転売額も一致するので、どちらかを勧めると嘘になる
+  it('同格は推奨を持たない', () => {
+    expect(gear_recommend_keep('same')).toBe(null)
+  })
+
+  // 推奨を持たない根拠そのもの。決めたあとの結末は（残る装備の段, 増えるヤニ）で、
+  // 入れ替えれば (この品, 旧品のヤニ)、転売すれば (旧品, この品のヤニ) になる。
+  // 2 つが完全に一致する組はちょうど同格だけ、を両向きで押さえる — 一致する組が
+  // ほかにもあれば、そこで出している推奨が嘘になる
+  it('結末が完全に一致する組は、推奨を持たない組とちょうど一致する', () => {
+    for (let owned = 0; owned <= gear_max_tier; owned++) {
+      for (let tier = 1; tier <= gear_max_tier; tier++) {
+        const identical = tier === owned &&
+          gear_scrap_value(owned) === gear_scrap_value(tier)
+        expect(gear_recommend_keep(gear_verdict(owned, tier)) === null).toBe(identical)
+      }
+    }
+  })
+})
+
+describe('判定語', () => {
+  it('4 つの判定すべてに語がある', () => {
+    for (const verdict of ['new', 'up', 'same', 'down'] as const) {
+      expect(gear_verdict_labels[verdict].length).toBeGreaterThan(0)
+    }
   })
 })
