@@ -53,18 +53,19 @@ describe('ターミナル', () => {
     vi.useRealTimers()
   })
 
-  it('通知は 1 行 100ms で打ち、戻り値の秒数どおりに隠れる', () => {
-    const duration = terminal_show_notice('行1\n行2')
+  it('通知は 1 行 100ms で打ち、打ち終わってから余韻ぶんで隠れる', () => {
+    terminal_show_notice('行1\n行2')
 
-    expect(duration).toBe((2 * normal_line_wait + notice_tail) / 1000)
     expect(mocks.el.style.opacity).toBe('1')
     expect(line_count()).toBe(1)
 
     vi.advanceTimersByTime(normal_line_wait)
     expect(line_count()).toBe(2)
 
-    // 戻り値の秒数は「隠し始めるまで」。1ms 手前ではまだ表示されている
-    vi.advanceTimersByTime(duration * 1000 - normal_line_wait - 1)
+    // 1 行につき line_wait を 1 回、打ち終わりに余韻を 1 回。
+    // 隠し始める 1ms 手前ではまだ表示されている
+    const hide_at = 2 * normal_line_wait + notice_tail
+    vi.advanceTimersByTime(hide_at - normal_line_wait - 1)
     expect(mocks.el.style.opacity).toBe('1')
     vi.advanceTimersByTime(1)
     expect(mocks.el.style.opacity).toBe('0')
@@ -88,8 +89,7 @@ describe('ターミナル', () => {
     // すべて 16ms/行・プレフィックスなしになった
     terminal_cancel()
 
-    const duration = terminal_show_notice('深度 1 に到達')
-    expect(duration).toBe((1 * normal_line_wait + notice_tail) / 1000)
+    terminal_show_notice('深度 1 に到達')
     expect(last_line().startsWith('&gt; ')).toBe(true)
   })
 

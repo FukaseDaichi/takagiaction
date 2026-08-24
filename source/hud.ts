@@ -1,7 +1,7 @@
 import { minimap_canvas, sniff_el } from './dom'
 import {
-  hp_reveal_idle, hp_reveal_step, hud_percent_visible, hud_spare_urgent,
-  hud_weapon_visible,
+  descend_seconds, hp_reveal_idle, hp_reveal_step, hud_percent_visible,
+  hud_spare_urgent, hud_weapon_visible,
 } from './hud-model'
 import type { hp_reveal_t } from './hud-model'
 import { meta } from './meta'
@@ -9,7 +9,7 @@ import {
   nicotine_edgy_ratio, nicotine_stage_limit, nicotine_stage_withdrawal,
   nicotine_withdrawal_ratio,
 } from './nicotine'
-import { player_hp_max, state } from './state'
+import { descend_duration, player_hp_max, state } from './state'
 import './hud.css'
 
 // ゲーム中の HUD。DOM オーバーレイで描く理由は docs/gameplay.md「HUD が DOM
@@ -46,7 +46,18 @@ root.innerHTML =
   '</div>' +
   '<div class="hud-map"><div class="hud-map-frame">' +
     '<div class="map-depth num"></div>' +
-  '</div></div>'
+  '</div></div>' +
+  '<div class="descend-veil"></div>' +
+  '<div class="descend">' +
+    '<div class="descend-dial">' +
+      '<div class="descend-ring"></div>' +
+      '<div class="descend-num num"></div>' +
+    '</div>' +
+    '<div class="descend-text">' +
+      '<div class="descend-label">非常口 通過</div>' +
+      '<div class="descend-route num"></div>' +
+    '</div>' +
+  '</div>'
 document.body.appendChild(root)
 
 // ミニマップの canvas と残り香は index.html の静的要素（minimap.ts が id で
@@ -71,6 +82,11 @@ const weapon_row = pick('.weapon')
 const w_gun = pick('.w-gun')
 const w_blade = pick('.w-blade')
 const map_depth = pick('.map-depth')
+const descend = pick('.descend')
+const descend_veil = pick('.descend-veil')
+const descend_ring = pick('.descend-ring')
+const descend_num = pick('.descend-num')
+const descend_route = pick('.descend-route')
 
 // ♥ は最大 HP ぶん作り置きし、点灯／消灯はクラスで切り替える
 const hp_marks: HTMLElement[] = []
@@ -172,4 +188,37 @@ export function hud_update(stage: number): void {
   )
 
   set_text(map_depth, 'B' + state.depth)
+
+  hud_update_descend()
+}
+
+// 非常口の通過カウントダウン。乗ってから降下するまでの descend_duration 秒を
+// 残り時間として出す。非常口に乗った手応えがターミナルの 1 行しかなく、
+// 「乗ったのに動かない」と読めてしまっていたのを、作動していることが一目で
+// 分かる表示に置き換えるためのもの（docs/gameplay.md「非常口」）。
+//
+// 死亡シーケンス中（state.dying）は出さない。game_tick が予約を進めないので、
+// 止まったままの数字が死亡演出に重なる。ラン終了後は #hud ごと隠れるため、
+// ここに game_running の分岐は要らない。
+function hud_update_descend(): void {
+  const visible = state.descend_timer > 0 && !state.dying
+  set_style(descend, 'display', visible ? 'flex' : 'none')
+  set_style(descend_veil, 'display', visible ? 'block' : 'none')
+  if (!visible) { return }
+
+  // リングの残量。CSS アニメーションで 3 秒かけて減らす手もあるが、ポーズ中
+  // （押収品コンテナの開封）とタブの非表示では予約が止まるのにアニメーション
+  // だけが進んでしまう。予約そのものを毎フレーム書くほうが数字と一致する
+  descend_ring.style.setProperty('--p', String(state.descend_timer / descend_duration))
+
+  const seconds = String(descend_seconds(state.descend_timer))
+  if (descend_num.textContent !== seconds) {
+    descend_num.textContent = seconds
+    // 数字が変わるたびにアニメーションを頭から流し直す。クラスが付いたままでは
+    // 再生されないので、外して強制リフローを挟んでから付け直す（毎秒 1 回）
+    descend_num.classList.remove('pop')
+    void descend_num.offsetWidth
+    descend_num.classList.add('pop')
+  }
+  set_text(descend_route, 'B' + state.depth + ' → B' + (state.depth + 1))
 }

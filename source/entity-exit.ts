@@ -1,9 +1,14 @@
 import { audio_play, audio_sfx_beep } from './audio'
 import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
-import { push_block, push_light } from './renderer'
-import { level_data, level_width, state } from './state'
+import { push_block, push_light, push_sprite } from './renderer'
+import { descend_duration, level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
+
+// アトラス上の割り当て（tools/exit_tiles.py が 47・48 に焼き込む）。
+// 床は静的ジオメトリなので game.ts が敷く（開通しても敷き直さない）。
+const tile_sign = 47
+export const tile_exit_floor = 48
 
 export class entity_exit_t extends entity_t {
   private _opened = false
@@ -22,14 +27,22 @@ export class entity_exit_t extends entity_t {
         this._opened = true
         level_data[(this.x >> 3) + (this.z >> 3) * level_width] = 1
       }
+      // 開通すると壁が消えて、床の緑の枠（tile_exit_floor）だけが残る。それだけ
+      // では俯瞰の視点で足元に隠れるので、頭上の高さに標識を浮かべる。y = 6 は
+      // 自機のビルボード（y = 0〜6）の真上で、扉の上に掲げた標識に見える位置。
+      // 自機と重ならないので、乗っている間も標識が隠れない
+      push_sprite(this.x + 1, 6, this.z + 1, tile_sign)
     } else {
       push_block(this.x, this.z, 4, 17)
     }
 
+    // 開通後は明滅しながら閉じているときより強く照らす。周期は
+    // ミニマップの明滅（1 秒）と揃えてあり、緑が脈打つのは画面でもミニマップでも
+    // 「そこが出口だ」の意味になる（docs/gameplay.md「明滅は行き先を意味する」）
     push_light(
       this.x + 4, 4, this.z + 12,
       0.2, 1.0, 0.5,
-      state.exit_open ? 0.02 + Math.sin(this._animation_time * 6) * 0.01 : 0.01,
+      state.exit_open ? 0.015 + Math.sin(this._animation_time * 6) * 0.005 : 0.01,
     )
   }
 
@@ -48,7 +61,10 @@ export class entity_exit_t extends entity_t {
       //   別の通知（E の予備の一本、M の音声トグル）が 1 つ出た
       //   だけで terminal_cancel() が予約ごと捨て、深度が進まないまま非常口も
       //   喫煙所も使用済みになってフロアが永久に詰む（レビュー Finding 1）
-      state.descend_timer = terminal_show_notice('非常口を通過___下の階へ')
+      state.descend_timer = descend_duration
+      // 行き先（下の階へ）は HUD のカウントダウンが出す。ターミナルは事実だけを
+      // 1 行で置く（docs/story.md「声の使い分け」）
+      terminal_show_notice('非常口を通過')
     }
   }
 }

@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => {
   const death_screens: unknown[] = []
   const notices: string[] = []
   const boss_rewards: unknown[] = []
+  const floors: number[][] = []
   const fade = {
     style: { opacity: '0' },
     classes: new Set<string>(),
@@ -20,7 +21,7 @@ const harness = vi.hoisted(() => {
   const globals = globalThis as Record<string, unknown>
   globals.performance = { now: () => clock.now }
   globals.requestAnimationFrame = (cb: () => void) => { pending.push(cb); return 1 }
-  return { clock, pending, death_screens, notices, boss_rewards, fade }
+  return { clock, pending, death_screens, notices, boss_rewards, floors, fade }
 })
 
 vi.mock('./renderer', () => ({
@@ -28,7 +29,7 @@ vi.mock('./renderer', () => ({
   push_quad: () => {},
   push_sprite: () => {},
   push_block: () => {},
-  push_floor: () => {},
+  push_floor: (...args: number[]) => { harness.floors.push(args) },
   push_light: () => {},
   renderer_end_frame: () => {},
   renderer_freeze_level_geometry: () => {},
@@ -80,6 +81,7 @@ import { entity_t } from './entity'
 import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_container_t } from './entity-container'
 import { entity_drone_t } from './entity-drone'
+import { entity_exit_t, tile_exit_floor } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_smoking_area_t } from './entity-smoking-area'
@@ -114,6 +116,7 @@ function start_run(): void {
   harness.death_screens.length = 0
   harness.notices.length = 0
   harness.boss_rewards.length = 0
+  harness.floors.length = 0
   // pending は空にしない。run_start() が game_tick を直接呼ぶのは初回だけで
   // （game.ts の game_started）、捨ててしまうと 2 本目以降のテストで
   // ループを回す手段が無くなる
@@ -341,6 +344,23 @@ describe('清掃ドローンの撃破ドロップ', () => {
     const dropped = live_yani().filter((y) => before.indexOf(y) === -1)
     expect(dropped.length).toBe(30)
     expect(dropped.reduce((sum, y) => sum + y._value, 0)).toBe(120)
+  })
+})
+
+// 開通した非常口は壁の描画をやめるだけなので、あとは床しか残らない。緑の枠を
+// 敷いた床がその 1 タイルを指す（docs/gameplay.md「非常口はどこにあるか」）
+describe('非常口の床', () => {
+  it('非常口のタイルだけ緑の枠の床が敷かれる', () => {
+    start_run()
+    const exit = state.entities.find((e) => e instanceof entity_exit_t)!
+    const at_exit = harness.floors.filter((f) => f[0] === exit.x && f[1] === exit.z)
+    expect(at_exit.length).toBe(1)
+    expect(at_exit[0][2]).toBe(tile_exit_floor)
+    // 他のタイルには漏れない（喫煙所・ダミーは素の床のまま）
+    const elsewhere = harness.floors.filter(
+      (f) => f[2] === tile_exit_floor && !(f[0] === exit.x && f[1] === exit.z),
+    )
+    expect(elsewhere.length).toBe(0)
   })
 })
 

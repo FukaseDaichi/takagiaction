@@ -7,7 +7,7 @@ import {
 import { fade_el } from './dom'
 import { boss_spawn_offset, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
-import { entity_exit_t } from './entity-exit'
+import { entity_exit_t, tile_exit_floor } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
 import { entity_sentry_t } from './entity-sentry'
@@ -149,6 +149,7 @@ function load_level(depth: number): void {
     [layout.smoking_area, layout.exit, ...layout.dummies]
       .map((p) => p.x + p.z * level_width),
   )
+  const exit_index = layout.exit.x + layout.exit.z * level_width
 
   for (let z = 0; z < level_height; z++) {
     for (let x = 0; x < level_width; x++) {
@@ -160,8 +161,12 @@ function load_level(depth: number): void {
       // そのタイルだけ背景の黒が抜けて見える。生成器がこれらのタイルに書くのは
       // 壁の値なので、床の見た目は明示的に選ぶ（entity-exit が開通時に
       // level_data へ書き戻す 1 と揃えて、アトラス添字 0 にする）。
+      //
+      // 非常口だけは緑の枠の床（tile_exit_floor）を敷く。開通すると壁が消えて
+      // この床が現れ、「どのタイルに乗ればいいのか」が足元で読める。開通前は
+      // 壁ブロックの下に隠れるので、敷き直す必要はない。
       if (entity_tiles.has(index)) {
-        push_floor(x * 8, z * 8, 0)
+        push_floor(x * 8, z * 8, index === exit_index ? tile_exit_floor : 0)
         continue
       }
 
