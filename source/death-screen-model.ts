@@ -18,6 +18,9 @@ export interface run_result_t {
   death_cause: number // 0 = 敵、death_cause_nicotine = ニコチン切れ
   nicotine_ratio: number // 死亡時の残量比 0..1
   hp: number // 死亡時の HP（0..5）
+  // 更新前のベスト深度。run_end() は meta.best_depth を先に更新してから
+  // この画面を出すので、控えておかないと記録更新を判定できない
+  best_depth_before: number
 }
 
 export function format_run_time(seconds: number): string {
@@ -40,4 +43,10 @@ export function condition_texts(
   const tremor = ['なし', '小', '大', 'MAX'][stage]
   const focus = ['正常', '散漫', '低下', '崩壊'][stage]
   return { tremor, focus, craving_ratio: 1 - nicotine_ratio }
+}
+
+// 旧ベストが 0（＝未プレイ）のときは出さない。初回のランで 1F に届いただけの
+// 記録を「更新」として祝うと、演出そのものの意味が薄れる
+export function is_new_record(depth: number, best_before: number): boolean {
+  return best_before > 0 && depth > best_before
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   condition_texts, death_cause_nicotine, death_message, format_run_time,
+  is_new_record,
 } from './death-screen-model'
 
 describe('生存時間の表示', () => {
@@ -45,5 +46,25 @@ describe('死亡時の状態表示', () => {
   it('通常帯は なし・正常', () => {
     expect(condition_texts(0.9).tremor).toBe('なし')
     expect(condition_texts(0.9).focus).toBe('正常')
+  })
+})
+
+describe('ニューレコード判定', () => {
+  it('旧ベストを超えたら更新', () => {
+    expect(is_new_record(21, 15)).toBe(true)
+  })
+
+  it('同値は更新ではない', () => {
+    expect(is_new_record(15, 15)).toBe(false)
+  })
+
+  it('下回ったら更新ではない', () => {
+    expect(is_new_record(9, 15)).toBe(false)
+  })
+
+  // 初回のランで 1F に届いただけの記録を「更新」として祝うと演出の意味が薄れる
+  it('旧ベスト 0（未プレイ）では更新にしない', () => {
+    expect(is_new_record(1, 0)).toBe(false)
+    expect(is_new_record(99, 0)).toBe(false)
   })
 })
