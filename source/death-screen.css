@@ -62,6 +62,18 @@
 #ds .ds-record-row:last-child { border-bottom: none; }
 #ds .ds-record-row img { width: 1.4vw; height: 1.4vw; }
 #ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
+/* 記録更新した行の強調。バッジは点滅させない — render() はキー入力の
+   たびに innerHTML を組み直すため、ここにアニメーションを置くと
+   矢印キーを押すたびに位相がリセットされる（演出はバナー側が持つ） */
+#ds .ds-record-row.record b { color: #ffd24a; text-shadow: 0 0 8px rgba(255, 210, 74, 0.8); }
+#ds .ds-record-prev {
+  margin-left: 0.5vw; font-size: 0.9vw; font-weight: normal; color: #7fe0a8;
+}
+#ds .ds-record-new {
+  margin-left: 0.5vw; padding: 0 0.35vw;
+  border: 1px solid #ffd24a; border-radius: 0.2vw;
+  font-size: 0.8vw; color: #ffd24a;
+}
 
 #ds .ds-hero {
   position: absolute;

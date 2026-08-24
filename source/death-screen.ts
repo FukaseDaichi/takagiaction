@@ -1,7 +1,7 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { canvas } from './dom'
 import {
-  condition_texts, death_message, format_run_time,
+  condition_texts, death_message, format_run_time, is_new_record,
 } from './death-screen-model'
 import type { run_result_t } from './death-screen-model'
 import {
@@ -139,8 +139,11 @@ function on_key(event: KeyboardEvent): void {
   render()
 }
 
-function record_row(icon: string, label: string, value: string): string {
-  return '<div class="ds-record-row"><img src="' + icon + '" alt="">' +
+function record_row(
+  icon: string, label: string, value: string, cls = '',
+): string {
+  return '<div class="ds-record-row' + (cls ? ' ' + cls : '') +
+    '"><img src="' + icon + '" alt="">' +
     label + '<b>' + value + '</b></div>'
 }
 
@@ -168,9 +171,16 @@ function render(): void {
     '<div class="ds-hero" style="background-image:url(' + hero_url + ')"></div>'
 
   if (dead) {
+    // 到達深度と同じ量なので、アイコンは stat_depth_url を流用する
+    const record = is_new_record(r.depth, r.best_depth_before)
+    const best_value = meta.best_depth + ' F' + (record
+      ? '<span class="ds-record-prev">← ' + r.best_depth_before + ' F</span>' +
+        '<span class="ds-record-new">NEW</span>'
+      : '')
     left += '<div class="ds-panel ds-record">' +
       '<div class="ds-panel-title">今回の記録</div>' +
       record_row(stat_depth_url, '到達深度', r.depth + ' F') +
+      record_row(stat_depth_url, '最高深度', best_value, record ? 'record' : '') +
       record_row(stat_time_url, '生存時間', format_run_time(r.run_time)) +
       record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
       record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
