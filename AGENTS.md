@@ -32,6 +32,10 @@ npm run typecheck
 npm test
 ```
 
+## Agent Skill の管理
+
+スキルを作成・外部からインストール・更新・削除する前に、必ず [`.agents/rules/skill-management.md`](.agents/rules/skill-management.md) を読む。スキルの正本と Claude Code 向け公開方法、セットアップ、検証手順はこの共通ルールだけで管理する。
+
 ## ドキュメント
 
 ### docs/ — 確定した設計書

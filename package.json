@@ -9,10 +9,13 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "npm run skills:setup",
+    "skills:setup": "node scripts/manage-skill-links.mjs setup",
+    "skills:check": "node scripts/manage-skill-links.mjs check",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run skills:check && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "npm run skills:check && vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

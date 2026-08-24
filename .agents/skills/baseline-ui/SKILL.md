@@ -1,18 +1,18 @@
 ---
 name: baseline-ui
-description: Quickly deslop UI code by fixing spacing, hierarchy, typography, and small layout issues. Use when the interface needs a fast cleanup or polish pass.
+description: Quickly deslop existing UI code by fixing spacing, hierarchy, typography, and small layout issues. Use for a focused cleanup or polish pass; do not use for greenfield visual direction or a full redesign.
 ---
 
 # Baseline UI
 
 Enforces an opinionated UI baseline to prevent AI-generated interface slop.
 
-## How to use
+## Explicit invocation
 
-- `/baseline-ui`
+- Codex: `$baseline-ui`; Claude Code: `/baseline-ui`
   Apply these constraints to any UI work in this conversation.
 
-- `/baseline-ui <file>`
+- Codex: `$baseline-ui <file>`; Claude Code: `/baseline-ui <file>`
   Review the file against all constraints below and output:
   - violations (quote the exact line/snippet)
   - why it matters (1 short sentence)

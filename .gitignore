@@ -3,3 +3,7 @@ work
 dist
 
 .superpowers
+
+# Claude Code skill exposures are generated from .agents/skills.
+.claude/skills/*
+!.claude/skills/.gitkeep
