@@ -224,3 +224,36 @@ export function gear_stats(slot: gear_slot_t, tier: number): gear_stat_t[] {
   const bonus = patch_drain_bonus(tier)
   return [{ label: 'ニコチン減少', text: '−' + bonus.toFixed(2) + ' /秒', rank: bonus }]
 }
+
+// --- 開封の判定 ---
+
+// 段は全順序で上位は下位の完全な上位互換なので、差分行を 4 つ読み比べなくても
+// 段どうしの比較だけで結論が出る。開封ダイアログはこの 1 語を最初に出す。
+//
+// 呼び出し元は開封ダイアログ 1 か所だが、判定と推奨をこのモジュールに置くのは
+// equip-screen.ts が DOM だけを持つ層だからで（数値と品名はここが持つ）、
+// 「どちらが得か」という結論そのものは Node で直接テストできる側に要る。
+export type gear_verdict_t = 'new' | 'up' | 'same' | 'down'
+
+// 判定語。等級名（gear_grades[].name）と同じくラベルはこのモジュールが持つ。
+// 色は CSS が持つ — 良し悪しの緑と赤は等級色と違って段によらない固定の 2 色で、
+// インライン style で流し込む相手がいない
+export const gear_verdict_labels: Record<gear_verdict_t, string> = {
+  new: '新規', up: '強化', same: '同格', down: '格下',
+}
+
+export function gear_verdict(owned: number, tier: number): gear_verdict_t {
+  if (owned === 0) { return 'new' }
+  if (tier > owned) { return 'up' }
+  if (tier < owned) { return 'down' }
+  return 'same'
+}
+
+// 推奨する選択。段が全順序なので「良いほうを残す」が常に正解になる。
+// 同格だけは推奨を持たない（null）— 装備も転売額（5 × 段²）も完全に一致するので、
+// どちらかを勧めると嘘になる。既定のカーソル位置は推奨に置くが、
+// 推奨のない同格では転売に置く（従来どおり）
+export function gear_recommend_keep(verdict: gear_verdict_t): boolean | null {
+  if (verdict === 'same') { return null }
+  return verdict !== 'down'
+}
