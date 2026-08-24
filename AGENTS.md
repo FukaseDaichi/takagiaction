@@ -78,3 +78,9 @@ docs/ と docs/superpowers/ が矛盾する場合、docs/ とコードが正。
 - スクリプト実行: `uv run python <script>.py`
 - ワンライナー・標準モジュール: `uv run python -m <module>`
 - パッケージが必要な場合: `uv run --with <package> python ...`
+
+## LEARNINGS.md ループ
+
+各セッションの開始時に、リポジトリ直下の LEARNINGS.md を読め。
+読んだ内容を1〜3行で要約して提示し、読み込みが行われたことを可視化せよ。
+セッション終了時には `update-learnings` スキルの実行を促せ。
