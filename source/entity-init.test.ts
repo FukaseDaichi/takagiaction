@@ -17,6 +17,9 @@ vi.mock('./audio', () => ({
   audio_sfx_beep: undefined,
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
+  audio_sfx_lighter: undefined,
+  audio_sfx_exhale: undefined,
+  audio_sfx_door: undefined,
 }))
 // terminal も dom.ts に触る
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
@@ -29,6 +32,8 @@ vi.mock('./monologue', () => ({
   monologue_dummy: () => {},
   monologue_interrupt: () => {},
 }))
+vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_explosion_t } from './entity-explosion'

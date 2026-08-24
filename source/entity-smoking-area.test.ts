@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   notices: [] as string[],
   monologue: [] as string[],
+  sounds: [] as string[],
   blocks: [] as number[][],
   sprites: [] as number[][],
   lights: [] as number[][],
@@ -19,14 +20,19 @@ vi.mock('./renderer', () => ({
   camera: { x: 0, y: 0, z: 0, shake: 0 },
 }))
 vi.mock('./audio', () => ({
-  audio_play: () => {},
+  audio_play: (buffer: unknown) => {
+    if (buffer) { mocks.sounds.push(buffer as string) }
+  },
   audio_toggle: () => {},
-  audio_sfx_shoot: undefined,
-  audio_sfx_hit: undefined,
-  audio_sfx_hurt: undefined,
-  audio_sfx_beep: undefined,
-  audio_sfx_pickup: undefined,
-  audio_sfx_explode: undefined,
+  audio_sfx_shoot: 'shoot',
+  audio_sfx_hit: 'hit',
+  audio_sfx_hurt: 'hurt',
+  audio_sfx_beep: 'beep',
+  audio_sfx_pickup: 'pickup',
+  audio_sfx_explode: 'explode',
+  audio_sfx_lighter: 'lighter',
+  audio_sfx_exhale: 'exhale',
+  audio_sfx_door: 'door',
 }))
 vi.mock('./terminal', () => ({
   terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
@@ -38,6 +44,7 @@ vi.mock('./monologue', () => ({
   monologue_dummy: () => { mocks.monologue.push('dummy') },
   monologue_interrupt: () => { mocks.monologue.push('interrupt') },
 }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_smoke_t } from './entity-smoke'
@@ -70,10 +77,12 @@ describe('喫煙所', () => {
     state.smoking = 0
     state.exit_open = 0
     state.game_running = 1
+    state.dying = 0
     state.smoke_count = 0
     state.dummy_count = 0
     mocks.notices.length = 0
     mocks.monologue.length = 0
+    mocks.sounds.length = 0
     mocks.blocks.length = 0
     mocks.sprites.length = 0
     mocks.lights.length = 0
@@ -366,6 +375,9 @@ describe('喫煙所', () => {
     real.is_real = true
     for (let i = 0; i < 5; i++) { tick(real, player, 0.5) }
     expect(mocks.monologue).toEqual(['complete'])
+    // ロック解除通知は完了の 0.8 秒後（感知器のビート）に出る
+    idle(real, 0.5)
+    idle(real, 0.5)
     expect(mocks.notices.some((n) => n.includes('非常口'))).toBe(true)
     // 高木の一人称だった旧文言に戻っていないことをピン留めする
     // （ターミナルは高木の一人称を持たない）
@@ -397,5 +409,146 @@ describe('喫煙所', () => {
     tick(area, player, 0.5)
     expect(state.dummy_count).toBe(1)
     expect(state.smoke_count).toBe(0) // ダミーは一服に数えない
+  })
+
+  it('吸い始めにライターが鳴り、一度だけ鳴る', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 0.5)
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(1)
+
+    tick(area, player, 0.5) // 吸い続けても着火し直さない
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(1)
+  })
+
+  it('着火フラッシュ中は灰皿のライトが明るく（falloff が小さく）なり、0.3 秒で戻る', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 0.1) // 着火（フラッシュはこのフレームの描画には乗らない）
+    mocks.lights.length = 0
+    tick(area, player, 0.1)
+    expect(mocks.lights[0][6]).toBeCloseTo(0.012, 5)
+
+    tick(area, player, 0.3) // フラッシュの 0.3 秒を超える
+    mocks.lights.length = 0
+    tick(area, player, 0.1)
+    expect(mocks.lights[0][6]).toBeGreaterThan(0.02) // 通常の明滅（0.03±0.01）に戻る
+  })
+
+  it('吸引中は 0.6 秒ごとに高木の位置から煙が立ちのぼる', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    const count = (): number =>
+      state.entities.filter((e) => e instanceof entity_smoke_t).length
+
+    tick(area, player, 0.5) // 進捗 0.5 秒
+    expect(count()).toBe(0)
+    tick(area, player, 0.5) // 1.0 秒（0.6 を跨ぐ）
+    expect(count()).toBe(1)
+    tick(area, player, 0.5) // 1.5 秒（1.2 を跨ぐ）
+    expect(count()).toBe(2)
+  })
+
+  it('中断すると着火フラッシュが消え、吸い直しで再着火する', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.1) // 着火
+    player.h = 4
+    tick(area, player, 0.1) // 中断
+    mocks.lights.length = 0
+    idle(area, 0.1) // フラッシュが残っていればここで 0.012 が出る
+    expect(mocks.lights[0][6]).toBeGreaterThan(0.02)
+
+    tick(area, player, 0.1) // 吸い直し = 再着火
+    expect(mocks.sounds.filter((s) => s === 'lighter').length).toBe(2)
+  })
+
+  it('完了で吐息と煙 3 つ、0.8 秒後に感知器と通知、1.5 秒後に防災扉の音が続く', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    const smokes = (): entity_smoke_t[] =>
+      state.entities.filter((e): e is entity_smoke_t => e instanceof entity_smoke_t)
+
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 2.5 秒で完了
+    expect(mocks.sounds).toContain('exhale')
+    expect(smokes().length).toBe(4 + 3) // 吸引中 4 つ + 吐き出し 3 つ
+    // 吐き出しの 3 つは同座標だと軌道が決定的に一致して 1 つに見えるため、
+    // x をずらして生成する
+    const exhale_x = smokes().slice(-3).map((e) => e.x)
+    expect(new Set(exhale_x).size).toBe(3)
+    expect(mocks.notices.length).toBe(0) // 通知はまだ
+    expect(mocks.sounds).not.toContain('beep')
+
+    idle(area, 0.5) // 完了から 0.5 秒
+    expect(mocks.sounds).not.toContain('beep')
+
+    idle(area, 0.5) // 完了から 1.0 秒（0.8 を跨ぐ）: 感知器
+    expect(mocks.sounds).toContain('beep')
+    expect(mocks.notices.some((n) => n.includes('煙を感知'))).toBe(true)
+    expect(mocks.sounds).not.toContain('door')
+
+    idle(area, 0.5) // 完了から 1.5 秒: 防災扉
+    expect(mocks.sounds).toContain('door')
+  })
+
+  it('ラン終了後（state.game_running が 0）は感知器のタイムラインが進まない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 完了
+    mocks.notices.length = 0
+    mocks.sounds.length = 0
+
+    state.game_running = 0
+    for (let i = 0; i < 4; i++) { idle(area, 0.5) }
+    expect(mocks.notices.length).toBe(0)
+    expect(mocks.sounds).not.toContain('beep')
+    expect(mocks.sounds).not.toContain('door')
+  })
+
+  // 死亡シーケンス（state.dying = 1）の 3 秒間は game_running がまだ 1 のまま
+  // （run_end() は 3 秒後）。dying を見ないと、死亡演出中に感知器の通知が
+  // 「救護ドローンを派遣」の表示チェーンを潰してしまう
+  it('死亡シーケンス中（state.dying が 1）は感知器のタイムラインが進まない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) } // 完了
+    idle(area, 0.5) // 完了から 0.5 秒（まだ何も鳴らない時刻）
+    mocks.notices.length = 0
+    mocks.sounds.length = 0
+
+    state.dying = 1
+    for (let i = 0; i < 4; i++) { idle(area, 0.5) }
+    expect(mocks.notices.length).toBe(0)
+    expect(mocks.sounds).not.toContain('beep')
+    expect(mocks.sounds).not.toContain('door')
+  })
+
+  // game_tick の corpse 除外（entities ループの開始前に 1 度だけ計算）は、
+  // ループの途中で state.dying が立つケースまでは遡れない。load_level は
+  // 自機を先頭・本物の喫煙所を 2 番目に積むため、蜘蛛との衝突より先に
+  // (0, 1) の衝突判定が評価されて _touching が立ってしまってから、
+  // 自機が死ぬ（docs/gameplay.md「死亡シーケンス」）。そのため _touching を
+  // 消費する _render() 側で state.dying を直接読む必要がある。
+  // idle() は _check を呼ばず _touching を立てないため、この経路は
+  // tick() でしか再現できない。
+  it('死亡シーケンス中に被弾しても一服の中断セリフを出さず、ロックも残さない', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+    player.h = 5
+
+    tick(area, player, 0.5) // 生存中に一服を開始（_hp_mark = 5）
+    expect(state.smoking).toBe(1)
+
+    // 蜘蛛の接触ダメージで自機が死んだのと同じフレームを模す
+    player.h = 4
+    state.dying = 1
+    tick(area, player, 0.5)
+
+    expect(mocks.monologue).toEqual([]) // 死亡演出中に中断のセリフを出さない
+    expect(state.smoking).toBe(0) // ロックも解放される
   })
 })

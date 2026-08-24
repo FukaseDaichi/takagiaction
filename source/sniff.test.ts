@@ -7,7 +7,7 @@ function make_tiles(): Uint8Array {
 }
 
 describe('嗅覚の残り香探索', () => {
-  it('通路の先の目標への方角と BFS 距離を返す', () => {
+  it('目標タイルそのものと BFS 距離を返す（隣接床ではない）', () => {
     const tiles = make_tiles()
     // z=1 の横一列に床。目標タイル (10,1) は生成器と同じく壁（8）
     for (let x = 1; x <= 20; x++) { tiles[x + level_width] = 1 }
@@ -15,8 +15,11 @@ describe('嗅覚の残り香探索', () => {
 
     const r = sniff_find(tiles, 1, 1, [{ x: 10, z: 1 }])!
     expect(r).not.toBeNull()
+    // 距離を測るのに使う隣接床は (9,1) だが、返すのは目標タイル自身。
+    // ミニマップが明滅させるのはエンティティが立っているタイルなので
+    expect(r.x).toBe(10)
+    expect(r.z).toBe(1)
     expect(r.dist).toBe(9) // 隣接床 (9,1) まで 8 歩 + 1
-    expect(r.angle).toBeCloseTo(0, 6) // 真東
   })
 
   it('ユークリッド距離ではなく BFS 距離で最寄りを選ぶ', () => {
@@ -34,7 +37,8 @@ describe('嗅覚の残り香探索', () => {
 
     const r = sniff_find(tiles, 1, 1, [{ x: 2, z: 3 }, { x: 15, z: 0 }])!
     expect(r.dist).toBe(15) // 目標B: (15,1) まで 14 歩 + 1
-    expect(r.angle).toBeCloseTo(Math.atan2(0 - 1, 15 - 1), 6)
+    expect(r.x).toBe(15)
+    expect(r.z).toBe(0)
   })
 
   it('どの目標にも到達できなければ null', () => {
@@ -60,6 +64,18 @@ describe('嗅覚の残り香探索', () => {
     // (63,0) → (63,1) → 左へ 62 歩で (1,1)。その 63 歩 + 1。
     // 回り込むと自機のタイル (63,0) の距離 0 を拾って 1 になる
     expect(r.dist).toBe(64)
+  })
+
+  // 隣接床が自機タイル自身（距離 0）になる境界。0 + 1 で 1 になる
+  it('自機が目標に隣接していると距離は 1', () => {
+    const tiles = make_tiles()
+    tiles[1 + level_width] = 1 // 自機 (1,1)
+    tiles[2 + level_width] = 8 // 目標 (2,1)。周囲の床は自機タイルだけ
+
+    const r = sniff_find(tiles, 1, 1, [{ x: 2, z: 1 }])!
+    expect(r.dist).toBe(1)
+    expect(r.x).toBe(2)
+    expect(r.z).toBe(1)
   })
 
   it('目標が空なら null', () => {

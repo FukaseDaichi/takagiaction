@@ -1,5 +1,5 @@
 import atlas_url from '../m/q2.png'
-import { audio_init } from './audio'
+import { audio_init, audio_unlock } from './audio'
 import { death_screen_show } from './death-screen'
 import { run_start } from './game'
 import { hero_el } from './dom'
@@ -16,6 +16,9 @@ terminal_write_line('起動中...')
 audio_init(() => {
   document.onclick = () => {
     document.onclick = null
+    // 自動再生ポリシー対策。AudioContext の resume() はユーザー操作の
+    // ハンドラ内で呼ぶ必要がある（audio.ts 参照）
+    audio_unlock()
     terminal_cancel()
     hero_el.style.opacity = '0'
     setTimeout(() => {

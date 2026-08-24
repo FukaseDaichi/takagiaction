@@ -17,7 +17,6 @@ export interface run_result_t {
   dummy_count: number
   death_cause: number // 0 = 敵、death_cause_nicotine = ニコチン切れ
   nicotine_ratio: number // 死亡時の残量比 0..1
-  hp: number // 死亡時の HP（0..5）
   // 更新前のベスト深度。run_end() は meta.best_depth を先に更新してから
   // この画面を出すので、控えておかないと記録更新を判定できない
   best_depth_before: number

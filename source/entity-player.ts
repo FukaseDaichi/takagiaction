@@ -1,16 +1,42 @@
-import { audio_play, audio_sfx_hurt, audio_sfx_pickup, audio_sfx_shoot } from './audio'
+import {
+  audio_music_death, audio_play, audio_sfx_beep, audio_sfx_hit, audio_sfx_hurt,
+  audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing,
+} from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
+import { boss_centre, entity_boss_t } from './entity-boss'
+import { entity_drone_t } from './entity-drone'
+import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
-import { run_end } from './game'
-import { key_down, key_left, key_right, key_shoot, key_spare, key_up, keys } from './input'
-import { meta_power_factor } from './meta'
+import { entity_sentry_t } from './entity-sentry'
+import { spawn_slash } from './entity-slash'
+import { entity_spider_t } from './entity-spider'
+import {
+  blade_arc, blade_damage, blade_interval, blade_oneshot_all, blade_oneshot_drone,
+  blade_oneshot_level, blade_reach, gear_grade, gear_grades, gear_lights,
+  sole_speed_bonus,
+} from './equipment'
+import { key_down, key_left, key_right, key_shoot, key_spare, key_swap, key_up, keys } from './input'
+import { meta, meta_power_factor, meta_speed_factor } from './meta'
+import { monologue_death } from './monologue'
 import {
   nicotine_stage, player_light_falloff, player_speed, shot_interval, shot_spread,
+  swing_interval,
 } from './nicotine'
-import { push_light } from './renderer'
+import { camera, push_light } from './renderer'
+import { screen_slash } from './screen-slash'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
+
+// 振りの踏み込み量。摩擦 5 なので 1 振りで約 5px 前に出る。姿勢の表現と、
+// 敵のノックバック（from.vx）の両方をこの 1 つが担う
+const swing_lunge = 26
+
+// 弧の中心。判定は原点同士（e.x - t.x）の比較で、敵味方の当たり箱が同じ
+// 大きさなので実質は中心同士の比較になる。絵もそれに合わせて当たり箱
+// （6x4）の真ん中へ置く
+const swing_center_x = 3
+const swing_center_z = 2
 
 export class entity_player_t extends entity_t {
   // minimap.ts が自機の向きを 1px で描くために読む
@@ -18,6 +44,7 @@ export class entity_player_t extends entity_t {
 
   private _bob = 0
   private _frame = 0
+  private _swing_dir = 1
   private _last_shot = 0
   private _last_damage = 0
 
@@ -25,10 +52,20 @@ export class entity_player_t extends entity_t {
 
   override _update(): void {
     const t = this
+    // 死亡シーケンス中の死体。入力も物理も止めて、game_tick が y（ドローンの
+    // 持ち上げ）を書くのに任せる。基底の _update() を呼ぶと bobbing で書いた
+    // y の残差を積分し続けてしまうので、ここで完全に止める
+    if (state.dying) {
+      t.ax = t.az = 0
+      t.vx = t.vz = 0
+      return
+    }
     const stage = nicotine_stage(state.nicotine, state.nicotine_max)
     const smoking = state.smoking === 1
     // 一服中は移動も射撃もできない。無敵にはしない
-    const speed = smoking ? 0 : player_speed(stage)
+    const speed = smoking
+      ? 0
+      : player_speed(stage, meta_speed_factor(), sole_speed_bonus(meta.gear.sole))
 
     // movement
     t.ax = keys[key_left] ? -speed : keys[key_right] ? speed : 0
@@ -69,15 +106,32 @@ export class entity_player_t extends entity_t {
       }
     }
 
+    // 持ち替え: Tab。刃物を 1 本も持っていないときは持ち替える先が無いので
+    // 無視する。game_running を見るのは、リザルト表示中もエンティティの
+    // ループが回り続けており（docs/gameplay.md）、死亡画面が Tab を
+    // 「地下へ戻る」に使っているため
+    if (keys[key_swap]) {
+      keys[key_swap] = 0
+      if (state.game_running && meta.gear.blade > 0) {
+        state.melee_active = state.melee_active ? 0 : 1
+        audio_play(audio_sfx_beep)
+      }
+    }
+
     if (!smoking && keys[key_shoot] && t._last_shot < 0) {
-      audio_play(audio_sfx_shoot)
-      // 元の実装の -0.11..+0.09 と同じ非対称さを保ったまま幅だけ広げる
-      const spread = shot_spread(stage)
-      new entity_plasma_t(
-        t.x, 0, t.z, 0, 26,
-        t._angle + Math.random() * spread - spread * 0.55,
-      )
-      t._last_shot = shot_interval(stage, meta_power_factor())
+      if (state.melee_active) {
+        t._swing()
+        t._last_shot = swing_interval(stage, blade_interval(meta.gear.blade))
+      } else {
+        audio_play(audio_sfx_shoot)
+        // 元の実装の -0.11..+0.09 と同じ非対称さを保ったまま幅だけ広げる
+        const spread = shot_spread(stage)
+        new entity_plasma_t(
+          t.x, 0, t.z, 0, 26,
+          t._angle + Math.random() * spread - spread * 0.55,
+        )
+        t._last_shot = shot_interval(stage, meta_power_factor())
+      }
     }
 
     super._update()
@@ -85,7 +139,8 @@ export class entity_player_t extends entity_t {
 
   override _render(): void {
     this._frame++
-    if (this._last_damage < 0 || this._frame % 6 < 4) {
+    // 死体は点滅させない（致命打の直後は被弾点滅の 2 秒が残っている）
+    if (state.dying || this._last_damage < 0 || this._frame % 6 < 4) {
       super._render()
     }
     // 視界は falloff で縮める。RGB を下げても暖色が減って青く沈むだけで、
@@ -94,19 +149,111 @@ export class entity_player_t extends entity_t {
     push_light(this.x, 4, this.z + 6, 1, 0.5, 0, player_light_falloff(stage))
   }
 
+  // 薙ぎ。振るたびに敵を 1 周する。敵は最大 100 体で振り間隔は 0.3〜0.9 秒
+  // あるので、O(n) の走査は問題にならない
+  private _swing(): void {
+    const t = this
+    const tier = meta.gear.blade
+    const reach = blade_reach(tier)
+    const arc = blade_arc(tier)
+    const oneshot = blade_oneshot_level(tier)
+    const grade = gear_grade(tier)
+
+    // 1 振りごとに掃引の向きを反転させる。右薙ぎ→左薙ぎと交互になることで、
+    // 連打が「同じ判子を押し続ける」ではなく「振り続けている」に見える
+    t._swing_dir = -t._swing_dir
+
+    // 踏み込み。判定より前に足すのが要点で、敵はノックバックを from.vx から
+    // 読むため（entity-spider.ts ほか）、これが無いと立ち止まって振ったときに
+    // 速度 0 が入り、斬った相手がその場で固定される
+    t.vx += Math.cos(t._angle) * swing_lunge
+    t.vz += Math.sin(t._angle) * swing_lunge
+
+    let hit = false
+    let finisher = false
+    for (const e of state.entities) {
+      if (e._dead) { continue }
+      const spider = e instanceof entity_spider_t
+      const drone = e instanceof entity_drone_t
+      const sentry = e instanceof entity_sentry_t
+      const boss = e instanceof entity_boss_t
+      if (!spider && !drone && !sentry && !boss) { continue }
+
+      // 中心（entity.x/z + w/2）の差で測る。原点の差のままだと w が等しい
+      // 相手（蜘蛛・清掃ドローン・セントリーはすべて既定の 9）では中心の差と
+      // 一致するので変わらないが、w が違うボス（14）だと中心が原点からずれる
+      // ぶんだけ、近づく向きによって実際の距離を過大／過小評価してしまう
+      const dx = (e.x + e.w / 2) - (t.x + t.w / 2)
+      const dz = (e.z + e.w / 2) - (t.z + t.w / 2)
+      if (dx * dx + dz * dz > reach * reach) { continue }
+
+      // 角度差を -π..π に畳んでから半角と比べる（生の引き算だと 2π を
+      // またぐ位置で符号が反転して、真正面が範囲外になる）
+      const raw = Math.atan2(dz, dx) - t._angle
+      if (Math.abs(Math.atan2(Math.sin(raw), Math.cos(raw))) > arc) { continue }
+
+      // ボスはどの項にも現れない。刃物 Lv9 以上の「硬さを無視して一撃で
+      // 落とす」がボスに効くと、耐久で作った戦いが丸ごと消える。通常の
+      // blade_damage() は通すので、刃物ビルドが締め出されることはない
+      const kills =
+        spider ||
+        (drone && oneshot >= blade_oneshot_drone) ||
+        (sentry && oneshot >= blade_oneshot_all)
+      // 一撃必殺に専用の即死経路を作らない。3 体すべてに実装が要るうえ、
+      // _kill() の中のドロップ処理（ヤニ 50%、コンテナ 30%、カメラシェイク、
+      // 爆発）を通らなくなる
+      e._receive_damage(t, kills ? 999 : blade_damage(tier))
+      hit = true
+      // 刃は弾より派手に散らす。敵側の 3〜5 個に上乗せする（数を抑えるのは
+      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）。
+      // entity.x/z が中心から + w/2 だけずれているのは全員共通（上の reach 判定
+      // と同じ）。ボスは既定の w=9（半分 4.5）より大きい w=14（半分 7 =
+      // boss_centre）で、_render() など他の場所もすでにその中心を使っているため、
+      // ここも合わせて補正する。蜘蛛・清掃ドローン・セントリーは角のまま
+      // （4.5 ぶん動かす変更にはしない）
+      const px = boss ? e.x + boss_centre : e.x
+      const pz = boss ? e.z + boss_centre : e.z
+      spawn_particles(px, pz, 4)
+      // 決めは清掃ドローンとセントリーに絞る。蜘蛛は全段が一撃で落とすので
+      // （docs/equipment.md）、雑魚で出すと光りっぱなしになる
+      if (kills && !spider) { finisher = true }
+    }
+
+    // 空振り＝風切りだけ、当たり＝風切り＋当たり、撃破＝さらに撃破音。
+    // この 3 段が耳だけで読めることが要件。無条件に当たり音を鳴らすと、耳が
+    // 常に「当たった」と言い続け、唯一重要な情報を運ばなくなる
+    audio_play(audio_sfx_swing)
+    if (hit) { audio_play(audio_sfx_hit) }
+    if (finisher) { screen_slash(gear_grades[grade].color) }
+
+    spawn_slash(
+      t.x + swing_center_x, t.z + swing_center_z,
+      t._angle, arc, reach, t._swing_dir, gear_lights[grade],
+    )
+  }
+
+  // 死＝死亡シーケンスの開始（docs/gameplay.md「死亡シーケンス」）。
+  // super._kill() は呼ばない — _dead にするとフレーム末尾でエンティティから
+  // 除去されて死体が消える。run_end() は game_tick が 3 秒後に呼ぶ。
+  // 一度死んだらもう死なない: state.dying が二重呼び出しを遮断し（二重に走ると
+  // 姿勢がもう一段跳ねる）、game_running がリザルト表示中の再開を止める。
+  // 死体は load_level まで残るので、止めないと敵に押されるたびシーケンスが
+  // 走り直し、表示中のリザルトに通知と BGM の落としが割り込む
   protected override _kill(): void {
-    // 二重呼び出しの遮断。run_end() 側の game_running ガードがヤニの二重加算は
-    // 止めるが、それだけでは下の姿勢変更が 2 度走って死体がもう一段跳ねる。
-    // entity-spider / entity-sentry と同じ形に揃える
-    if (this._dead) { return }
-    super._kill()
+    if (state.dying || !state.game_running) { return }
+    state.dying = 1
+    state.death_elapsed = 0
     this.y = 10
     this.z += 5
-    // 死＝ラン終了。同じフロアの頭からやり直す経路は無くなった
-    run_end()
+    camera.shake = 5 // 倒れた衝撃の一発。以降は 0.9/frame の減衰に任せる
+    audio_music_death()
+    monologue_death(state.death_cause)
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
+    // 死体は傷つかない（敵が乗ってきても hurt 音を鳴らさない）。シーケンス中も
+    // リザルト表示中も、死体が消えるのは次のフロアを読み込むときだけ
+    if (state.dying || !state.game_running) { return }
     if (this._last_damage < 0) {
       audio_play(audio_sfx_hurt)
       super._receive_damage(from, amount)

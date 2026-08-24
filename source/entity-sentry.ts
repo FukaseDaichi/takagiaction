@@ -1,9 +1,11 @@
 import { audio_play, audio_sfx_explode } from './audio'
 import { entity_t } from './entity'
+import { entity_container_t } from './entity-container'
 import { entity_explosion_t } from './entity-explosion'
 import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
 import { entity_yani_t } from './entity-yani'
+import { gear_roll_slot, gear_roll_tier } from './equipment'
 import { camera, push_light } from './renderer'
 import { state } from './state'
 
@@ -64,7 +66,7 @@ export class entity_sentry_t extends entity_t {
     super._receive_damage(from, amount)
     this.vx = from.vx * 0.1
     this.vz = from.vz * 0.1
-    spawn_particles(this, 3)
+    spawn_particles(this.x, this.z, 3)
   }
 
   protected override _kill(): void {
@@ -76,6 +78,16 @@ export class entity_sentry_t extends entity_t {
     audio_play(audio_sfx_explode)
     // 敵ドロップ: 撃破ごとに 50% で吸い殻を 1 つ落とす（設計書）
     if (Math.random() < 0.5) { new entity_yani_t(this.x, 0, this.z, 5, 26) }
+    // 押収品コンテナ: 撃破ごとに 30%。ヤニ（50%）とは独立に抽選する。
+    // セントリー限定にすると sentry_count(depth) がそのまま深度スケールに
+    // なるので、専用の出現数テーブルを持たずに済む（docs/equipment.md）。
+    // 抽選が Math.random() なのは、撃破がフロア生成（決定論的な手続き生成）の
+    // 外の出来事だから
+    if (Math.random() < 0.3) {
+      const container = new entity_container_t(this.x, 0, this.z, 5, 42)
+      container._slot = gear_roll_slot(Math.random())
+      container._tier = gear_roll_tier(state.depth, Math.random())
+    }
   }
 }
 

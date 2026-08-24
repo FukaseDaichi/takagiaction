@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// push_block と terminal_show_notice の呼び出しを記録する。
+// push_block / push_sprite と terminal_show_notice の呼び出しを記録する。
 // vi.mock のファクトリは巻き上げられるので vi.hoisted を使う。
-const mocks = vi.hoisted(() => ({ blocks: [] as number[][], notices: [] as string[] }))
+const mocks = vi.hoisted(() => ({
+  blocks: [] as number[][],
+  sprites: [] as number[][],
+  notices: [] as string[],
+}))
 
 vi.mock('./renderer', () => ({
-  push_sprite: () => {},
+  push_sprite: (...args: number[]) => { mocks.sprites.push(args) },
   push_light: () => {},
   push_block: (...args: number[]) => { mocks.blocks.push(args) },
   camera: { x: 0, y: 0, z: 0, shake: 0 },
@@ -20,18 +24,16 @@ vi.mock('./audio', () => ({
   audio_sfx_pickup: undefined,
   audio_sfx_explode: undefined,
 }))
-// 本物と同じく「表示にかかる秒数」を返す。呼び出し側はこれを降下予約に使う
 vi.mock('./terminal', () => ({
-  terminal_show_notice: (notice: string) => {
-    mocks.notices.push(notice)
-    return 5.1
-  },
+  terminal_show_notice: (notice: string) => { mocks.notices.push(notice) },
 }))
-vi.mock('./game', () => ({ run_end: () => {} }))
+// entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
+vi.mock('./monologue', () => ({ monologue_death: () => {} }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_exit_t } from './entity-exit'
 import { entity_player_t } from './entity-player'
-import { level_data, level_width, state } from './state'
+import { descend_duration, level_data, level_width, state } from './state'
 
 const exit_index = (80 >> 3) + (80 >> 3) * level_width
 
@@ -47,6 +49,7 @@ describe('非常口', () => {
     state.game_running = 1
     state.descend_timer = 0
     mocks.blocks.length = 0
+    mocks.sprites.length = 0
     mocks.notices.length = 0
     player = new entity_player_t(0, 0, 0, 5, 18)
     state.entity_player = player
@@ -77,6 +80,20 @@ describe('非常口', () => {
     expect(mocks.blocks.length).toBe(0) // もう壁として描かない
   })
 
+  // 開通した非常口は床に戻るだけで、ブロックも他の絵も出なくなる。
+  // 「どのタイルが非常口か」が読めないと乗れないので、標識を頭上に浮かべる
+  it('開通すると標識が自機の頭上の高さに描かれる', () => {
+    const exit = new entity_exit_t(80, 0, 80, 0, 18)
+    exit._render()
+    expect(mocks.sprites.length).toBe(0) // 閉じている間は壁なので出さない
+
+    state.exit_open = 1
+    exit._render()
+    expect(mocks.sprites.length).toBe(1)
+    // y = 6 は自機のビルボード（0〜6）の真上。乗っている間も標識が隠れない
+    expect(mocks.sprites[0].slice(0, 3)).toEqual([81, 6, 81])
+  })
+
   it('開通前に触れても次のフロアへ進まない', () => {
     const exit = new entity_exit_t(80, 0, 80, 0, 18)
     exit._check(player)
@@ -97,11 +114,14 @@ describe('非常口', () => {
   // state に積む。コールバックに載せていたときは、通過演出の約 5 秒のあいだに
   // 別の通知が 1 つ出るだけで terminal_cancel() に予約ごと消され、深度が
   // 進まないままフロアが詰んだ。予約が state 側にあることをここで固定する。
-  it('降下は通過演出の長さぶん state.descend_timer に予約される', () => {
+  //
+  // 秒数はターミナルの通知の長さではなく descend_duration。通知の文面を足した
+  // だけで降下が延びると、「乗ったのに何も起きない」時間がそのぶん伸びる。
+  it('降下は descend_duration ぶん state.descend_timer に予約される', () => {
     const exit = new entity_exit_t(80, 0, 80, 0, 18)
     state.exit_open = 1
     exit._check(player)
-    expect(state.descend_timer).toBe(5.1) // モックが返す表示秒数
+    expect(state.descend_timer).toBe(descend_duration)
   })
 
   // レビュー Finding 1: ラン終了と同じフレームで通知を出すと、run_end() が

@@ -1,29 +1,41 @@
+import { audio_music_restore } from './audio'
+import { boss_arms } from './boss-model'
 import { death_screen_show } from './death-screen'
-import { entity_exit_t } from './entity-exit'
+import {
+  death_beats, death_body_y, death_drone_y, death_fade_opacity,
+} from './death-sequence-model'
+import { fade_el } from './dom'
+import { boss_spawn_offset, entity_boss_t } from './entity-boss'
+import { entity_drone_t } from './entity-drone'
+import { entity_exit_t, tile_exit_floor } from './entity-exit'
 import { entity_health_t } from './entity-health'
 import { entity_player_t } from './entity-player'
 import { entity_sentry_t } from './entity-sentry'
+import { spawn_smoke } from './entity-smoke'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
+import { drain_floor, patch_drain_bonus } from './equipment'
 import { hud_hide, hud_show, hud_update } from './hud'
-import { generate_level } from './level-generator'
+import { generate_level, is_boss_depth } from './level-generator'
 import {
-  meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
+  meta, meta_drain_factor, meta_grant, meta_nicotine_max, meta_save,
+  meta_spare_count,
 } from './meta'
-import { minimap_hide, minimap_reset, minimap_update } from './minimap'
+import { minimap_reset, minimap_update } from './minimap'
 import {
-  monologue_arrival, monologue_notify_stage, monologue_reset, monologue_update,
+  monologue_arrival, monologue_boss_arrival, monologue_notify_stage,
+  monologue_reset, monologue_update,
 } from './monologue'
 import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
 } from './nicotine'
 import {
-  camera, push_block, push_floor, push_sprite,
+  camera, push_block, push_floor, push_light,
   renderer_end_frame, renderer_freeze_level_geometry,
   renderer_prepare_frame, renderer_reset_level_geometry,
 } from './renderer'
-import { level_data, level_height, level_width, state } from './state'
+import { level_data, level_height, level_width, player_hp_max, state } from './state'
 import { terminal_show_notice } from './terminal'
 
 let time_last = performance.now()
@@ -43,14 +55,26 @@ export function run_start(): void {
   state.depth = 0
   state.kills = 0
   state.yani_run = 0
+  state.boss_levels = []
   state.run_time = 0
   state.smoke_count = 0
   state.dummy_count = 0
   state.death_cause = 0
+  state.dying = 0
+  state.death_elapsed = 0
+  state.paused = 0
+  state.melee_active = 0
+  state.boss_alive = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
   state.game_running = 1
+  audio_music_restore() // 死亡シーケンスのテープストップから通常再生へ戻す
+  // 白フェードのリセット。クラスを外して次の死のフレーム駆動フェードインを
+  // アニメーションと競合させない。opacity はアニメーションが 0 で終えているが、
+  // 明け切る前（0.6 秒以内）に「地下へ戻る」が押された場合に備えて明示的に戻す
+  fade_el.classList.remove('f')
+  fade_el.style.opacity = '0'
   next_level()
   if (!game_started) {
     game_started = true
@@ -67,26 +91,28 @@ function next_level(): void {
 }
 
 export function run_end(): void {
-  // 二重呼び出しの二次防御（一次防御は entity_player_t._kill() の _dead ガードで、
-  // entity-spider.ts / entity-sentry.ts と同じ形。通常はそちらが _kill() の再入を
-  // 止めるので run_end() はここまで来ない）。ここは meta（ラン間で残る恒久状態）を
-  // 書くので、万一 2 度走るとヤニが二重に加算されて保存される。ニコチン切れの
-  // 継続ダメージで死んだ自機は、衝突ループのフレーム末尾での除去まで 2 体目として
-  // 生き残っており、_receive_withdrawal_damage() が _receive_damage() の 2 秒無敵を
-  // 通さないぶん、_dead ガードが外れれば _kill() は同じフレームでもう一度走りうる。
+  // 二重呼び出しの二次防御（一次防御は entity_player_t._kill() の state.dying
+  // ガード）。呼び出し元は game_tick の死亡シーケンス終端ビートの 1 箇所だけに
+  // なったが、ここは meta（ラン間で残る恒久状態）を書くので、万一 2 度走ると
+  // ヤニが二重に加算されて保存される。ガードは残す。
   if (!state.game_running) { return }
   state.game_running = 0
-  minimap_hide()
   hud_hide()
   monologue_reset()
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
   // 深度を伸ばす動機にならない（設計書）
   meta.yani += state.yani_run
+  // ボス撃破の報酬。寿命はヤニと同じで、途中でタブを閉じれば消える
+  for (const id of state.boss_levels) { meta_grant(id) }
   // 更新前のベストを控えてから代入する。死亡画面は meta.best_depth を
   // 更新後の値として読むため、控えないと記録更新を判定できない
   const best_depth_before = meta.best_depth
   meta.best_depth = Math.max(best_depth_before, state.depth)
   meta_save()
+  // 真っ白の状態で死亡画面を出し、.f のアニメーション（0.6 秒、開始値は
+  // キーフレームの from{opacity:1} で確定）で白が明けて闇サイトが見える
+  fade_el.classList.add('f')
+  fade_el.style.opacity = '0'
   death_screen_show({
     depth: state.depth,
     kills: state.kills,
@@ -95,7 +121,6 @@ export function run_end(): void {
     dummy_count: state.dummy_count,
     death_cause: state.death_cause,
     nicotine_ratio: state.nicotine / state.nicotine_max,
-    hp: Math.max(0, state.entity_player!.h),
     best_depth_before,
   }, run_start)
 }
@@ -107,6 +132,7 @@ function load_level(depth: number): void {
   state.entities_to_kill = []
   state.exit_open = 0
   state.smoking = 0
+  state.boss_alive = 0
   // 降下予約の解除。ラン終了中は game_tick が予約を進めないので、非常口に
   // 触れた直後に死ぬと予約が残ったままリザルトへ抜ける。ここで消さないと
   // 次のランの 1 階が数秒で勝手に降下する
@@ -127,6 +153,7 @@ function load_level(depth: number): void {
     [layout.smoking_area, layout.exit, ...layout.dummies]
       .map((p) => p.x + p.z * level_width),
   )
+  const exit_index = layout.exit.x + layout.exit.z * level_width
 
   for (let z = 0; z < level_height; z++) {
     for (let x = 0; x < level_width; x++) {
@@ -138,8 +165,12 @@ function load_level(depth: number): void {
       // そのタイルだけ背景の黒が抜けて見える。生成器がこれらのタイルに書くのは
       // 壁の値なので、床の見た目は明示的に選ぶ（entity-exit が開通時に
       // level_data へ書き戻す 1 と揃えて、アトラス添字 0 にする）。
+      //
+      // 非常口だけは緑の枠の床（tile_exit_floor）を敷く。開通すると壁が消えて
+      // この床が現れ、「どのタイルに乗ればいいのか」が足元で読める。開通前は
+      // 壁ブロックの下に隠れるので、敷き直す必要はない。
       if (entity_tiles.has(index)) {
-        push_floor(x * 8, z * 8, 0)
+        push_floor(x * 8, z * 8, index === exit_index ? tile_exit_floor : 0)
         continue
       }
 
@@ -152,7 +183,7 @@ function load_level(depth: number): void {
   }
 
   state.entity_player =
-    new entity_player_t(layout.start.x * 8, 0, layout.start.z * 8, 5, 18)
+    new entity_player_t(layout.start.x * 8, 0, layout.start.z * 8, player_hp_max, 18)
 
   const smoking_area = new entity_smoking_area_t(
     layout.smoking_area.x * 8, 0, layout.smoking_area.z * 8, 0, 18,
@@ -168,6 +199,21 @@ function load_level(depth: number): void {
   for (const p of layout.sentries) { new entity_sentry_t(p.x * 8, 0, p.z * 8, 5, 32) }
   for (const p of layout.health) { new entity_health_t(p.x * 8, 0, p.z * 8, 5, 31) }
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
+  for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
+
+  // ボス階だけ。灰皿と同じタイルに立つので、生きている間は自機が
+  // 喫煙所に触れられない
+  if (layout.boss) {
+    // 生成位置をずらすのは、当たり判定・絵・銃口の中心を灰皿タイルの中心に
+    // 揃えるため（entity-boss.ts の boss_spawn_offset）
+    const boss = new entity_boss_t(
+      layout.boss.x * 8 + boss_spawn_offset, 0,
+      layout.boss.z * 8 + boss_spawn_offset, 0, 45,
+    )
+    boss._spin = layout.boss_spin
+    boss._arms = boss_arms(depth)
+    state.boss_alive = 1
+  }
 
   const player = state.entity_player!
   camera.x = -player.x
@@ -176,11 +222,14 @@ function load_level(depth: number): void {
 
   renderer_freeze_level_geometry()
 
-  terminal_show_notice('深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
+  const boss_floor = is_boss_depth(depth)
+  terminal_show_notice(boss_floor
+    ? '深度 ' + depth + ' に到達___大型作業機の稼働音を検知'
+    : '深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
   // フロアを跨いだ表示・予約は消す。到達つぶやきはターミナルの深度ログの
   // 2 秒後に出る（遅延は monologue 側の定数）
   monologue_reset()
-  monologue_arrival()
+  if (boss_floor) { monologue_boss_arrival() } else { monologue_arrival() }
 }
 
 function game_tick(): void {
@@ -189,18 +238,27 @@ function game_tick(): void {
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
   // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
-  state.time_elapsed = Math.min((time_now - time_last) / 1000, 0.1)
+  // ポーズ中は時間を止める（開封ダイアログとボス報酬の 2 か所が立てる）。
+  // この 1 行で、ニコチン減少・生存時間・降下予約・死亡シーケンス・つぶやき・
+  // HUD の hold タイマーが個別のガードなしにまとめて止まる（各所に
+  // !state.paused を足すと同じ判定が 6 か所以上に散る。死体の除外を
+  // 1 か所に集めているのと同じ理由）
+  state.time_elapsed = state.paused
+    ? 0
+    : Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
 
-  // リザルト表示中は生存時間に数えない
-  if (state.game_running) { state.run_time += state.time_elapsed }
+  // リザルト表示中と死亡シーケンス中は生存時間に数えない（死んだ瞬間で止める）
+  if (state.game_running && !state.dying) { state.run_time += state.time_elapsed }
 
   // 非常口の通過演出が終わったら降下する。予約の実体は state.descend_timer で、
   // terminal の表示チェーンから独立しているため、演出中に別の通知が出ても
   // 消えない（レビュー Finding 1、予約側の理由は entity-exit.ts）。
   // renderer_prepare_frame() より前に済ませて、このフレームから新しいフロアを描く。
-  // ラン終了中（リザルト表示中）は進めない。0 に戻すのは load_level が持つ。
-  if (state.game_running && state.descend_timer > 0) {
+  // ラン終了中（リザルト表示中）と死亡シーケンス中は進めない — 非常口に触れた
+  // 直後に死ぬと、予約が残ったまま死亡演出の途中でフロアが変わってしまう。
+  // 0 に戻すのは load_level が持つ。
+  if (state.game_running && !state.dying && state.descend_timer > 0) {
     state.descend_timer -= state.time_elapsed
     if (state.descend_timer <= 0) { next_level() }
   }
@@ -209,23 +267,58 @@ function game_tick(): void {
 
   const player = state.entity_player!
 
+  // 死亡シーケンス（時間割は death-sequence-model.ts）。死体・敵・煙は下の
+  // 通常のエンティティループが動かし続け、ここではビートの発火だけを行う。
+  // 最期のひとことと BGM のテープストップは entity-player._kill() が予約済み
+  if (state.dying) {
+    const elapsed_before = state.death_elapsed
+    state.death_elapsed += state.time_elapsed
+    const beats = death_beats(elapsed_before, state.death_elapsed)
+    // 魂の煙。最期まで煙を出す男（見た目は喫煙所の煙と同じ = 世界観の説明が不要）
+    for (let i = 0; i < beats.smoke; i++) { spawn_smoke(player.x, player.z) }
+    if (beats.notice) {
+      terminal_show_notice('倒れた侵入者を検出___救護ドローンを派遣')
+    }
+    // 救護ドローンの回収。機体は描かず、降りてくる白い光と死体の上昇だけで表現する
+    player.y = death_body_y(state.death_elapsed)
+    const drone_y = death_drone_y(state.death_elapsed)
+    if (drone_y !== null) {
+      push_light(player.x, drone_y, player.z, 1, 1, 1, 0.02)
+    }
+    // 白フェード。持ち上げ以降、白い光に包まれていく。フェードインは
+    // フレーム駆動の書き込み（トランジションを常時付けると毎フレームの
+    // 書き込みに追従しない）。reduced-motion は CSS 側（#wf の display:none）
+    // で無効化されるので、ここに分岐は持たない
+    fade_el.style.opacity = String(death_fade_opacity(state.death_elapsed))
+    if (beats.done) {
+      state.dying = 0
+      run_end()
+    }
+  }
+
   // ニコチン減少。ラン終了後（リザルト表示中）と一服中は止める。
   // 一服中に減少を走らせると、設計書 §1 の「1.5 秒吸えたら 60% 回復」が
   // 減少ぶんだけ目減りして成立しなくなる（深度 1 で 58.5、深度 30 で 57.0）。
   // 吸っている間だけ止めるのが、要件を完全に満たす最も単純な形。
   // state.smoking が立つのは喫煙所の _render（この後）なので接触の初回 1 フレーム
   // だけは減少が走るが、深度 1 で 0.017 と誤差にもならない。
-  if (state.game_running && !state.smoking) {
-    state.nicotine = Math.max(
-      0,
-      state.nicotine -
-        nicotine_drain_rate(state.depth) * meta_drain_factor() * state.time_elapsed,
+  // 死亡シーケンス中も止める（リザルトの残量表示を死んだ瞬間の値で固定する）
+  if (state.game_running && !state.smoking && !state.dying) {
+    // 装備（パッチ）は係数ではなく定数を引く。乗算だと深いほど効きが増して
+    // インフレする（docs/equipment.md）。下限は、耐性側を将来触ったときに
+    // 0 を割ってゲージが減らなくなるのを止めるための保険
+    const drain = Math.max(
+      drain_floor,
+      nicotine_drain_rate(state.depth) * meta_drain_factor() -
+        patch_drain_bonus(meta.gear.patch),
     )
+    state.nicotine = Math.max(0, state.nicotine - drain * state.time_elapsed)
   }
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
 
   // 限界（0%）: 2 秒ごとに HP が 1 減る。即死ではなく、まだ間に合う猶予帯
-  if (state.game_running && !state.smoking && stage === nicotine_stage_limit) {
+  if (state.game_running && !state.smoking && !state.dying &&
+      stage === nicotine_stage_limit) {
     limit_damage_timer += state.time_elapsed
     if (limit_damage_timer >= 2) {
       limit_damage_timer -= 2
@@ -235,24 +328,46 @@ function game_tick(): void {
     limit_damage_timer = 0
   }
 
+  // 死体は当たり判定から外す。相手側の _check は「entity_player_t かどうか」
+  // だけを見るので、死体のままでも回復パックを拾い（拾得音が死亡演出に重なり、
+  // 床のパックも消える）、ヤニを回収し（死後に稼いだぶんがリザルトの残高に載る）、
+  // 喫煙所に触れて一服を始めてしまう。死体が消えるのは次の load_level なので、
+  // シーケンス中（dying）に加えてリザルト表示中（game_running = 0）も外す。
+  // 除外はここ 1 か所で行う（各エンティティ側に足すと同じ判定が 5 つに散る）
+  const corpse = state.dying || !state.game_running ? player : null
+
   // update and render entities
   const entities = state.entities
   for (let i = 0; i < entities.length; i++) {
     const e1 = entities[i]
     if (e1._dead) { continue }
-    e1._update()
 
-    // check for collisions between entities - it's quadratic and nobody cares \o/
-    for (let j = i + 1; j < entities.length; j++) {
-      const e2 = entities[j]
-      if (!(
-        e1.x >= e2.x + 9 ||
-        e1.x + 9 <= e2.x ||
-        e1.z >= e2.z + 9 ||
-        e1.z + 9 <= e2.z
-      )) {
-        e1._check(e2)
-        e2._check(e1)
+    // ポーズ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
+    // だけでは足りない — _last_shot -= 0 は負のままなので、押しっぱなしの
+    // スペースで毎フレーム弾が生成され、セントリーの発射カウンタも同じく
+    // 負のままで弾が積み上がる
+    if (!state.paused) {
+      e1._update()
+
+      // check for collisions between entities - it's quadratic and nobody cares \o/
+      // フレーム途中で死んだものは当たり判定から外す。死体が entities から
+      // 消えるのはフレーム末尾なので、それまで触れ続ける。外側の _dead
+      // スキップだけでは足りない — e1 は自分の内側ループの最中に死にうる
+      // （撃破の処理が走るのは e2._check(e1) の側で、清掃ドローンのように
+      // _kill() がドロップを entities の末尾へ積むと、この j がそのまま
+      // 回ってきて自分が落としたものを死体が回収してしまう）
+      for (let j = i + 1; j < entities.length && !e1._dead; j++) {
+        const e2 = entities[j]
+        if (e2._dead || e1 === corpse || e2 === corpse) { continue }
+        if (!(
+          e1.x >= e2.x + e2.w ||
+          e1.x + e1.w <= e2.x ||
+          e1.z >= e2.z + e2.w ||
+          e1.z + e1.w <= e2.z
+        )) {
+          e1._check(e2)
+          e2._check(e1)
+        }
       }
     }
 
@@ -276,12 +391,7 @@ function game_tick(): void {
     monologue_update(player.x, player.z)
   }
 
-  // health bar, render with plasma sprite
-  for (let i = 0; i < player.h; i++) {
-    push_sprite(-camera.x - 50 + i * 4, 29 - camera.y, -camera.z - 30, 26)
-  }
-
-  hud_update(state.nicotine, state.nicotine_max, stage, state.spares_left)
+  hud_update(stage)
 
   renderer_end_frame()
 

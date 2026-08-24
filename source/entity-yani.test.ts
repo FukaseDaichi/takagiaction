@@ -17,7 +17,9 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: undefined,
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
-vi.mock('./game', () => ({ run_end: () => {} }))
+// entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
+vi.mock('./monologue', () => ({ monologue_death: () => {} }))
+vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_spider_t } from './entity-spider'
@@ -48,6 +50,13 @@ describe('ヤニ', () => {
     yani._check(player)
     expect(state.yani_run).toBe(1)
     expect(yani._dead).toBe(true)
+  })
+
+  it('価値を持たせたヤニは、その分だけまとめて増える', () => {
+    const yani = new entity_yani_t(64, 0, 64, 5, 26)
+    yani._value = 7
+    yani._check(player)
+    expect(state.yani_run).toBe(7)
   })
 
   // レビュー Finding 4d: run_end() は state.yani_run を meta へ合算・保存してから

@@ -1,0 +1,348 @@
+/* ゲーム中の HUD。寸法はすべて vw で、16:9 前後のアスペクト比を前提にしている
+   （death-screen.css と同じ）。
+
+   常設の計器はタバコ（左上）とミニマップ（右上）の 2 つだけ。他の表示は
+   hud-model.ts の条件で現れて消える。ラベルを一切持たないのは、
+   「表示されていること自体が警告」だから（docs/gameplay.md）。
+
+   #hud は全画面の透明な土台。pointer-events: none を外すと、イントロの
+   クリック待ち（main.ts の document.onclick）と死亡画面のボタンが拾えなくなる。 */
+#hud {
+  /* タバコの材質。世界側の照明は #e90 なので、火種はより赤く熱い側に置いて
+     in-world のオレンジの光と混ざらないようにする */
+  --paper: #ede6d6;
+  --paper-lit: #fffbf0;
+  --paper-mid: #cfc6b2;
+  --paper-low: #b4ab98;
+  --ember: #ff5a12;
+  --ash: #2b2a27;
+  --filter: #b4832c;
+  --hp-lit: #e23a2e;
+  --hp-lost: #40241f;
+  --dim: #7e7568;
+
+  position: fixed;
+  inset: 0;
+  display: none;
+  color: var(--paper);
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 計器の数字は等幅で組む。桁が変わっても幅が動かず、目が位置で読める */
+#hud .num {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
+}
+
+#hud .hud-left {
+  position: absolute;
+  top: 1.4vw;
+  left: 1.5vw;
+}
+
+/* ── タバコ ─────────────────────────────────────────────
+   フィルターは固定長、紙は残量ぶんの幅、燃えた分は灰として残る。
+   グラデーションはすべてハードストップ。ドット絵の画面に滑らかなブレンドを
+   置くと浮くので、段の付いた低解像度な陰影にする。 */
+#hud .cig-row { display: flex; align-items: center; gap: 0.7vw; }
+#hud .cig { display: flex; align-items: stretch; height: 2.2vw; }
+
+#hud .cig-filter {
+  position: relative;
+  width: 4vw;
+  border-radius: 0.25vw 0 0 0.25vw;
+  background: linear-gradient(
+    180deg,
+    #c8922e 0%, #c8922e 24%,
+    var(--filter) 24%, var(--filter) 66%,
+    #8e6620 66%
+  );
+}
+/* 印字帯。細い縦線の繰り返しでフィルターの印刷を出す */
+#hud .cig-filter::before {
+  content: '';
+  position: absolute;
+  inset: 0 0.5vw;
+  background-image: repeating-linear-gradient(
+    90deg, rgba(80, 52, 8, 0.45) 0 0.06vw, transparent 0.06vw 0.2vw
+  );
+}
+/* 紙との継ぎ目の暗い一本 */
+#hud .cig-filter::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 0.14vw;
+  background: #6d4c14;
+}
+
+#hud .cig-track {
+  position: relative;
+  width: 18vw;
+  background: linear-gradient(
+    180deg,
+    #34332f 0%, #34332f 30%,
+    var(--ash) 30%, var(--ash) 70%,
+    #201f1d 70%
+  );
+}
+
+/* 紙。width が残量。overflow: hidden が印字帯（.cig-print）を切るので、
+   火種が越えた目盛りは燃え落ちて消える */
+#hud .cig-paper {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--paper-lit) 0%, var(--paper-lit) 22%,
+    var(--paper) 22%, var(--paper) 62%,
+    var(--paper-mid) 62%, var(--paper-mid) 84%,
+    var(--paper-low) 84%
+  );
+}
+/* 段階が進むと紙まで赤く染まる。不透明度は .cig の段階クラスが決める */
+#hud .cig-paper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #ff3a14;
+  opacity: 0;
+}
+#hud .cig.s2 .cig-paper::after { opacity: 0.22; }
+#hud .cig.s3 .cig-paper::after { opacity: 0.4; }
+
+/* 印字帯の土台。幅を .cig-track と同じ固定値にすることで、目盛りの位置が
+   紙の残量に影響されない（紙が縮むと右側から切り落とされる） */
+#hud .cig-print { position: absolute; inset: 0; width: 18vw; }
+#hud .cig-print i {
+  position: absolute;
+  top: 22%; bottom: 22%;
+  width: 0.1vw;
+  margin-left: -0.05vw;
+  background: rgba(60, 45, 20, 0.5);
+}
+
+/* 火種。紙の右端に追従させるため、幅ではなく left で置く */
+#hud .cig-ember {
+  position: absolute;
+  top: -0.12vw; bottom: -0.12vw;
+  width: 0.55vw;
+  margin-left: -0.3vw;
+  background: linear-gradient(
+    180deg,
+    #ffc24a 0%, #ffc24a 25%,
+    var(--ember) 25%, var(--ember) 70%,
+    #c02a05 70%
+  );
+  box-shadow: 0 0 0.8vw 0.12vw rgba(255, 90, 18, 0.7);
+}
+/* 0% は吸殻。火が消えていることを見せる */
+#hud .cig.s3 .cig-ember { opacity: 0; }
+/* 一服中だけ火種が咲く。HUD で動くのはここ 1 か所だけにする */
+#hud .cig.smoking .cig-ember {
+  animation: cig-bloom 0.7s ease-in-out infinite alternate;
+}
+@keyframes cig-bloom {
+  to { box-shadow: 0 0 1.9vw 0.5vw rgba(255, 130, 40, 0.85); }
+}
+
+#hud .cig-percent { font-size: 1.7vw; }
+#hud .cig-percent.warn { color: var(--ember); text-shadow: 0 0 0.6vw rgba(255, 90, 18, 0.6); }
+
+/* ── HP と予備の一本 ────────────────────────────────────
+   どちらも条件付き。両方消えたら行そのものを畳んで、左上をタバコ 1 本に戻す */
+#hud .meter-row { display: none; align-items: center; gap: 1.4vw; margin-top: 0.7vw; }
+#hud .hp { display: flex; gap: 0.32vw; font-size: 1.75vw; line-height: 1; }
+#hud .hp i { color: var(--hp-lit); font-style: normal; text-shadow: 0 0 0.5vw rgba(226, 58, 46, 0.7); }
+#hud .hp i.lost { color: var(--hp-lost); text-shadow: none; }
+/* 限界帯（2 秒ごとに HP が減る）だけ明滅させる */
+#hud .hp.blink { animation: hp-blink 0.9s steps(1, end) infinite; }
+@keyframes hp-blink { 50% { opacity: 0.3; } }
+
+#hud .spare { display: flex; align-items: center; gap: 0.35vw; }
+#hud .spare i {
+  width: 0.45vw;
+  height: 1.15vw;
+  background: linear-gradient(180deg, #c8922e 0%, #c8922e 30%, var(--filter) 30%, #8e6620 74%);
+}
+#hud .spare b {
+  margin-left: 0.35vw;
+  padding: 0 0.3vw;
+  border: 1px solid var(--dim);
+  border-radius: 0.15vw;
+  color: var(--dim);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.95vw;
+}
+#hud .spare.urgent b {
+  border-color: var(--ember);
+  color: var(--ember);
+  text-shadow: 0 0 0.5vw rgba(255, 90, 18, 0.7);
+}
+
+/* ── ミニマップ ─────────────────────────────────────────
+   canvas#m と code#sn は index.html の静的要素を hud.ts が移してくる。
+   パネルの縁取りは 1px のヘアラインだけで、凡例は持たない */
+#hud .hud-map { position: absolute; top: 1.4vw; right: 1.5vw; width: 15vw; }
+#hud .hud-map-frame {
+  position: relative;
+  border: 1px solid #2c333b;
+  background: rgba(3, 5, 7, 0.6);
+}
+#hud .hud-map canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+/* 深度は地下階の表記（B12）。3 文字で済むので独立したセルを持たせない */
+#hud .map-depth {
+  position: absolute;
+  right: 0.35vw;
+  bottom: 0.2vw;
+  color: var(--dim);
+  font-size: 1.05vw;
+  text-shadow: 0 0 0.4vw #000;
+}
+#hud #sn {
+  display: none;
+  margin-top: 0.4vw;
+  text-align: right;
+  color: #ffd464;
+  font-weight: bold;
+  font-size: 1.15vw;
+  text-shadow: 0 0 0.5vw #f70;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hud .cig.smoking .cig-ember,
+  #hud .hp.blink { animation: none; }
+}
+
+/* 武器スロット。予備の一本の行（.spare）と同じ組みにして、
+   キーキャップの位置も揃える */
+#hud .weapon { display: none; align-items: center; gap: 0.3vw; }
+#hud .weapon i {
+  font-style: normal;
+  font-size: 0.85vw;
+  line-height: 1;
+  padding: 0.2vw 0.35vw;
+  border: 1px solid #4a4a4a;
+  border-radius: 0.2vw;
+  color: #6a6a6a;
+}
+#hud .weapon i.on { border-color: #e90; color: #ffc; text-shadow: 0 0 6px #f70; }
+#hud .weapon b {
+  font-size: 0.7vw;
+  padding: 0.15vw 0.3vw;
+  border: 1px solid #4a4a4a;
+  border-radius: 0.2vw;
+  color: #8a8a8a;
+}
+
+/* ── 非常口の通過カウントダウン ──────────────────────────
+   非常口に乗ってから降下するまでの descend_duration 秒だけ出す
+   （docs/gameplay.md「非常口」）。乗った手応えがターミナルの 1 行しかなく
+   「乗ったのに動かない」と読めてしまうため、残り時間を画面下中央に大きく置く。
+
+   色は緑で通す。ミニマップの非常口（0,220,120）・in-world の標識と同じ意味で、
+   HUD のオレンジ（ニコチン）とは混ざらない。位置を下中央にするのは、上中央が
+   ターミナルの通知（#a.nt）、左右上がタバコとミニマップで埋まっているため。 */
+#hud .descend-veil {
+  position: absolute;
+  inset: 0;
+  display: none;
+  box-shadow: inset 0 0 11vw -3.5vw rgba(43, 255, 154, 0.4);
+  animation: descend-veil 1.05s ease-in-out infinite alternate;
+}
+@keyframes descend-veil { from { opacity: 0.4; } to { opacity: 1; } }
+
+#hud .descend {
+  --exit: #2bff9a;
+  position: absolute;
+  left: 50%;
+  bottom: 5vw;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 1.5vw;
+  overflow: hidden;
+  padding: 1vw 2.4vw 1vw 1.3vw;
+  border: 1px solid rgba(43, 255, 154, 0.45);
+  border-radius: 0.35vw;
+  background: rgba(2, 13, 9, 0.82);
+  box-shadow: 0 0 2.2vw rgba(43, 255, 154, 0.2), inset 0 0 1.6vw rgba(43, 255, 154, 0.08);
+}
+/* 走査線。パネルを横切る 1 本の光で「作動中」を出す */
+#hud .descend::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 42%, rgba(43, 255, 154, 0.16) 50%, transparent 58%);
+  animation: descend-sweep 1.6s linear infinite;
+}
+@keyframes descend-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+#hud .descend-dial { position: relative; width: 6.4vw; height: 6.4vw; }
+/* 残り時間のリング。--p（1 → 0）は hud.ts が毎フレーム書く。
+   円錐グラデーションを輪に抜くので、中の数字は兄弟要素として重ねる
+   （mask は子孫にも効くため、同じ要素に入れると数字ごと消える） */
+#hud .descend-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--exit) calc(var(--p, 1) * 360deg), rgba(43, 255, 154, 0.14) 0
+  );
+  -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 71%);
+  mask: radial-gradient(closest-side, transparent 70%, #000 71%);
+  filter: drop-shadow(0 0 0.5vw rgba(43, 255, 154, 0.55));
+}
+#hud .descend-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 3.3vw;
+  line-height: 1;
+  color: var(--exit);
+  text-shadow: 0 0 1.1vw rgba(43, 255, 154, 0.9);
+}
+/* 数字が変わった 1 フレームだけ hud.ts が付け直す */
+#hud .descend-num.pop { animation: descend-pop 0.42s cubic-bezier(0.2, 0.9, 0.2, 1); }
+@keyframes descend-pop {
+  from { transform: scale(1.75); opacity: 0.15; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ラベルは字間を開けて計器の表示に寄せる。字間は最後の 1 文字の右にも入るので、
+   負のマージンで戻さないと下の行との左揃えが崩れて見える */
+#hud .descend-label {
+  margin-right: -0.36em;
+  padding-bottom: 0.45vw;
+  border-bottom: 1px solid rgba(43, 255, 154, 0.3);
+  font-size: 1.25vw;
+  letter-spacing: 0.36em;
+  color: var(--exit);
+  text-shadow: 0 0 0.7vw rgba(43, 255, 154, 0.7);
+}
+#hud .descend-route {
+  margin-top: 0.45vw;
+  font-size: 1.7vw;
+  letter-spacing: 0.1em;
+  color: #dcfff2;
+  text-shadow: 0 0 0.6vw rgba(43, 255, 154, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hud .descend-veil,
+  #hud .descend::after,
+  #hud .descend-num.pop { animation: none; }
+}

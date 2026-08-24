@@ -12,25 +12,35 @@
 		#h::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.45) 100%);}
 		@keyframes kb{to{transform:scale(1.06);}}
 		#a{font-weight:bold;color:#c80;position:absolute;top:4vw;left:2vw;font-size:1.6vw;overflow:hidden;white-space: nowrap;width:94%;text-shadow: 0 0 7px #f70;transition:opacity 1s;}
-		#m{position:absolute;top:1.25vw;right:1.25vw;width:20vw;height:20vw;background:rgba(0,0,0,.7);border:0.3125vw solid #e90;image-rendering:optimizeSpeed;image-rendering:pixelated;display:none;}
-		#sn{position:absolute;top:22.5vw;right:1.25vw;color:#e90;font-weight:bold;font-size:1.3vw;text-shadow:0 0 7px #f70;display:none;}
-		#n{position:absolute;bottom:2vw;left:2vw;width:40vw;height:1.6vw;background:rgba(0,0,0,.7);border:0.3125vw solid #e90;display:none;}
-		#nf{display:block;height:100%;width:100%;background:#e90;}
-		#sp{position:absolute;bottom:2vw;left:45vw;color:#e90;font-weight:bold;font-size:1.3vw;text-shadow:0 0 7px #f70;display:none;}
+		/* ゲーム中の通知。左上と右上は HUD のパネルで埋まっているので画面上中央に出す（幅は左右のパネルに届かない 52vw に抑える） */
+		#a.nt{top:1.4vw;left:50%;transform:translateX(-50%);width:52vw;text-align:center;}
 		#b{position:absolute;left:0;top:0;padding:.3vw .7vw;background:rgba(0,0,0,.75);border:1px solid #e90;border-radius:.5vw;color:#e90;font-weight:bold;font-size:1.4vw;white-space:nowrap;opacity:0;transition:opacity .5s;pointer-events:none;}
 		#b::after{content:'';position:absolute;left:50%;bottom:-.35vw;margin-left:-.35vw;border:.35vw solid transparent;border-bottom:0;border-top-color:#e90;}
 		#b.tr{animation:tr .12s infinite;}
 		@keyframes tr{25%{margin:-2px 0 0 1px;}75%{margin:2px 0 0 -1px;}}
+		/* 一撃必殺の決め。詳細は source/screen-slash.ts。z-index は白フェード(#wf)の下 */
+		#sl{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:19;opacity:0;}
+		#sl::before{content:'';position:absolute;left:0;top:50%;width:190%;height:2.4vw;transform:translate(-115%,-50%) rotate(-19deg);background:linear-gradient(90deg,transparent,var(--c,#fff) 16%,#fff 50%,var(--c,#fff) 84%,transparent);filter:blur(.28vw);}
+		#sl.on{animation:slf .2s linear;}
+		#sl.on::before{animation:sls .2s ease-out;}
+		@keyframes sls{from{transform:translate(-115%,-50%) rotate(-19deg);}to{transform:translate(55%,-50%) rotate(-19deg);}}
+		@keyframes slf{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
+		@media (prefers-reduced-motion: reduce){#sl{display:none;}}
+		#wf{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
+		#wf.f{animation:wfo .6s forwards;}
+		@keyframes wfo{from{opacity:1}to{opacity:0}}
+		@media (prefers-reduced-motion: reduce){#wf{display:none;}}
 	</style>
 </head>
 <body style="margin:0;background:#000">
 	<canvas id="c" width=320 height=180></canvas>
 	<div id="h"></div>
 	<code id="a"></code>
+	<!-- ミニマップと残り香は hud.ts が HUD のパネルへ移す（生成をあちらに移すと dom.ts の静的な取得が成り立たない） -->
 	<canvas id="m" width=64 height=64></canvas>
 	<code id="sn"></code>
-	<div id="n"><i id="nf"></i></div>
-	<code id="sp"></code>
 	<code id="b"></code>
+	<div id="sl"></div>
+	<div id="wf"></div>
 	<script type="module" src="/source/main.ts"></script>
 </body></html>

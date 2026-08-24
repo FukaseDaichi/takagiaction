@@ -1,7 +1,12 @@
 import { minimap_canvas, sniff_el } from './dom'
+import { entity_container_t } from './entity-container'
+import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
-import { meta_sniff_active, meta_sniff_distance } from './meta'
+import { entity_yani_t } from './entity-yani'
+import {
+  meta_sniff_active, meta_sniff_distance, meta_sniff_exit, meta_sniff_loot,
+} from './meta'
 import { minimap_radius, nicotine_stage } from './nicotine'
 import { sniff_find } from './sniff'
 import type { sniff_result_t } from './sniff'
@@ -14,26 +19,29 @@ const minimap_explored = new Uint8Array(level_width * level_height)
 const minimap_ctx = minimap_canvas.getContext('2d')!
 const minimap_pixels = minimap_ctx.createImageData(level_width, level_height)
 
-// 嗅覚。BFS は毎フレーム回すには重いので 1 秒間隔で再計算する。
-// 自機が 1 秒で動けるのは最大 16 タイル相当だが、矢印の解像度（ミニマップの
-// 数ピクセル）ではズレとして知覚できない
+// 嗅覚。BFS は毎フレーム回すには重いので 1 秒間隔で再計算する。目標
+// （喫煙所・非常口）は動かないので、結果が 1 秒古くても点の位置はズレない。
+// 遅れうるのは「どれが最寄りか」の入れ替わりだけで、それが起きるのは 2 つの
+// 目標がほぼ等距離のときに限る
 let sniff_timer = 0
 let sniff_result: sniff_result_t | null = null
 
+// 明滅の位相。「まだ行っていない喫煙所」と「開通した非常口」だけが明滅する。
+// HUD から「次にやること」のパネルを外した代わりに、明滅が行き先を常に答える
+// （docs/gameplay.md「明滅は行き先を意味する」）
+const blink_period = 1
+let blink_timer = 0
+
 export function minimap_reset(): void {
   minimap_explored.fill(0)
-  minimap_canvas.style.display = 'block'
   sniff_timer = 0
   sniff_result = null
-}
-
-export function minimap_hide(): void {
-  minimap_canvas.style.display = 'none'
-  sniff_el.style.display = 'none'
+  blink_timer = 0
 }
 
 export function minimap_update(): void {
   const stage = nicotine_stage(state.nicotine, state.nicotine_max)
+  blink_timer = (blink_timer + state.time_elapsed) % blink_period
   minimap_sniff()
   minimap_reveal(stage)
   minimap_draw()
@@ -50,8 +58,8 @@ function minimap_set_pixel(index: number, r: number, g: number, b: number): void
 function minimap_sniff(): void {
   // state.game_running: run_end() 後も requestAnimationFrame(game_tick) は
   // 回り続け、minimap_update() は無条件に呼ばれる。ここで打ち切らないと、
-  // minimap_hide() が隠した直後の 1 フレームで sniff_el.style.display を
-  // 'block' に戻し、結果画面の上に残り香表示が復活してしまう
+  // リザルト表示中も 1 秒ごとに BFS が回り、次のランの最初のフレームまで
+  // 前のランの倍速の明滅と残り香の距離が残る
   // （entity-smoking-area.ts / entity-exit.ts の state.game_running と同じ理由）。
   if (
     !state.game_running ||
@@ -73,11 +81,24 @@ function minimap_sniff(): void {
       if (e instanceof entity_smoking_area_t && !e._done) {
         targets.push({ x: e.x >> 3, z: e.z >> 3 })
       }
+      // 嗅覚 Lv4: 開通済みの非常口も嗅ぐ。分岐を書かずに「本物 > 非常口」に
+      // なる — _complete() が _done と exit_open を同じ呼び出しで立てるので、
+      // まだ吸っていない本物と開通済みの非常口は同時に候補にならない。
+      // 開示していないダミーは吸い終えたあとも残るため、ダミーと非常口は
+      // BFS 距離で素直に競う（一服後に意味があるのは非常口だけなので、
+      // 非常口が勝つのは望ましい。docs/meta-progression.md）。埋まるのは
+      // 「一服後に非常口を探して歩き回り、ゲージが再び落ちた」局面で、
+      // それまで嗅覚は沈黙していた
+      else if (
+        e instanceof entity_exit_t && state.exit_open && meta_sniff_exit()
+      ) {
+        targets.push({ x: e.x >> 3, z: e.z >> 3 })
+      }
     }
     sniff_result = sniff_find(level_data, player.x >> 3, player.z >> 3, targets)
   }
 
-  // 10 段: 距離も表示する（1 タイル = 1m と読む）
+  // Lv3 以上: 距離も表示する（1 タイル = 1m と読む）
   if (sniff_result && meta_sniff_distance()) {
     sniff_el.textContent = '残り香 ' + sniff_result.dist + 'm'
     sniff_el.style.display = 'block'
@@ -143,20 +164,72 @@ function minimap_draw(): void {
   }
 
   // 喫煙所は開示済みダミーだけ灰色。それ以外（未接触・本物）は同じオレンジで、見分けは足で確かめるしかない。
-  // 非常口は開通していて、かつ探索済みのときだけ緑で出る。
+  // 非常口は開通していて、かつ探索済み（または嗅覚が指している）ときだけ緑で出る。
+  //
+  // 「これから行く先」だけが明滅する: まだ触っていない喫煙所（本物もダミーも
+  // 候補なので両方明滅する。見分けは足で確かめるという中核はそのまま）と、
+  // 開通した非常口。吸い終わった本物と開示済みダミーは用済みなので明滅しない。
+  // 消える側ではなく白く強くなる側に振るのは、1 タイル 1 ピクセルしかないため
+  // 暗くすると見失うから。
+  const blink = blink_timer < blink_period / 2
+  // 嗅覚が選んだ 1 つだけ倍速で脈打つ。明滅は 3 段の語彙になる —
+  // 速い明滅 = いま嗅いでいる最寄りの残り香、遅い明滅 = 行き先の候補、
+  // 明滅なし = 機会（収入系）。位相は 1 秒ごとに遅い側と揃い、その間に
+  // 1 回余分に光ることが「速い」として読める
+  const blink_fast = blink_timer % (blink_period / 2) < blink_period / 4
+  // 嗅覚の目標タイル。sniff_find が返すのはエンティティのミニマップ座標
+  // （x >> 3, z >> 3）そのものなので、添字の一致だけで判定できる
+  const sniff_index = sniff_result
+    ? sniff_result.x + sniff_result.z * level_width
+    : -1
+  // 嗅覚 Lv5: ヤニ・清掃ドローン・押収品コンテナは未探索タイルでも点灯する。
+  // しきい値は持たない（meta.ts）が、リザルト表示中に前のランの分を映さない
+  // ため game_running のガードは生存系と同じく通す
+  const loot = state.game_running && meta_sniff_loot()
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
     const index = (e.x >> 3) + (e.z >> 3) * level_width
-    if (!minimap_explored[index]) { continue }
+
+    // 収入系は明滅させない。生存系も収入系もミニマップ上では 1 ピクセルの点
+    // なので、行き先（生存系）と機会（収入系）を分ける印は明滅の有無だけが
+    // 担う（「明滅は行き先を意味する」の規約をそのまま使う）
+    if (e instanceof entity_yani_t) {
+      if (loot) { minimap_set_pixel(index, 215, 195, 110) }
+      continue
+    }
+    if (e instanceof entity_drone_t) {
+      if (loot) { minimap_set_pixel(index, 140, 200, 240) }
+      continue
+    }
+    // 押収品コンテナも収入系（機会）。生存系との見分けは明滅の有無が担うので、
+    // ヤニ・ドローンと同じく明滅させない（docs/meta-progression.md
+    // 「生存系と収入系は別の感覚である」）
+    if (e instanceof entity_container_t) {
+      if (loot) { minimap_set_pixel(index, 150, 230, 200) }
+      continue
+    }
+
+    // 嗅覚が指している 1 つだけは霧を無視して描く。描かなければ嗅覚は機能
+    // しない。経路は霧のままなので「あそこにあるが、道は知らない」に留まり、
+    // 中核の問いには触れない。明滅の判定を種別ごとの分岐の中でやるのは、
+    // エンティティの色と対で読ませるため（色の対応表を 2 か所に割らない）
+    const smelt = index === sniff_index
+    if (!minimap_explored[index] && !smelt) { continue }
 
     if (e instanceof entity_smoking_area_t) {
       if (e.revealed_dummy) {
         minimap_set_pixel(index, 110, 110, 110)
+      } else if (!e._done && (smelt ? blink_fast : blink)) {
+        minimap_set_pixel(index, 255, 228, 150)
       } else {
         minimap_set_pixel(index, 238, 153, 0)
       }
     } else if (e instanceof entity_exit_t && state.exit_open) {
-      minimap_set_pixel(index, 0, 220, 120)
+      if (smelt ? blink_fast : blink) {
+        minimap_set_pixel(index, 190, 255, 220)
+      } else {
+        minimap_set_pixel(index, 0, 220, 120)
+      }
     }
   }
 
@@ -170,17 +243,6 @@ function minimap_draw(): void {
       Math.round(Math.sin(player._angle)) * level_width,
     238, 153, 0,
   )
-
-  // 嗅覚: 自機から残り香の方角へ短い光跡を描く
-  if (sniff_result) {
-    for (let r = 2; r <= 4; r++) {
-      const x = (player.x >> 3) + Math.round(Math.cos(sniff_result.angle) * r)
-      const z = (player.z >> 3) + Math.round(Math.sin(sniff_result.angle) * r)
-      if (x >= 0 && x < level_width && z >= 0 && z < level_height) {
-        minimap_set_pixel(x + z * level_width, 255, 220, 100)
-      }
-    }
-  }
 
   minimap_ctx.putImageData(minimap_pixels, 0, 0)
 }
