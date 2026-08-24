@@ -1,4 +1,4 @@
-"""m/q2.png のタイル 45・46 を焼き込む。
+"""m/q2.png のタイル 46 を焼き込む。
 
 使い方: uv run --with pillow python tools/boss_tiles.py
 
@@ -9,8 +9,8 @@
 霧も通さないので、弾は push_light() なしで等しく明るく見える。ボスの弾は
 同時に最大 26 発飛び、max_lights = 16 には載せられないため、これが唯一の経路。
 
-45（ボス本体）は暫定のプレースホルダである。生成した絵ができたら
-tools/atlas.py で焼き直し、この関数ごと消す（押収品コンテナ 42 と同じ手順）。
+45（ボス本体）は tools/atlas.py で画像から焼き込まれており、m/q2.png が
+唯一の原本になる。この tool は 45 を変更しない。
 """
 from pathlib import Path
 
@@ -19,7 +19,6 @@ from PIL import Image
 ATLAS = Path(__file__).resolve().parent.parent / 'm' / 'q2.png'
 TILE_SIZE = 16
 
-BOSS_TILE = 45
 BULLET_TILE = 46
 
 # full-bright 規則を満たす 2 色。外周は敵の赤、芯だけ橙に寄せて厚みを出す
@@ -27,10 +26,6 @@ BULLET_EDGE = (255, 66, 0)
 BULLET_CORE = (255, 150, 0)
 BULLET_RADIUS = 3.2
 BULLET_CORE_RADIUS = 1.6
-
-# プレースホルダの機体色と、full-bright の目
-BODY = (96, 102, 108)
-EYE = (255, 66, 0)
 
 
 def clear(pixels, tile: int) -> None:
@@ -54,24 +49,12 @@ def bake_bullet(pixels) -> None:
                 pixels[ox + x, y] = (*BULLET_EDGE, 255)
 
 
-def bake_boss_placeholder(pixels) -> None:
-    ox = BOSS_TILE * TILE_SIZE
-    clear(pixels, BOSS_TILE)
-    for y in range(2, 15):
-        for x in range(2, 14):
-            pixels[ox + x, y] = (*BODY, 255)
-    for x in (4, 5, 10, 11):
-        for y in (5, 6):
-            pixels[ox + x, y] = (*EYE, 255)
-
-
 def main() -> None:
     atlas = Image.open(ATLAS).convert('RGBA')
     pixels = atlas.load()
     bake_bullet(pixels)
-    bake_boss_placeholder(pixels)
     atlas.save(ATLAS)
-    print(f'baked tiles {BOSS_TILE}, {BULLET_TILE} into {ATLAS}')
+    print(f'baked tile {BULLET_TILE} into {ATLAS}')
 
 
 if __name__ == '__main__':
