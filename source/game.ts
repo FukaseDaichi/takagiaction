@@ -333,7 +333,7 @@ function game_tick(): void {
     const e1 = entities[i]
     if (e1._dead) { continue }
 
-    // 開封ダイアログ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
+    // ポーズ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
     // だけでは足りない — _last_shot -= 0 は負のままなので、押しっぱなしの
     // スペースで毎フレーム弾が生成され、セントリーの発射カウンタも同じく
     // 負のままで弾が積み上がる
