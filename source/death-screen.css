@@ -207,3 +207,83 @@
   font-size: 1vw;
   display: flex; gap: 2.5vw;
 }
+
+/* ニューレコード演出。#ds（z-index 10）の兄弟として body 直下に作る。
+   render() の innerHTML 再構築の外に置くための配置で、理由は
+   death-screen.ts の show_record_banner() にある。
+   アニメーションは毎回作り直される内側の 2 要素が持ち、外枠は配置だけ。
+
+   位置は記録パネル（左列の幅 45%）の右側に空くイラスト面。記録パネルと
+   状態パネルの間の帯は 16:9 で 88px しかなく、横 1 行のバナーが入らない。
+   NEW / RECORD を 2 行に割るのは、幅 24vw で 1 行に収めようとすると
+   折り返し位置がフォント依存になるため（改行は HTML 側で明示する） */
+#ds-nr {
+  position: fixed;
+  left: 26vw;
+  top: 20vh;
+  width: 24vw;
+  display: none;
+  z-index: 11;
+  pointer-events: none;
+  user-select: none;
+  text-align: center;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+}
+
+/* padding はグロー（text-shadow）が overflow: hidden で切られないための余白。
+   overflow: hidden 自体は ::after のスイープを箱の中に留めるために要る */
+#ds-nr .ds-nr-title {
+  position: relative;
+  overflow: hidden;
+  padding: 0.6vw 1.2vw;
+  font-size: 3.6vw;
+  line-height: 0.95;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  color: #ffd24a;
+  animation:
+    ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) both,
+    ds-nr-glitch 0.35s steps(1) 0.35s forwards,
+    ds-nr-glow 2s ease-in-out 0.7s infinite;
+}
+#ds-nr .ds-nr-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
+  animation: ds-nr-sweep 1.8s ease-in-out 0.7s infinite;
+}
+#ds-nr .ds-nr-sub {
+  font-size: 1.3vw;
+  font-weight: bold;
+  color: #ffaa2b;
+  text-shadow: 0 0 10px #f70;
+  animation: ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) 0.2s both;
+}
+
+@keyframes ds-nr-in {
+  from { opacity: 0; transform: translateX(-6vw) scale(1.4); }
+  to { opacity: 1; transform: none; }
+}
+/* 色収差と水平ずれ。steps(1) で瞬間的に切り替える。transform を ds-nr-in と
+   奪い合うので、animation 一覧では必ず ds-nr-in より後に置く。
+   fill-mode が forwards なのは both だと遅延前にも 0% の値が当たり
+   （backwards fill）、後方にいるぶん 0〜0.35s のスライドインと拡大を
+   丸ごと打ち消してしまうため。終了後に transform: none を保つ役目は
+   forwards だけで足りる */
+@keyframes ds-nr-glitch {
+  0%   { transform: translateX(-0.5vw); text-shadow: 0.35vw 0 0 #f0f, -0.35vw 0 0 #0ff; }
+  25%  { transform: translateX(0.6vw); text-shadow: -0.4vw 0 0 #f0f, 0.4vw 0 0 #0ff; }
+  50%  { transform: translateX(-0.3vw); text-shadow: 0.25vw 0 0 #0ff, -0.25vw 0 0 #f0f; }
+  75%  { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
+  100% { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
+}
+@keyframes ds-nr-glow {
+  0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, 0.7); }
+  50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, 0.95); }
+}
+@keyframes ds-nr-sweep {
+  0% { transform: translateX(-120%); }
+  55%, 100% { transform: translateX(120%); }
+}

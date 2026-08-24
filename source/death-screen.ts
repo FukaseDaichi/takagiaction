@@ -78,6 +78,8 @@ let selected = 0
 let current: run_result_t | null = null
 let on_descend = (): void => {}
 let root: HTMLDivElement | null = null
+// ニューレコード演出のバナー。#ds の兄弟として作る理由は show_record_banner() を見よ
+let banner: HTMLDivElement | null = null
 
 export function death_screen_show(
   result: run_result_t | null, on_start: () => void,
@@ -98,13 +100,38 @@ export function death_screen_show(
   terminal_hide()
   render()
   root.style.display = 'grid'
+  show_record_banner(result)
   document.addEventListener('keydown', on_key)
+}
+
+// バナーを #ds の中ではなく兄弟として作るのは、render() が root.innerHTML を
+// 丸ごと組み直すため。中に置くと矢印キーを押すたびにスライドインとグリッチが
+// 再生し直される。アニメーションは innerHTML で毎回作り直す内側の 2 要素が
+// 持ち、外枠（#ds-nr）は配置だけを持つので、表示のたびに 1 度だけ走る
+function show_record_banner(result: run_result_t | null): void {
+  if (!banner) {
+    banner = document.createElement('div')
+    banner.id = 'ds-nr'
+    document.body.appendChild(banner)
+  }
+  if (!result || !is_new_record(result.depth, result.best_depth_before)) {
+    banner.style.display = 'none'
+    return
+  }
+  banner.innerHTML =
+    '<div class="ds-nr-title">NEW<br>RECORD</div>' +
+    '<div class="ds-nr-sub">自己ベスト更新！ 深度 ' + result.depth + 'F</div>'
+  banner.style.display = 'block'
+  audio_play(audio_sfx_pickup)
 }
 
 function descend(): void {
   audio_play(audio_sfx_beep)
   document.removeEventListener('keydown', on_key)
   root!.style.display = 'none'
+  // banner は show_record_banner() が death_screen_show() で必ず作るので、
+  // descend() まで来た時点で null ではない（root! と同じ扱い）
+  banner!.style.display = 'none'
   canvas.style.opacity = '1'
   on_descend()
 }
