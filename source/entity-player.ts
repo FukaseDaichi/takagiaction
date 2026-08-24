@@ -4,6 +4,7 @@ import {
 } from './audio'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
+import { boss_centre, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'
@@ -175,10 +176,15 @@ export class entity_player_t extends entity_t {
       const spider = e instanceof entity_spider_t
       const drone = e instanceof entity_drone_t
       const sentry = e instanceof entity_sentry_t
-      if (!spider && !drone && !sentry) { continue }
+      const boss = e instanceof entity_boss_t
+      if (!spider && !drone && !sentry && !boss) { continue }
 
-      const dx = e.x - t.x
-      const dz = e.z - t.z
+      // 中心（entity.x/z + w/2）の差で測る。原点の差のままだと w が等しい
+      // 相手（蜘蛛・清掃ドローン・セントリーはすべて既定の 9）では中心の差と
+      // 一致するので変わらないが、w が違うボス（14）だと中心が原点からずれる
+      // ぶんだけ、近づく向きによって実際の距離を過大／過小評価してしまう
+      const dx = (e.x + e.w / 2) - (t.x + t.w / 2)
+      const dz = (e.z + e.w / 2) - (t.z + t.w / 2)
       if (dx * dx + dz * dz > reach * reach) { continue }
 
       // 角度差を -π..π に畳んでから半角と比べる（生の引き算だと 2π を
@@ -186,6 +192,9 @@ export class entity_player_t extends entity_t {
       const raw = Math.atan2(dz, dx) - t._angle
       if (Math.abs(Math.atan2(Math.sin(raw), Math.cos(raw))) > arc) { continue }
 
+      // ボスはどの項にも現れない。刃物 Lv9 以上の「硬さを無視して一撃で
+      // 落とす」がボスに効くと、耐久で作った戦いが丸ごと消える。通常の
+      // blade_damage() は通すので、刃物ビルドが締め出されることはない
       const kills =
         spider ||
         (drone && oneshot >= blade_oneshot_drone) ||
@@ -196,8 +205,15 @@ export class entity_player_t extends entity_t {
       e._receive_damage(t, kills ? 999 : blade_damage(tier))
       hit = true
       // 刃は弾より派手に散らす。敵側の 3〜5 個に上乗せする（数を抑えるのは
-      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）
-      spawn_particles(e, 4)
+      // パーティクルが寿命 3 秒のエンティティで、二次の衝突ループに乗るため）。
+      // entity.x/z が中心から + w/2 だけずれているのは全員共通（上の reach 判定
+      // と同じ）。ボスは既定の w=9（半分 4.5）より大きい w=14（半分 7 =
+      // boss_centre）で、_render() など他の場所もすでにその中心を使っているため、
+      // ここも合わせて補正する。蜘蛛・清掃ドローン・セントリーは角のまま
+      // （4.5 ぶん動かす変更にはしない）
+      const px = boss ? e.x + boss_centre : e.x
+      const pz = boss ? e.z + boss_centre : e.z
+      spawn_particles(px, pz, 4)
       // 決めは清掃ドローンとセントリーに絞る。蜘蛛は全段が一撃で落とすので
       // （docs/equipment.md）、雑魚で出すと光りっぱなしになる
       if (kills && !spider) { finisher = true }

@@ -1,5 +1,6 @@
 import type { entity_t } from './entity'
 import type { entity_player_t } from './entity-player'
+import type { meta_upgrade_id_t } from './meta'
 
 // 実行時 import を持たないこと。型のみの import はコンパイル時に消えるため、
 // このモジュールは依存グラフの葉になり循環参照の起点にならない。
@@ -29,14 +30,19 @@ export const state = {
   nicotine: 100,
   nicotine_max: 100,
   smoking: 0, // 一服中は 1。移動と射撃をロックする
-  // 押収品コンテナの開封ダイアログ中は 1。ゲーム内で唯一のポーズで、
-  // game_tick が time_elapsed を 0 にしてエンティティの更新と衝突判定を飛ばす
-  // （equip-screen.ts が立てて下ろす）
-  equipping: 0,
+  // ポーズ中は 1。ゲーム内で唯一の時間停止で、game_tick が time_elapsed を
+  // 0 にしてエンティティの更新と衝突判定を飛ばす。立てるのは押収品コンテナの
+  // 開封ダイアログ（equip-screen.ts）とボス撃破の報酬ダイアログ
+  // （boss-reward.ts）の 2 つ
+  paused: 0,
   // 1 = 刃物を構えている（0 = 銃）。Tab で切り替わるラン状態で、フロアを
   // 跨いでは保持し、run_start() が 0 に戻す
   melee_active: 0,
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
+  // ボスが生きている間は 1。灰皿に居座っているので一服できない
+  // （entity-smoking-area.ts のガード）。load_level が立て、
+  // entity-boss の _kill() が下ろす
+  boss_alive: 0,
   // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
   // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに
   // 載せると、演出中の別の通知が terminal_cancel() で予約ごと消してしまい
@@ -44,6 +50,11 @@ export const state = {
   descend_timer: 0,
   kills: 0,
   yani_run: 0, // このランで得たヤニ。run_end() が meta.yani に合算する
+  // ボス撃破で選んだ恒久強化。ヤニ（yani_run）と同じで、run_end() が meta へ
+  // 合算するまで meta.levels は書かない。ラン中に直接書くと、毎フレーム
+  // meta.levels を読む 4 本（耐性・脚力・火力・嗅覚）だけが先に効いて、
+  // 6 本の効き方が不揃いになる
+  boss_levels: [] as meta_upgrade_id_t[],
   spares_left: 0, // 予備の一本の残数。run_start() が強化レベルから設定する
   run_time: 0, // このランの経過秒数。game_tick が game_running 中のみ加算する
   smoke_count: 0, // 一服の回数。喫煙所での完了と予備の一本の使用で 1 ずつ増える

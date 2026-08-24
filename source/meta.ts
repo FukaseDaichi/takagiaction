@@ -55,6 +55,13 @@ export function meta_buy(id: meta_upgrade_id_t): boolean {
   return true
 }
 
+// ボス撃破の報酬で 1 段上げる。meta_buy() と違ってヤニを引かない。
+// 保存は呼び出し側（run_end）が最後に 1 度だけ行う — ボス報酬もヤニも
+// 同じ 1 回の meta_save() に載る
+export function meta_grant(id: meta_upgrade_id_t): void {
+  meta.levels[id] = Math.min(meta.levels[id] + 1, meta_max_level[id])
+}
+
 // 効果 getter はすべて段数を引数で受けられる（既定は現在の段）。死亡画面が
 // 「現在値 → 次の段の値」を出すために level + 1 を渡して呼ぶ
 

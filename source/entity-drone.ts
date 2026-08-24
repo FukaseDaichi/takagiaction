@@ -111,7 +111,7 @@ export class entity_drone_t extends entity_t {
     this.vx = from.vx * 0.3
     this.vz = from.vz * 0.3
     this._panic_timer = 2
-    spawn_particles(this, 3)
+    spawn_particles(this.x, this.z, 3)
   }
 
   protected override _kill(): void {
@@ -130,7 +130,7 @@ export class entity_drone_t extends entity_t {
         this.x + Math.cos(a) * 6, 0, this.z + Math.sin(a) * 6, 0, 26,
       )
     }
-    spawn_particles(this, 24) // 被弾の 3 に対して、砕けた機体は桁を変える
+    spawn_particles(this.x, this.z, 24) // 被弾の 3 に対して、砕けた機体は桁を変える
     // 残骸の煙。壊れた機械の絵を 2 秒残す。横にずらすのは、同じ座標だと
     // 横揺れ（entity-smoke の Math.sin(y)）まで一致して 1 つにしか見えないため
     spawn_smoke(this.x - 3, this.z)

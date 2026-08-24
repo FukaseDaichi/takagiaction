@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  meta, meta_buy, meta_drain_factor, meta_load, meta_max_level,
+  meta, meta_buy, meta_drain_factor, meta_grant, meta_load, meta_max_level,
   meta_nicotine_max, meta_power_factor, meta_save, meta_sniff_active,
   meta_sniff_distance, meta_sniff_exit, meta_sniff_loot,
   meta_sniff_threshold, meta_spare_count, meta_speed_factor,
@@ -74,6 +74,24 @@ describe('強化テーブル', () => {
       }
     }
     expect(total).toBe(9300)
+  })
+})
+
+describe('meta_grant', () => {
+  beforeEach(meta_reset)
+
+  it('ヤニを引かずに 1 段上げる', () => {
+    meta.yani = 100
+    meta.levels.lung = 2
+    meta_grant('lung')
+    expect(meta.levels.lung).toBe(3)
+    expect(meta.yani).toBe(100)
+  })
+
+  it('上限を超えない', () => {
+    meta.levels.sniff = meta_max_level.sniff
+    meta_grant('sniff')
+    expect(meta.levels.sniff).toBe(meta_max_level.sniff)
   })
 })
 

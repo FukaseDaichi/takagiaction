@@ -42,6 +42,18 @@ const lines_drone_kill = [
   '……全部いただくぜ',
   '返してもらうぞ、俺の分だ',
 ]
+// ボス階の到達。世界の危機ではなく、灰皿の上に居座っている一点だけに反応する
+const lines_boss_arrival = [
+  'おい、灰皿の上に何か乗ってるぞ……',
+  'でかいのが座り込んでやがる……',
+  '……そこ、俺の席なんだが',
+]
+// ボスの撃破。世界の危機ではなく、灰皿の上から追い払えたことだけに反応する
+const lines_boss_kill = [
+  'どけと言ったんだ',
+  'ようやく座れる……',
+  '灰皿の上に乗るんじゃねえ',
+]
 // 最期のひとこと。世界の危機ではなく、最期まで煙草のことしか考えていない
 const lines_death_enemy = [
   'まだ……吸ってない……',
@@ -65,6 +77,9 @@ const lines_stage: string[][] = [
 const arrival_delay = 2
 // ドローン撃破も同じ理由で遅らせる。事実（飛散した額）はターミナルが先に出す
 const drone_kill_delay = 2
+// ボス撃破も同じ理由で遅らせる。値はドローン撃破と同じ 2 秒だが、
+// 灰皿撤去ユニット固有の理由ではないので drone_kill_delay とは別の定数に持つ
+const boss_kill_delay = 2
 // 離脱症状以降、何も表示していなければこの間隔で再つぶやきする
 const whisper_interval = 10
 
@@ -97,6 +112,13 @@ export function monologue_complete(): void { say(lines_complete, false) }
 export function monologue_interrupt(): void { say(lines_interrupt, false) }
 export function monologue_drone_kill(): void {
   say(lines_drone_kill, false, drone_kill_delay)
+}
+export function monologue_boss_arrival(): void {
+  say(lines_boss_arrival, false, arrival_delay)
+}
+// 事実（ユニットの停止）はターミナルが先に出す。読む場所が割れないよう遅らせる
+export function monologue_boss_kill(): void {
+  say(lines_boss_kill, false, boss_kill_delay)
 }
 
 // 段階遷移は悪化方向のみ発話する。改善方向（一服による回復）で黙るので、

@@ -43,6 +43,7 @@ vi.mock('./monologue', () => ({
 }))
 
 import { entity_player_t } from './entity-player'
+import { entity_boss_t } from './entity-boss'
 import { entity_plasma_t } from './entity-plasma'
 import { entity_sentry_t } from './entity-sentry'
 import { entity_slash_t } from './entity-slash'
@@ -501,6 +502,66 @@ describe('近接攻撃と持ち替え', () => {
     keys[key_shoot] = 1
     player._update()
     expect(sentry._dead).toBe(true)
+  })
+
+  it('薙ぎでボスにダメージが入る', () => {
+    meta.gear.blade = 5
+    state.melee_active = 1
+    player._angle = 0
+    const boss = new entity_boss_t(player.x + 8, 0, player.z, 0, 45)
+    const before = boss.h
+    keys[key_shoot] = 1
+    player._update()
+    expect(boss.h).toBe(before - 5) // blade_damage(5) = tier
+  })
+
+  // ボス（幅 14）は他 3 種（幅 9）と違って中心が entity.x/z からずれる。dx/dz を
+  // 原点の差のまま測ると、近づく向きによって中心間の実際の距離を過大／過小
+  // 評価してしまい、片側からは届いても反対側からは届かないという非対称が
+  // 出る（entity-player.ts の dx/dz のコメント参照）。最低段（reach 9.6）で
+  // 中心間距離を reach ぎりぎり内側（9）に固定したまま四方から振らせ、
+  // どの向きでも等しく届くことを固定する
+  it('最低段の刃でも、ボスには四方どこから近づいても届く', () => {
+    meta.gear.blade = 1
+    state.melee_active = 1
+    const boss_half = 7 // entity-boss.ts の boss_hitbox(14) / 2
+    // [dx の符号, dz の符号, その向きから振るための自機の向き]
+    const approaches: Array<[number, number, number]> = [
+      [1, 0, 0], // ボスは自機の +x 側
+      [-1, 0, Math.PI], // ボスは自機の -x 側（原点基準では届かなかった側）
+      [0, 1, Math.PI / 2], // ボスは自機の +z 側
+      [0, -1, -Math.PI / 2], // ボスは自機の -z 側（同上）
+    ]
+    for (const [dx_sign, dz_sign, angle] of approaches) {
+      const p = new entity_player_t(64, 0, 64, 5, 18)
+      state.entity_player = p
+      p._angle = angle
+      const player_cx = p.x + p.w / 2
+      const player_cz = p.z + p.w / 2
+      const boss = new entity_boss_t(
+        player_cx + dx_sign * 9 - boss_half, 0,
+        player_cz + dz_sign * 9 - boss_half, 0, 45,
+      )
+      const before = boss.h
+      keys[key_shoot] = 1
+      p._update()
+      expect(boss.h).toBe(before - 1) // blade_damage(1) = tier
+    }
+  })
+
+  // ボスは kills のどの項にも現れない。Lv9 以上の一撃必殺（全段対象）が
+  // 通ると耐久で作った戦いが丸ごと消えるため、ここが最も壊れやすい —
+  // kills にボスを足すと即座に 999 ダメージが入り、このテストが失敗する
+  it('Lv9 以上の刃でもボスは一撃で落ちない', () => {
+    meta.gear.blade = 9
+    state.melee_active = 1
+    player._angle = 0
+    const boss = new entity_boss_t(player.x + 8, 0, player.z, 0, 45)
+    const before = boss.h
+    keys[key_shoot] = 1
+    player._update()
+    expect(boss._dead).toBe(false)
+    expect(boss.h).toBe(before - 9) // 一撃必殺ではなく blade_damage(9) が通る
   })
 
   // 音が空振りと当たりを区別しないと、耳では常に「当たった」と言われ続ける。

@@ -1,9 +1,11 @@
 import { audio_music_restore } from './audio'
+import { boss_arms } from './boss-model'
 import { death_screen_show } from './death-screen'
 import {
   death_beats, death_body_y, death_drone_y, death_fade_opacity,
 } from './death-sequence-model'
 import { fade_el } from './dom'
+import { boss_spawn_offset, entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_health_t } from './entity-health'
@@ -15,13 +17,15 @@ import { entity_spider_t } from './entity-spider'
 import { entity_yani_t } from './entity-yani'
 import { drain_floor, patch_drain_bonus } from './equipment'
 import { hud_hide, hud_show, hud_update } from './hud'
-import { generate_level } from './level-generator'
+import { generate_level, is_boss_depth } from './level-generator'
 import {
-  meta, meta_drain_factor, meta_nicotine_max, meta_save, meta_spare_count,
+  meta, meta_drain_factor, meta_grant, meta_nicotine_max, meta_save,
+  meta_spare_count,
 } from './meta'
 import { minimap_reset, minimap_update } from './minimap'
 import {
-  monologue_arrival, monologue_notify_stage, monologue_reset, monologue_update,
+  monologue_arrival, monologue_boss_arrival, monologue_notify_stage,
+  monologue_reset, monologue_update,
 } from './monologue'
 import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
@@ -51,14 +55,16 @@ export function run_start(): void {
   state.depth = 0
   state.kills = 0
   state.yani_run = 0
+  state.boss_levels = []
   state.run_time = 0
   state.smoke_count = 0
   state.dummy_count = 0
   state.death_cause = 0
   state.dying = 0
   state.death_elapsed = 0
-  state.equipping = 0
+  state.paused = 0
   state.melee_active = 0
+  state.boss_alive = 0
   state.spares_left = meta_spare_count()
   state.nicotine_max = meta_nicotine_max()
   state.nicotine = state.nicotine_max
@@ -96,6 +102,8 @@ export function run_end(): void {
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
   // 深度を伸ばす動機にならない（設計書）
   meta.yani += state.yani_run
+  // ボス撃破の報酬。寿命はヤニと同じで、途中でタブを閉じれば消える
+  for (const id of state.boss_levels) { meta_grant(id) }
   meta.best_depth = Math.max(meta.best_depth, state.depth)
   meta_save()
   // 真っ白の状態で死亡画面を出し、.f のアニメーション（0.6 秒、開始値は
@@ -120,6 +128,7 @@ function load_level(depth: number): void {
   state.entities_to_kill = []
   state.exit_open = 0
   state.smoking = 0
+  state.boss_alive = 0
   // 降下予約の解除。ラン終了中は game_tick が予約を進めないので、非常口に
   // 触れた直後に死ぬと予約が残ったままリザルトへ抜ける。ここで消さないと
   // 次のランの 1 階が数秒で勝手に降下する
@@ -183,6 +192,20 @@ function load_level(depth: number): void {
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
   for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
 
+  // ボス階だけ。灰皿と同じタイルに立つので、生きている間は自機が
+  // 喫煙所に触れられない
+  if (layout.boss) {
+    // 生成位置をずらすのは、当たり判定・絵・銃口の中心を灰皿タイルの中心に
+    // 揃えるため（entity-boss.ts の boss_spawn_offset）
+    const boss = new entity_boss_t(
+      layout.boss.x * 8 + boss_spawn_offset, 0,
+      layout.boss.z * 8 + boss_spawn_offset, 0, 45,
+    )
+    boss._spin = layout.boss_spin
+    boss._arms = boss_arms(depth)
+    state.boss_alive = 1
+  }
+
   const player = state.entity_player!
   camera.x = -player.x
   camera.y = -300
@@ -190,11 +213,14 @@ function load_level(depth: number): void {
 
   renderer_freeze_level_geometry()
 
-  terminal_show_notice('深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
+  const boss_floor = is_boss_depth(depth)
+  terminal_show_notice(boss_floor
+    ? '深度 ' + depth + ' に到達___大型作業機の稼働音を検知'
+    : '深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')
   // フロアを跨いだ表示・予約は消す。到達つぶやきはターミナルの深度ログの
   // 2 秒後に出る（遅延は monologue 側の定数）
   monologue_reset()
-  monologue_arrival()
+  if (boss_floor) { monologue_boss_arrival() } else { monologue_arrival() }
 }
 
 function game_tick(): void {
@@ -203,11 +229,12 @@ function game_tick(): void {
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
   // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。
-  // 開封ダイアログ中は時間を止める。この 1 行で、ニコチン減少・生存時間・
-  // 降下予約・死亡シーケンス・つぶやき・HUD の hold タイマーが個別のガード
-  // なしにまとめて止まる（各所に !state.equipping を足すと同じ判定が
-  // 6 か所以上に散る。死体の除外を 1 か所に集めているのと同じ理由）
-  state.time_elapsed = state.equipping
+  // ポーズ中は時間を止める（開封ダイアログとボス報酬の 2 か所が立てる）。
+  // この 1 行で、ニコチン減少・生存時間・降下予約・死亡シーケンス・つぶやき・
+  // HUD の hold タイマーが個別のガードなしにまとめて止まる（各所に
+  // !state.paused を足すと同じ判定が 6 か所以上に散る。死体の除外を
+  // 1 か所に集めているのと同じ理由）
+  state.time_elapsed = state.paused
     ? 0
     : Math.min((time_now - time_last) / 1000, 0.1)
   time_last = time_now
@@ -306,11 +333,11 @@ function game_tick(): void {
     const e1 = entities[i]
     if (e1._dead) { continue }
 
-    // 開封ダイアログ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
+    // ポーズ中は更新も衝突も飛ばし、描画だけ回す。time_elapsed = 0
     // だけでは足りない — _last_shot -= 0 は負のままなので、押しっぱなしの
     // スペースで毎フレーム弾が生成され、セントリーの発射カウンタも同じく
     // 負のままで弾が積み上がる
-    if (!state.equipping) {
+    if (!state.paused) {
       e1._update()
 
       // check for collisions between entities - it's quadratic and nobody cares \o/
@@ -324,10 +351,10 @@ function game_tick(): void {
         const e2 = entities[j]
         if (e2._dead || e1 === corpse || e2 === corpse) { continue }
         if (!(
-          e1.x >= e2.x + 9 ||
-          e1.x + 9 <= e2.x ||
-          e1.z >= e2.z + 9 ||
-          e1.z + 9 <= e2.z
+          e1.x >= e2.x + e2.w ||
+          e1.x + e1.w <= e2.x ||
+          e1.z >= e2.z + e2.w ||
+          e1.z + e1.w <= e2.z
         )) {
           e1._check(e2)
           e2._check(e1)

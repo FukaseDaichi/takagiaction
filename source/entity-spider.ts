@@ -43,7 +43,7 @@ export class entity_spider_t extends entity_t {
     super._receive_damage(from, amount)
     this.vx = from.vx
     this.vz = from.vz
-    spawn_particles(this, 5)
+    spawn_particles(this.x, this.z, 5)
   }
 
   override _check(other: entity_t): void {

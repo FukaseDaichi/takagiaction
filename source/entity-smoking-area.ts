@@ -133,9 +133,11 @@ export class entity_smoking_area_t extends entity_t {
     // state.game_running: ラン終了後に terminal_show_notice() を呼ぶと、run_end() が
     // death_screen_show() で止めたターミナルの表示チェーンを再び動かしてしまう
     // （レビュー Finding 1）。state.dying: 死亡シーケンス中（game_running はまだ 1）に
-    // 死体が一服を始めない・中断のセリフを出さないため
+    // 死体が一服を始めない・中断のセリフを出さないため。
+    // state.boss_alive: ボス階の灰皿にはボスが居座っている。倒すまで
+    // 吸わせない（docs/gameplay.md「ボス階」）
     if (touching && !this._done && !this._needs_release &&
-        state.game_running && !state.dying) {
+        state.game_running && !state.dying && !state.boss_alive) {
       if (this.is_real) {
         smoking = this._advance()
       } else {

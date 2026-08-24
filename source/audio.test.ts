@@ -20,7 +20,8 @@ const fake = vi.hoisted(() => {
     exponentialRampToValueAtTime(v, t) { this.calls.push(['exp', v, t]) },
     cancelScheduledValues(t) { this.calls.push(['cancel', 0, t]) },
   })
-  const started: Array<{ buffer: unknown, loop: boolean, playbackRate: param_t }> = []
+  const started:
+    Array<{ buffer: unknown, loop: boolean, playbackRate: param_t, start_at: number }> = []
   const gains: Array<{ gain: param_t }> = []
   const filters: Array<{ type: string, frequency: param_t }> = []
   const music = { music: true }
@@ -49,9 +50,10 @@ const fake = vi.hoisted(() => {
         loop: false,
         playbackRate: make_param(1),
         connect: () => {},
-        start: () => {
+        start: (when: number) => {
           started.push({
             buffer: source.buffer, loop: source.loop, playbackRate: source.playbackRate,
+            start_at: when,
           })
         },
       }
@@ -126,6 +128,38 @@ describe('音声の初回解錠', () => {
     expect(fake.started.length).toBe(1)
     expect(fake.started[0].buffer).toBe(audio.audio_sfx_beep)
     expect(fake.started[0].loop).toBe(false)
+  })
+})
+
+// entity-boss.ts が撃破音を時間差で重ねるために足した引数。start() に渡す
+// スケジュール時刻が currentTime を基準に正しくずれることを見る
+// （3 連発という呼び出し側の選択自体は entity-boss.ts のコメントで説明する
+// 定数であり、ここではプリミティブの計算だけを見る）
+describe('効果音の再生タイミング', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('delay を省略すると currentTime に即時再生する', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    fake.started.length = 0
+
+    audio.audio_play(audio.audio_sfx_beep)
+
+    expect(fake.started[0].start_at).toBe(fake.ctx.currentTime)
+  })
+
+  it('delay を渡すと currentTime からその秒数だけ遅らせる', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    fake.started.length = 0
+
+    audio.audio_play(audio.audio_sfx_explode, false, 0.09)
+    audio.audio_play(audio.audio_sfx_explode, false, 0.18)
+
+    expect(fake.started[0].start_at).toBe(fake.ctx.currentTime + 0.09)
+    expect(fake.started[1].start_at).toBe(fake.ctx.currentTime + 0.18)
   })
 })
 
