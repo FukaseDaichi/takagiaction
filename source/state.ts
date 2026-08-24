@@ -8,6 +8,17 @@ import type { meta_upgrade_id_t } from './meta'
 export const level_width = 64
 export const level_height = 64
 
+// 非常口に触れてから次のフロアへ切り替わるまでの秒数。降下を予約する側
+// （entity-exit.ts）と、残り時間をカウントダウンとして出す側（hud.ts）が
+// 共有する。定数の置き場をここにするのは player_hp_max と同じ理由で、
+// entity-exit.ts に置くと HUD が hud → entity-exit → entity-player という
+// エンティティ側への依存を持つことになるため。
+//
+// ターミナルの通知が表示に要する時間からは独立させる。以前は
+// terminal_show_notice() の戻り値をそのまま積んでいたので、文面を 1 行足す
+// だけで降下が 1 秒延び、乗ってから 5 秒以上「何も起きない」時間が続いた。
+export const descend_duration = 3
+
 // 自機の HP 上限。load_level() が自機を生成する値であり、HUD の HP ブロック数と
 // 死亡画面の「n / 5」も同じ数字を読む。定数の置き場をここにするのは、
 // entity-player.ts に置くと死亡画面が
@@ -43,8 +54,8 @@ export const state = {
   // （entity-smoking-area.ts のガード）。load_level が立て、
   // entity-boss の _kill() が下ろす
   boss_alive: 0,
-  // 降下までの残り秒数（0 = 予約なし）。非常口に触れると通過演出の長さが入り、
-  // game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに
+  // 降下までの残り秒数（0 = 予約なし）。非常口に触れると descend_duration が
+  // 入り、game_tick が減らして 0 で next_level() を呼ぶ。terminal のコールバックに
   // 載せると、演出中の別の通知が terminal_cancel() で予約ごと消してしまい
   // フロアが永久に詰む（レビュー Finding 1）
   descend_timer: 0,

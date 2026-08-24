@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  hp_reveal_hold, hp_reveal_idle, hp_reveal_step, hud_percent_visible, hud_spare_urgent,
-  hud_weapon_visible,
+  descend_seconds, hp_reveal_hold, hp_reveal_idle, hp_reveal_step,
+  hud_percent_visible, hud_spare_urgent, hud_weapon_visible,
 } from './hud-model'
 import {
   nicotine_stage_edgy, nicotine_stage_limit, nicotine_stage_normal,
@@ -76,5 +76,27 @@ describe('武器スロット', () => {
   it('刃物を持っていない間は出さない', () => {
     expect(hud_weapon_visible(0)).toBe(false)
     expect(hud_weapon_visible(1)).toBe(true)
+  })
+})
+
+describe('非常口の通過カウントダウン', () => {
+  // 切り捨てだと予約した瞬間（残り 3.0）に「2」から始まり、最後の 1 秒が
+  // 「0」になる。切り上げれば 3 → 2 → 1 が 1 秒ずつ均等に出る
+  it('予約した瞬間は descend_duration がそのまま出る', () => {
+    expect(descend_seconds(3)).toBe(3)
+  })
+
+  it('1 秒ごとに 1 つ減り、各段が 1 秒ぶん出る', () => {
+    expect(descend_seconds(2.99)).toBe(3)
+    expect(descend_seconds(2.01)).toBe(3)
+    expect(descend_seconds(2)).toBe(2)
+    expect(descend_seconds(1.01)).toBe(2)
+    expect(descend_seconds(1)).toBe(1)
+  })
+
+  it('残り 0 に着くまで 0 は出さない', () => {
+    expect(descend_seconds(0.5)).toBe(1)
+    expect(descend_seconds(0.001)).toBe(1)
+    expect(descend_seconds(0)).toBe(1)
   })
 })

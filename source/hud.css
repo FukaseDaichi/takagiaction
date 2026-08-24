@@ -243,3 +243,106 @@
   border-radius: 0.2vw;
   color: #8a8a8a;
 }
+
+/* ── 非常口の通過カウントダウン ──────────────────────────
+   非常口に乗ってから降下するまでの descend_duration 秒だけ出す
+   （docs/gameplay.md「非常口」）。乗った手応えがターミナルの 1 行しかなく
+   「乗ったのに動かない」と読めてしまうため、残り時間を画面下中央に大きく置く。
+
+   色は緑で通す。ミニマップの非常口（0,220,120）・in-world の標識と同じ意味で、
+   HUD のオレンジ（ニコチン）とは混ざらない。位置を下中央にするのは、上中央が
+   ターミナルの通知（#a.nt）、左右上がタバコとミニマップで埋まっているため。 */
+#hud .descend-veil {
+  position: absolute;
+  inset: 0;
+  display: none;
+  box-shadow: inset 0 0 11vw -3.5vw rgba(43, 255, 154, 0.4);
+  animation: descend-veil 1.05s ease-in-out infinite alternate;
+}
+@keyframes descend-veil { from { opacity: 0.4; } to { opacity: 1; } }
+
+#hud .descend {
+  --exit: #2bff9a;
+  position: absolute;
+  left: 50%;
+  bottom: 5vw;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 1.5vw;
+  overflow: hidden;
+  padding: 1vw 2.4vw 1vw 1.3vw;
+  border: 1px solid rgba(43, 255, 154, 0.45);
+  border-radius: 0.35vw;
+  background: rgba(2, 13, 9, 0.82);
+  box-shadow: 0 0 2.2vw rgba(43, 255, 154, 0.2), inset 0 0 1.6vw rgba(43, 255, 154, 0.08);
+}
+/* 走査線。パネルを横切る 1 本の光で「作動中」を出す */
+#hud .descend::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 42%, rgba(43, 255, 154, 0.16) 50%, transparent 58%);
+  animation: descend-sweep 1.6s linear infinite;
+}
+@keyframes descend-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+#hud .descend-dial { position: relative; width: 6.4vw; height: 6.4vw; }
+/* 残り時間のリング。--p（1 → 0）は hud.ts が毎フレーム書く。
+   円錐グラデーションを輪に抜くので、中の数字は兄弟要素として重ねる
+   （mask は子孫にも効くため、同じ要素に入れると数字ごと消える） */
+#hud .descend-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--exit) calc(var(--p, 1) * 360deg), rgba(43, 255, 154, 0.14) 0
+  );
+  -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 71%);
+  mask: radial-gradient(closest-side, transparent 70%, #000 71%);
+  filter: drop-shadow(0 0 0.5vw rgba(43, 255, 154, 0.55));
+}
+#hud .descend-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 3.3vw;
+  line-height: 1;
+  color: var(--exit);
+  text-shadow: 0 0 1.1vw rgba(43, 255, 154, 0.9);
+}
+/* 数字が変わった 1 フレームだけ hud.ts が付け直す */
+#hud .descend-num.pop { animation: descend-pop 0.42s cubic-bezier(0.2, 0.9, 0.2, 1); }
+@keyframes descend-pop {
+  from { transform: scale(1.75); opacity: 0.15; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ラベルは字間を開けて計器の表示に寄せる。字間は最後の 1 文字の右にも入るので、
+   負のマージンで戻さないと下の行との左揃えが崩れて見える */
+#hud .descend-label {
+  margin-right: -0.36em;
+  padding-bottom: 0.45vw;
+  border-bottom: 1px solid rgba(43, 255, 154, 0.3);
+  font-size: 1.25vw;
+  letter-spacing: 0.36em;
+  color: var(--exit);
+  text-shadow: 0 0 0.7vw rgba(43, 255, 154, 0.7);
+}
+#hud .descend-route {
+  margin-top: 0.45vw;
+  font-size: 1.7vw;
+  letter-spacing: 0.1em;
+  color: #dcfff2;
+  text-shadow: 0 0 0.6vw rgba(43, 255, 154, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hud .descend-veil,
+  #hud .descend::after,
+  #hud .descend-num.pop { animation: none; }
+}

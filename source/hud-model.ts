@@ -52,3 +52,10 @@ export function hp_reveal_step(
 export function hud_weapon_visible(blade_tier: number): boolean {
   return blade_tier > 0
 }
+
+// 非常口の通過カウントダウンに出す整数の秒。残り時間をそのまま切り捨てると
+// 予約した瞬間（残り 3.0）に「3」ではなく「2」から始まり、最後の 1 秒が
+// 「0」になる。切り上げると 3 → 2 → 1 が 1 秒ずつ均等に出て、0 は出ない。
+export function descend_seconds(timer: number): number {
+  return Math.max(1, Math.ceil(timer))
+}
