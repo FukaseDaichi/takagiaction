@@ -11,6 +11,8 @@
 ## Patterns That Work
 （効いたやり方・型）
 
+- 2026-08-24: Windows で日本語を含む Agent Skill を `quick_validate.py` で検証するときは、`uv run --with pyyaml python -X utf8` で実行すると CP932 のデコードエラーを回避できる。
+
 ## Mistakes to Avoid
 （失敗と再発防止策）
 

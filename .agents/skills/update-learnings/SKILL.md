@@ -9,3 +9,4 @@ LEARNINGS.md の該当セクションに「- YYYY-MM-DD: 洞察」の形式で�
 日付は実行環境のシステムコマンドで取得し、推測するな。
 Consolidated Principles には書き込むな（統合パス専用）。
 学びが無ければ何も書かず「学びなし」と報告せよ。
+LEARNINGS.md への追記後、上4セクションの生の観察が80件を超えていたら `consolidate-learnings` を必ず実行せよ。
