@@ -82,7 +82,10 @@ export function run_end(): void {
   // 死亡時も全額持ち帰り。ランごとに失う設計は「損した」感覚を残すだけで
   // 深度を伸ばす動機にならない（設計書）
   meta.yani += state.yani_run
-  meta.best_depth = Math.max(meta.best_depth, state.depth)
+  // 更新前のベストを控えてから代入する。死亡画面は meta.best_depth を
+  // 更新後の値として読むため、控えないと記録更新を判定できない
+  const best_depth_before = meta.best_depth
+  meta.best_depth = Math.max(best_depth_before, state.depth)
   meta_save()
   death_screen_show({
     depth: state.depth,
@@ -93,6 +96,7 @@ export function run_end(): void {
     death_cause: state.death_cause,
     nicotine_ratio: state.nicotine / state.nicotine_max,
     hp: Math.max(0, state.entity_player!.h),
+    best_depth_before,
   }, run_start)
 }
 

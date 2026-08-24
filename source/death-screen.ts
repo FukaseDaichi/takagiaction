@@ -1,7 +1,7 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { canvas } from './dom'
 import {
-  condition_texts, death_message, format_run_time,
+  condition_texts, death_message, format_run_time, is_new_record,
 } from './death-screen-model'
 import type { run_result_t } from './death-screen-model'
 import {
@@ -78,6 +78,8 @@ let selected = 0
 let current: run_result_t | null = null
 let on_descend = (): void => {}
 let root: HTMLDivElement | null = null
+// ニューレコード演出のバナー。#ds の兄弟として作る理由は show_record_banner() を見よ
+let banner: HTMLDivElement | null = null
 
 export function death_screen_show(
   result: run_result_t | null, on_start: () => void,
@@ -98,13 +100,38 @@ export function death_screen_show(
   terminal_hide()
   render()
   root.style.display = 'grid'
+  show_record_banner(result)
   document.addEventListener('keydown', on_key)
+}
+
+// バナーを #ds の中ではなく兄弟として作るのは、render() が root.innerHTML を
+// 丸ごと組み直すため。中に置くと矢印キーを押すたびにスライドインとグリッチが
+// 再生し直される。アニメーションは innerHTML で毎回作り直す内側の 2 要素が
+// 持ち、外枠（#ds-nr）は配置だけを持つので、表示のたびに 1 度だけ走る
+function show_record_banner(result: run_result_t | null): void {
+  if (!banner) {
+    banner = document.createElement('div')
+    banner.id = 'ds-nr'
+    document.body.appendChild(banner)
+  }
+  if (!result || !is_new_record(result.depth, result.best_depth_before)) {
+    banner.style.display = 'none'
+    return
+  }
+  banner.innerHTML =
+    '<div class="ds-nr-title">NEW<br>RECORD</div>' +
+    '<div class="ds-nr-sub">自己ベスト更新！ 深度 ' + result.depth + 'F</div>'
+  banner.style.display = 'block'
+  audio_play(audio_sfx_pickup)
 }
 
 function descend(): void {
   audio_play(audio_sfx_beep)
   document.removeEventListener('keydown', on_key)
   root!.style.display = 'none'
+  // banner は show_record_banner() が death_screen_show() で必ず作るので、
+  // descend() まで来た時点で null ではない（root! と同じ扱い）
+  banner!.style.display = 'none'
   canvas.style.opacity = '1'
   on_descend()
 }
@@ -139,8 +166,11 @@ function on_key(event: KeyboardEvent): void {
   render()
 }
 
-function record_row(icon: string, label: string, value: string): string {
-  return '<div class="ds-record-row"><img src="' + icon + '" alt="">' +
+function record_row(
+  icon: string, label: string, value: string, cls = '',
+): string {
+  return '<div class="ds-record-row' + (cls ? ' ' + cls : '') +
+    '"><img src="' + icon + '" alt="">' +
     label + '<b>' + value + '</b></div>'
 }
 
@@ -168,9 +198,16 @@ function render(): void {
     '<div class="ds-hero" style="background-image:url(' + hero_url + ')"></div>'
 
   if (dead) {
+    // 到達深度と同じ量なので、アイコンは stat_depth_url を流用する
+    const record = is_new_record(r.depth, r.best_depth_before)
+    const best_value = meta.best_depth + ' F' + (record
+      ? '<span class="ds-record-prev">← ' + r.best_depth_before + ' F</span>' +
+        '<span class="ds-record-new">NEW</span>'
+      : '')
     left += '<div class="ds-panel ds-record">' +
       '<div class="ds-panel-title">今回の記録</div>' +
       record_row(stat_depth_url, '到達深度', r.depth + ' F') +
+      record_row(stat_depth_url, '最高深度', best_value, record ? 'record' : '') +
       record_row(stat_time_url, '生存時間', format_run_time(r.run_time)) +
       record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
       record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
