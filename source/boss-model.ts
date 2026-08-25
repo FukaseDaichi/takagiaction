@@ -164,7 +164,8 @@ export const boss_homing_spread = 0.25
 // （壁判定は掃射と共通）、寿命（boss_homing_life）まで持ちこたえるか
 export const boss_homing_turn_rate = 1.6
 
-// 寿命（秒）。壁で消える掃射と違い、開けた場所では永久に追い続けて溜まる
+// 寿命（秒）。掃射は直進なのでいずれ壁に届いて消えるが、追尾弾は自機を
+// 追って曲がり続けるため、開けた場所では壁に届かないまま溜まりうる
 export const boss_homing_life = 5
 
 // 掃射（56）より遅い。追ってくる弾を掃射と同じ速さにすると、避ける余地が

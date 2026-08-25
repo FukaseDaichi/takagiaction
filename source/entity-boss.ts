@@ -394,7 +394,8 @@ export class entity_boss_homing_t extends entity_boss_plasma_t {
     const t = this
     t._life -= state.time_elapsed
     if (t._life <= 0) {
-      // 壁で消える掃射と違い、開けた場所では永久に追い続けて溜まる。
+      // 掃射は直進なのでいずれ壁に届いて消えるが、追尾弾は自機を追って
+      // 曲がり続けるため、開けた場所では壁に届かないまま溜まりうる。
       // O(n²) の衝突ループに乗る弾の数を抑える意味もある
       t._expire()
       return
