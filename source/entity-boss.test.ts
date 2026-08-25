@@ -38,16 +38,6 @@ function wall(tx: number, tz: number): void {
   level_data[tx + tz * level_width] = 8
 }
 
-// ボスを 1 体、指定のタイルの中心に立てる。座席はそのタイルになる
-function spawn_boss(tx: number, tz: number): entity_boss_t {
-  const boss = new entity_boss_t(
-    tx * 8 + 4 - boss_centre, 0, tz * 8 + 4 - boss_centre, 0, 45,
-  )
-  boss._spin = 1
-  boss._arms = 2
-  return boss
-}
-
 // _collides は protected。テストはサブクラス経由で呼ぶ（既存の流儀）
 class probe_boss_t extends entity_boss_t {
   collides_at(x: number, z: number): boolean {
@@ -89,15 +79,22 @@ describe('ボスの壁判定', () => {
     expect(boss.collides_at(24 * 8 - boss_hitbox + 1, 20 * 8)).toBe(true)
   })
 
-  it('真ん中の列にある壁を見落とさない（四隅だけでは足りない）', () => {
+  it('四隅だけでは届かない列・行にある壁を見落とさない', () => {
     const boss = new probe_boss_t(
       20 * 8 + 4 - boss_centre, 0, 20 * 8 + 4 - boss_centre, 0, 45,
     )
-    // 判定 14px を x = 8k+7 に置くと 3 タイル列（k, k+1, k+2）にまたがる。
-    // 四隅だけを見る実装だと真ん中の k+1 列を見落とす
-    const x = 30 * 8 + 7
-    const z = 30 * 8 + 7
-    wall(31, 31)
+    // 基底の四隅は x・x+6 と z・z+4 の 2 点ずつしか見ない。
+    // x = 8n+2 なら x>>3 = n、(x+6)>>3 = n+1 だが、14px 幅の右端
+    // (x+14)>>3 は n+2 まで届く。z = 8m+4 なら z>>3 = m、(z+4)>>3 = m+1 で、
+    // 14px の下端 (z+14)>>3 は同じく m+2 まで届く。
+    // 基底が見る 4 隅は列 {n, n+1} × 行 {m, m+1} の中に収まるので、
+    // 壁を (n+2, m+2) に置けば基底実装からは死角、14px 全体を走査する
+    // 実装だけが検出できる
+    const n = 30
+    const m = 30
+    const x = n * 8 + 2
+    const z = m * 8 + 4
+    wall(n + 2, m + 2)
     expect(boss.collides_at(x, z)).toBe(true)
   })
 })
