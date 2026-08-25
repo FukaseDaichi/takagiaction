@@ -7,7 +7,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `main.ts` — エントリポイント。起動シーケンス（イントロ → クリック → `renderer_init()` → アトラス読み込み → 死亡画面）を持つ唯一の場所
 - `state.ts` — ラン中の共有可変データ
 - `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル、拾った装備の段
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` / `flash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。実行時 import は `random.ts` と `state.ts`（定数のみ）だけ
@@ -201,6 +201,8 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 ## BGM は 2 曲
 
 通常曲（`music-dark-meat-beat.ts`）とボス階専用（`music-boss.ts`）の 2 本を、それぞれ別の `AudioBuffer` として生成して持つ。BGM は効果音と別のチェーン（`music_source` → `music_gain` → `music_filter` → `audio_gain`）に載っており、レート・音量・ローパスを効果音と独立に動かせる。曲の差し替えはこのチェーンの入口（`music_source`）だけを付け替えて行う。
+
+**2 曲のデータは共通化せず、独立した創作アセットとして持つ。** `music-boss.ts` が通常曲と同じ 6 楽器の構造を持っていても、配列や音色を共通の基底から導く形にはしない。片方の編曲がもう片方へ波及し、曲単体の調整ができなくなるためである。`audio-data.test.ts` はボス曲全体のハッシュを固定しており、意図して編曲したときだけ差分を確認してハッシュを更新する。
 
 **生成順が契約である。通常曲だけが起動の臨界パスに載る。** `audio_init()` のコールバック（ゲーム開始のクリックハンドラを張る経路）は通常曲の完成で呼び、ボス曲の生成はその**あとから続けて**始める。2 曲を同時に走らせると、生成が `setTimeout` で刻まれる都合で 1 曲目の完成が遅れ、起動時間がそのぶん伸びる。最初のボス階（深度 5）に着くのは数分後なので実際に間に合わないことはないが、未生成なら通常曲のまま続ける分岐を 1 本持つ。
 

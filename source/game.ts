@@ -201,8 +201,9 @@ function load_level(depth: number): void {
   for (const p of layout.yani) { new entity_yani_t(p.x * 8, 0, p.z * 8, 5, 26) }
   for (const p of layout.drones) { new entity_drone_t(p.x * 8, 0, p.z * 8, 5, 39) }
 
-  // ボス階だけ。灰皿と同じタイルに立つので、生きている間は自機が
-  // 喫煙所に触れられない
+  // ボス階だけ。生成時は灰皿と同じタイルに立つが、その後は座席を中心に
+  // 周回する。一服を止めるのは物理的な重なりではなく state.boss_alive
+  // （entity-smoking-area.ts のガード）である
   if (layout.boss) {
     // 生成位置をずらすのは、当たり判定・絵・銃口の中心を灰皿タイルの中心に
     // 揃えるため（entity-boss.ts の boss_spawn_offset）
