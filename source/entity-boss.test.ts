@@ -13,6 +13,8 @@ vi.mock('./renderer', () => ({
 // audio は AudioContext をモジュール初期化時に生成するため同様
 vi.mock('./audio', () => ({
   audio_play: () => {},
+  audio_music_boss_rage: vi.fn(),
+  audio_music_normal: vi.fn(),
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,

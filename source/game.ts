@@ -1,4 +1,4 @@
-import { audio_music_restore } from './audio'
+import { audio_music_boss, audio_music_normal, audio_music_restore } from './audio'
 import { boss_arms, boss_spawn_offset } from './boss-model'
 import { death_screen_show } from './death-screen'
 import {
@@ -223,6 +223,8 @@ function load_level(depth: number): void {
   renderer_freeze_level_geometry()
 
   const boss_floor = is_boss_depth(depth)
+  // ボス階だけ専用BGM。生成が間に合っていなければ通常BGMのまま続く
+  if (boss_floor) { audio_music_boss() } else { audio_music_normal() }
   terminal_show_notice(boss_floor
     ? '深度 ' + depth + ' に到達___大型作業機の稼働音を検知'
     : '深度 ' + depth + ' に到達___喫煙所の残り香を探知中...')

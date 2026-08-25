@@ -1,4 +1,6 @@
-import { audio_play, audio_sfx_explode } from './audio'
+import {
+  audio_music_boss_rage, audio_music_normal, audio_play, audio_sfx_explode,
+} from './audio'
 import {
   boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step, boss_hitbox,
   boss_homing_count, boss_homing_life, boss_homing_speed, boss_homing_spread,
@@ -274,6 +276,7 @@ export class entity_boss_t extends entity_t {
     const cx = t.x + boss_centre
     const cz = t.z + boss_centre
 
+    audio_music_boss_rage()
     screen_flash()
     // 序列は 蜘蛛 1 < セントリー 3 < 銘品 4 < 自機の死 5 < 清掃ドローン 6 <
     // フェーズ移行 7 < ボス撃破 8。揺れの大きさがそれ自体「何が起きたか」の
@@ -333,6 +336,8 @@ export class entity_boss_t extends entity_t {
     audio_play(audio_sfx_explode)
     audio_play(audio_sfx_explode, false, 0.09)
     audio_play(audio_sfx_explode, false, 0.18)
+    // 戦いが終わったので通常BGMへ戻す。報酬ダイアログは通常BGMの上で出る
+    audio_music_normal()
 
     // 事実はターミナルが即時に、感情は 2 秒遅れて高木が言う（docs/story.md「声の使い分け」）
     terminal_show_notice('灰皿撤去ユニットの応答が途絶___区画の封鎖を解除')

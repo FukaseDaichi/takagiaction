@@ -40,6 +40,8 @@ vi.mock('./audio', () => ({
   audio_play: () => {},
   audio_music_death: () => {},
   audio_music_restore: () => {},
+  audio_music_boss: () => {},
+  audio_music_normal: () => {},
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,

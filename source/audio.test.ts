@@ -25,6 +25,7 @@ const fake = vi.hoisted(() => {
   const gains: Array<{ gain: param_t }> = []
   const filters: Array<{ type: string, frequency: param_t }> = []
   const music = { music: true }
+  const music_boss = { music_boss: true }
   const ctx = {
     state: 'suspended',
     currentTime: 7,
@@ -56,6 +57,8 @@ const fake = vi.hoisted(() => {
             start_at: when,
           })
         },
+        // 曲の切替（music_start）が前の source を止めてから作り直すため必要
+        stop: () => {},
       }
       return source
     },
@@ -63,12 +66,14 @@ const fake = vi.hoisted(() => {
   const globals = globalThis as Record<string, unknown>
   globals.AudioContext = function () { return ctx }
   globals.location = { hostname: 'example.com' }
-  return { ctx, started, gains, filters, music }
+  return { ctx, started, gains, filters, music, music_boss, song_calls: 0 }
 })
 
 vi.mock('./sonantx-reduced', () => ({
+  // 1 曲目が通常BGM、2 曲目がボス曲（audio.ts の生成順）
   sonantxr_generate_song: (_ctx: unknown, _song: unknown, cb: (b: unknown) => void) => {
-    cb(fake.music)
+    fake.song_calls++
+    cb(fake.song_calls === 1 ? fake.music : fake.music_boss)
   },
   sonantxr_generate_sound: (_ctx: unknown, _inst: unknown, _note: number, cb: (b: unknown) => void) => {
     cb({})
@@ -85,6 +90,7 @@ async function load_audio() {
   fake.filters.length = 0
   fake.ctx.resume_count = 0
   fake.ctx.state = 'suspended'
+  fake.song_calls = 0
   const audio = await import('./audio')
   audio.audio_init(() => {})
   return audio
@@ -209,5 +215,80 @@ describe('BGM のテープストップ', () => {
 
     expect(fake.gains[1].gain.calls.length).toBe(0)
     expect(fake.filters[0].frequency.calls.length).toBe(0)
+  })
+})
+
+describe('ボス階のBGM', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('ボス曲へ切り替えると、その曲をループ再生で鳴らす', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    fake.started.length = 0
+
+    audio.audio_music_boss()
+
+    expect(fake.started.length).toBe(1)
+    expect(fake.started[0].buffer).toBe(fake.music_boss)
+    expect(fake.started[0].loop).toBe(true)
+  })
+
+  it('通常曲へ戻すと、通常曲を鳴らす', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    audio.audio_music_boss()
+    fake.started.length = 0
+
+    audio.audio_music_normal()
+
+    expect(fake.started.length).toBe(1)
+    expect(fake.started[0].buffer).toBe(fake.music)
+  })
+
+  it('同じ曲への切替は鳴らし直さない（ループの頭出しが起きない）', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    audio.audio_music_boss()
+    fake.started.length = 0
+
+    audio.audio_music_boss()
+
+    expect(fake.started.length).toBe(0)
+  })
+
+  it('激昂で再生レートを上げる', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    audio.audio_music_boss()
+    const rate = fake.started[fake.started.length - 1].playbackRate
+
+    audio.audio_music_boss_rage()
+
+    // ctx.currentTime = 7、ランプは 0.6 秒
+    expect(rate.calls).toContainEqual(['linear', 1.12, 7.6])
+  })
+
+  it('ラン開始の復帰で通常曲へ戻し、レートを 1 にする', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    audio.audio_music_boss()
+    audio.audio_music_boss_rage()
+    fake.started.length = 0
+
+    audio.audio_music_restore()
+
+    expect(fake.started.length).toBe(1)
+    expect(fake.started[0].buffer).toBe(fake.music)
+    expect(fake.started[0].playbackRate.value).toBe(1)
+  })
+
+  it('解錠前は切り替えても鳴らさない', async () => {
+    const audio = await load_audio()
+
+    audio.audio_music_boss()
+
+    expect(fake.started.length).toBe(0)
   })
 })
