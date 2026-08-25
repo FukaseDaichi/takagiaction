@@ -1,6 +1,8 @@
 import { audio_play, audio_sfx_explode } from './audio'
 import {
   boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step, boss_hitbox,
+  boss_homing_count, boss_homing_life, boss_homing_speed, boss_homing_spread,
+  boss_homing_step, boss_homing_turn, boss_homing_turn_rate,
   boss_hp, boss_orbit_omega, boss_orbit_speed,
   boss_phase, boss_phase_rage, boss_pick_radius, boss_pick_speed_factor,
   boss_radius_step, boss_spin_rate, boss_volleys, boss_wander_interval,
@@ -48,6 +50,7 @@ const boss_body_y = 8
 // （斜め 45°）でも成分が 7.07 になり、必ずどちらかの軸で抜ける
 const boss_muzzle = 10
 const boss_bullet_tile = 46
+const boss_homing_tile = 49
 
 export class entity_boss_t extends entity_t {
   // 生成側が代入する — _init() には基底クラスのフィールドしか書けない
@@ -103,6 +106,9 @@ export class entity_boss_t extends entity_t {
         t._spawn_bullet(angle)
       }
     }
+
+    const homing = boss_volleys(swept_before, t._swept, boss_homing_step)
+    for (let v = 0; v < homing; v++) { t._spawn_homing() }
 
     // 基底の _update() は呼ばない。加速度で動かさないので積分が要らず、
     // 壁は _move() が専用の _collides() で自分で見る
@@ -173,6 +179,28 @@ export class entity_boss_t extends entity_t {
     bullet.vz = Math.sin(angle) * speed
   }
 
+  // 自機の方向へ、左右へ開いて 2 発。掃射と同じ銃口の半径から出す
+  // （中から出すと生まれた次のフレームで壁判定に消える）
+  private _spawn_homing(): void {
+    const t = this
+    const player = state.entity_player
+    if (!player) { return }
+    const base = Math.atan2(
+      player.z - (t.z + boss_centre), player.x - (t.x + boss_centre),
+    )
+    const speed = boss_homing_speed(t._phase)
+    for (let i = 0; i < boss_homing_count; i++) {
+      // 本数の中央を 0 にずらして左右対称に開く
+      const angle = base +
+        (i - (boss_homing_count - 1) / 2) * boss_homing_spread * 2
+      const mx = t.x + boss_centre + Math.cos(angle) * boss_muzzle
+      const mz = t.z + boss_centre + Math.sin(angle) * boss_muzzle
+      const bullet = new entity_boss_homing_t(mx - 3, 0, mz - 2, 0, boss_homing_tile)
+      bullet.vx = Math.cos(angle) * speed
+      bullet.vz = Math.sin(angle) * speed
+    }
+  }
+
   override _render(): void {
     const t = this
     // push_sprite() の中身を、6 ではなく boss_size で組み直したもの。
@@ -236,7 +264,9 @@ export class entity_boss_t extends entity_t {
     state.boss_alive = 0
 
     // 残弾を消す。消さないと、勝った直後に流れ弾で一服が中断され
-    // （docs/gameplay.md「一服」）、勝利の実感が濁る
+    // （docs/gameplay.md「一服」）、勝利の実感が濁る。
+    // 追尾弾は entity_boss_plasma_t の派生なので、この 1 本の判定で
+    // 掃射と一緒に拾える
     for (const e of state.entities) {
       if (e instanceof entity_boss_plasma_t) { e._expire() }
     }
@@ -282,11 +312,12 @@ export class entity_boss_plasma_t extends entity_t {
   // 速度は生成側（entity_boss_t._spawn_bullet）が vx/vz に直接代入する。
   // フェーズで弾速が変わるので、_init() の引数 1 本では足りない
 
-  // ライトを積まない。同時に最大 26 発飛ぶので max_lights = 16 を超え、
+  // ライトを積まない。同時に最大 40 発以上飛ぶので max_lights = 16 を超え、
   // 光る弾と光らない弾が混ざる。代わりにタイル 46 を full-bright 規則
   // （r>0.95 && g>0.25 && b==0）を満たす色で焼いてあり、ライトも霧も通さず
   // 全弾が等しく明るく見える（tools/boss_tiles.py）。弾幕は全部見えることが
-  // 要件なので、これは妥協ではなく正しい経路
+  // 要件なので、これは妥協ではなく正しい経路。派生の追尾弾（タイル 49）
+  // も別の full-bright 規則に乗るので同じ理由が当てはまる
 
   // 撃破時にボスがまとめて消すための入口。_kill() は protected なので
   // 兄弟クラスからは呼べない
@@ -303,6 +334,38 @@ export class entity_boss_plasma_t extends entity_t {
       other._receive_damage(this, 1)
       this._kill()
     }
+  }
+}
+
+// 追尾弾。掃射（entity_boss_plasma_t）の派生にしてあるのは、撃破時の
+// 残弾掃除がその 1 本の instanceof で走っているため。壁で消える・接触で
+// 1 ダメージという性質も共通で、素直に is-a である
+export class entity_boss_homing_t extends entity_boss_plasma_t {
+  private _life = boss_homing_life
+
+  override _update(): void {
+    const t = this
+    t._life -= state.time_elapsed
+    if (t._life <= 0) {
+      // 壁で消える掃射と違い、開けた場所では永久に追い続けて溜まる。
+      // O(n²) の衝突ループに乗る弾の数を抑える意味もある
+      t._expire()
+      return
+    }
+    const player = state.entity_player
+    // 死体を追わない。死亡シーケンス中に弾が寄ってくると演出が濁る
+    if (player && !state.dying) {
+      const [vx, vz] = boss_homing_turn(
+        t.vx, t.vz,
+        player.x - t.x, player.z - t.z,
+        boss_homing_turn_rate, state.time_elapsed,
+      )
+      t.vx = vx
+      t.vz = vz
+    }
+    // 基底（entity_t）の _update() が積分と壁判定をやる。摩擦 0 なので
+    // 速度はそのまま乗る
+    super._update()
   }
 }
 

@@ -149,7 +149,7 @@ export const boss_homing_step = 1.4
 // 問題が再発する
 export const boss_homing_count = 2
 
-// 2 発を自機方向から左右へ開く角（rad）
+// 自機方向から左右への偏角（rad）。2 発の間の開きはこの 2 倍（0.5rad ≈ 28.6°）
 export const boss_homing_spread = 0.25
 
 // 旋回速度（rad/s）。速度 44 との組で旋回半径 27.5px になる。曲がれるが、

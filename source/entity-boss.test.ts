@@ -29,10 +29,10 @@ vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
 import {
-  boss_centre, boss_hitbox, boss_orbit_radius_max, boss_orbit_radius_min,
-  boss_orbit_speed, boss_spawn_offset,
+  boss_centre, boss_hitbox, boss_homing_life, boss_orbit_radius_max,
+  boss_orbit_radius_min, boss_orbit_speed, boss_spawn_offset,
 } from './boss-model'
-import { entity_boss_t } from './entity-boss'
+import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
 import { level_data, level_width, state } from './state'
 
@@ -234,5 +234,79 @@ describe('ボスの周回', () => {
         }
       }
     }
+  })
+})
+
+describe('追尾弾', () => {
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.game_running = 1
+    state.dying = 0
+    state.depth = 5
+    state.boss_alive = 1
+    state.boss_levels = []
+    vi.clearAllMocks()
+    state.entity_player = new entity_player_t(8, 0, 8, 5, 18)
+  })
+
+  function homing(): entity_boss_homing_t[] {
+    return state.entities.filter(
+      (e): e is entity_boss_homing_t => e instanceof entity_boss_homing_t && !e._dead,
+    )
+  }
+
+  it('掃引が刻みをまたぐと 2 発出る', () => {
+    const boss = spawn_boss(20, 20)
+    // 掃引が boss_homing_step を越えるまで回す
+    let guard = 0
+    while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
+    expect(homing().length).toBe(2)
+  })
+
+  it('掃射よりずっと少ない頻度で出る', () => {
+    const boss = spawn_boss(20, 20)
+    for (let i = 0; i < 60 * 6; i++) { boss._update() }
+    const sweep = state.entities.filter(
+      (e) => e instanceof entity_boss_plasma_t && !(e instanceof entity_boss_homing_t),
+    ).length
+    expect(homing().length).toBeLessThan(sweep)
+  })
+
+  it('自機のほうへ曲がる', () => {
+    const boss = spawn_boss(20, 20)
+    // 自機を +z の遠方に置く。弾は生成時に自機方向を向くので、
+    // ここでは自機を動かして「曲がる」ことを見る
+    state.entity_player!.x = 20 * 8
+    state.entity_player!.z = 20 * 8 + 200
+    let guard = 0
+    while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
+    const bullet = homing()[0]
+    // 自機を反対側へ動かす
+    state.entity_player!.z = 20 * 8 - 200
+    const before = bullet.vz
+    for (let i = 0; i < 30; i++) { bullet._update() }
+    expect(bullet.vz).toBeLessThan(before)
+  })
+
+  it('寿命で消える', () => {
+    const boss = spawn_boss(20, 20)
+    let guard = 0
+    while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
+    const bullet = homing()[0]
+    state.time_elapsed = boss_homing_life + 0.1
+    bullet._update()
+    expect(bullet._dead).toBe(true)
+  })
+
+  it('撃破で掃射と一緒に消える', () => {
+    const boss = spawn_boss(20, 20)
+    let guard = 0
+    while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
+    expect(homing().length).toBeGreaterThan(0)
+    boss._receive_damage(boss, boss._hp_max)
+    expect(homing().length).toBe(0)
   })
 })
