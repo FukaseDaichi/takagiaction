@@ -14,7 +14,7 @@ import { gear_roll_slot, gear_roll_tier } from './equipment'
 import { meta } from './meta'
 import { monologue_boss_kill } from './monologue'
 import { camera, push_light, push_quad } from './renderer'
-import { state } from './state'
+import { level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
 
 // 灰皿撤去ユニット。深度が 5 の倍数のフロアで、中央の灰皿の上に居座る。
@@ -54,6 +54,17 @@ export class entity_boss_t extends entity_t {
 
   // 掃引した総角度。常に増える。発射はこれで刻むので、回転の向きを含めない
   private _swept = 0
+
+  // 座席。判定と絵が共有する中心の、生成時の位置（＝灰皿タイルの中心）。
+  // 周回はここを原点にする。フィールド初期化子は基底 constructor の後に
+  // 走るので this.x を読める（entity_sentry_t._target_x と同じ手）
+  _home_x = this.x + boss_centre
+  _home_z = this.z + boss_centre
+  // 座席のタイル座標。灰皿は壁タイルとして立っているので、免除しないと
+  // 生まれた瞬間から壁の中にいることになる。非常口も同じタイル値（8）を
+  // 持つのでタイル値では区別できず、位置で覚える
+  _home_tx = (this.x + boss_centre) >> 3
+  _home_tz = (this.z + boss_centre) >> 3
 
   protected override _init(): void {
     this.h = boss_hp(state.depth)
@@ -118,6 +129,23 @@ export class entity_boss_t extends entity_t {
     // dot(n, lp - p)）が 0 になって自分の光で照らせない。半身ぶん手前に
     // 出すのは entity-sentry.ts の弾と同じ
     push_light(x + half, y + half, z + half, 1.2, 0.4, 0.2, 0.05)
+  }
+
+  // 判定 14×14 が覆うタイル範囲を走査する。基底の実装は x・x+6・z・z+4 の
+  // 四隅を見る 6×4 固定で this.w を読まないため、ボスには使えない。
+  // 四隅だけを見る形にもできない — 14px は最大 3 タイル列にまたがるので、
+  // 真ん中の列にある壁を見落とす
+  protected override _collides(x: number, z: number): boolean {
+    const t = this
+    const tx1 = (x + t.w) >> 3
+    const tz1 = (z + t.w) >> 3
+    for (let tz = z >> 3; tz <= tz1; tz++) {
+      for (let tx = x >> 3; tx <= tx1; tx++) {
+        if (tx === t._home_tx && tz === t._home_tz) { continue }
+        if (level_data[tx + tz * level_width] > 7) { return true }
+      }
+    }
+    return false
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
