@@ -121,6 +121,20 @@ export function monologue_boss_kill(): void {
   say(lines_boss_kill, false, boss_kill_delay)
 }
 
+// ボスの激昂。世界の危機ではなく、まだ席を明け渡さないことだけに反応する
+const lines_boss_rage = [
+  'まだどく気はねえのか……',
+  'そんなに座りたいのかよ……',
+  'うるせえ、俺の番だ',
+]
+// フェーズ移行も同じ理由で遅らせる。値はボス撃破と同じ 2 秒だが、
+// 固有の理由ではないので別の定数に持つ
+const boss_rage_delay = 2
+
+export function monologue_boss_rage(): void {
+  say(lines_boss_rage, false, boss_rage_delay)
+}
+
 // 段階遷移は悪化方向のみ発話する。改善方向（一服による回復）で黙るので、
 // ラン開始（満タン）やフロア持ち越しでも誤発話しない。
 export function monologue_notify_stage(stage: number): void {

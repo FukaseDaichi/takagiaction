@@ -21,9 +21,11 @@ vi.mock('./audio', () => ({
 vi.mock('./terminal', () => ({ terminal_show_notice: vi.fn() }))
 vi.mock('./monologue', () => ({
   monologue_boss_kill: vi.fn(),
+  monologue_boss_rage: vi.fn(),
   monologue_death: vi.fn(),
   monologue_drone_kill: vi.fn(),
 }))
+vi.mock('./screen-flash', () => ({ screen_flash: vi.fn() }))
 vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 // 報酬ダイアログは DOM を組む
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
@@ -35,7 +37,11 @@ import {
 } from './boss-model'
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
+import { monologue_boss_rage } from './monologue'
+import { camera } from './renderer'
+import { screen_flash } from './screen-flash'
 import { level_data, level_width, state } from './state'
+import { terminal_show_notice } from './terminal'
 
 // タイル座標に壁（値 8）を立てる
 function wall(tx: number, tz: number): void {
@@ -327,5 +333,89 @@ describe('追尾弾', () => {
     expect(homing().length).toBeGreaterThan(0)
     boss._receive_damage(boss, boss._hp_max)
     expect(homing().length).toBe(0)
+  })
+})
+
+describe('フェーズ移行', () => {
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.game_running = 1
+    state.dying = 0
+    state.depth = 5
+    state.kills = 0
+    state.boss_alive = 1
+    state.boss_levels = []
+    camera.shake = 0
+    vi.clearAllMocks()
+    state.entity_player = new entity_player_t(8, 0, 8, 5, 18)
+  })
+
+  it('HP 半分で閃光・シェイク 7・通知・セリフが 1 度ずつ走る', () => {
+    const boss = spawn_boss(20, 20)
+    boss._receive_damage(boss, boss._hp_max / 2)
+
+    expect(screen_flash).toHaveBeenCalledTimes(1)
+    expect(camera.shake).toBe(7)
+    expect(terminal_show_notice).toHaveBeenCalledTimes(1)
+    expect(monologue_boss_rage).toHaveBeenCalledTimes(1)
+  })
+
+  it('半分を割ってさらに削っても 2 度目は走らない', () => {
+    const boss = spawn_boss(20, 20)
+    boss._receive_damage(boss, boss._hp_max / 2)
+    vi.clearAllMocks()
+    boss._receive_damage(boss, 1)
+    boss._receive_damage(boss, 1)
+
+    expect(screen_flash).not.toHaveBeenCalled()
+    expect(monologue_boss_rage).not.toHaveBeenCalled()
+  })
+
+  it('半分より上では走らない', () => {
+    const boss = spawn_boss(20, 20)
+    boss._receive_damage(boss, boss._hp_max / 2 - 1)
+    expect(screen_flash).not.toHaveBeenCalled()
+  })
+
+  it('撃破のフレームでは移行しない', () => {
+    const boss = spawn_boss(20, 20)
+    boss._receive_damage(boss, boss._hp_max)
+    expect(screen_flash).not.toHaveBeenCalled()
+    // 撃破のシェイクは 8（移行の 7 で上書きされていないこと）
+    expect(camera.shake).toBe(8)
+  })
+
+  it('移行の瞬間に衝撃波が一斉に出る', () => {
+    const boss = spawn_boss(20, 20)
+    const before = state.entities.filter(
+      (e) => e instanceof entity_boss_plasma_t,
+    ).length
+    boss._receive_damage(boss, boss._hp_max / 2)
+    const after = state.entities.filter(
+      (e) => e instanceof entity_boss_plasma_t,
+    ).length
+    expect(after - before).toBe(12)
+  })
+
+  it('移行後は掃射が速くなる', () => {
+    const slow = spawn_boss(20, 20)
+    for (let i = 0; i < 60; i++) { slow._update() }
+    const slow_count = state.entities.filter(
+      (e) => e instanceof entity_boss_plasma_t,
+    ).length
+
+    state.entities = []
+    const fast = spawn_boss(20, 20)
+    fast._receive_damage(fast, fast._hp_max / 2)
+    state.entities = state.entities.filter((e) => e instanceof entity_boss_t)
+    for (let i = 0; i < 60; i++) { fast._update() }
+    const fast_count = state.entities.filter(
+      (e) => e instanceof entity_boss_plasma_t,
+    ).length
+
+    expect(fast_count).toBeGreaterThan(slow_count)
   })
 })

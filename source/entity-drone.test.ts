@@ -23,6 +23,7 @@ vi.mock('./terminal', () => ({ terminal_show_notice: vi.fn() }))
 // monologue も dom.ts に触る（entity-player の死亡シーケンスも到達する）
 vi.mock('./monologue', () => ({ monologue_death: vi.fn(), monologue_drone_kill: vi.fn() }))
 vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
+vi.mock('./screen-flash', () => ({ screen_flash: () => {} }))
 
 import { entity_drone_t } from './entity-drone'
 import { entity_explosion_t } from './entity-explosion'

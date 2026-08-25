@@ -17,8 +17,9 @@ import { spawn_particles } from './entity-particle'
 import { entity_player_t } from './entity-player'
 import { gear_roll_slot, gear_roll_tier } from './equipment'
 import { meta } from './meta'
-import { monologue_boss_kill } from './monologue'
+import { monologue_boss_kill, monologue_boss_rage } from './monologue'
 import { camera, push_light, push_quad } from './renderer'
+import { screen_flash } from './screen-flash'
 import { level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
 
@@ -51,6 +52,9 @@ const boss_body_y = 8
 const boss_muzzle = 10
 const boss_bullet_tile = 46
 const boss_homing_tile = 49
+// 移行の瞬間に全方向へ一斉放出する本数。_arms に依らない固定値にする。
+// 深度で変わると掃射の一部に見え、事件として読めない
+const boss_shockwave_count = 12
 
 export class entity_boss_t extends entity_t {
   // 生成側が代入する — _init() には基底クラスのフィールドしか書けない
@@ -220,8 +224,14 @@ export class entity_boss_t extends entity_t {
     // ライトを持つのは本体だけ。弾は full-bright で描くので光を要らない。
     // 板の法線は +z なので、面と同じ奥行きに置くと拡散項（頂点シェーダの
     // dot(n, lp - p)）が 0 になって自分の光で照らせない。半身ぶん手前に
-    // 出すのは entity-sentry.ts の弾と同じ
-    push_light(x + half, y + half, z + half, 1.2, 0.4, 0.2, 0.05)
+    // 出すのは entity-sentry.ts の弾と同じ。
+    // 激昂では赤く明るくする。HP バーを持たないので、これが「後半に入って
+    // いる」ことの恒常的な印になる
+    const rage = t._phase === boss_phase_rage
+    push_light(
+      x + half, y + half, z + half,
+      rage ? 1.6 : 1.2, rage ? 0.2 : 0.4, rage ? 0.1 : 0.2, rage ? 0.04 : 0.05,
+    )
   }
 
   // 判定 14×14 が覆うタイル範囲を走査する。基底の実装は x・x+6・z・z+4 の
@@ -247,6 +257,38 @@ export class entity_boss_t extends entity_t {
     // 読める（docs/enemies.md「被弾のノックバックは硬さの表現である」）
     // 中心は entity.x/z から boss_centre ぶん離れている（_render() と同じ理由）
     spawn_particles(this.x + boss_centre, this.z + boss_centre, 3)
+
+    // 撃破のフレームでは移行させない（_kill() が既に走っていて、移行の
+    // シェイク 7 が撃破の 8 を上書きしてしまう）
+    if (!this._dead && this._phase !== boss_phase_rage &&
+        boss_phase(this.h, this._hp_max) === boss_phase_rage) {
+      this._enter_rage()
+    }
+  }
+
+  // 激昂へ移る。HP バーを持たないので、この 1 回の演出が「半分削った」の
+  // 合図を兼ねる
+  private _enter_rage(): void {
+    const t = this
+    t._phase = boss_phase_rage
+    const cx = t.x + boss_centre
+    const cz = t.z + boss_centre
+
+    screen_flash()
+    // 序列は 蜘蛛 1 < セントリー 3 < 銘品 4 < 自機の死 5 < 清掃ドローン 6 <
+    // フェーズ移行 7 < ボス撃破 8。揺れの大きさがそれ自体「何が起きたか」の
+    // 合図なので、この 7 つは 1 つの尺度として一緒に見る（docs/enemies.md）
+    camera.shake = 7
+    spawn_particles(cx, cz, 16)
+
+    for (let i = 0; i < boss_shockwave_count; i++) {
+      t._spawn_bullet((i * Math.PI * 2) / boss_shockwave_count)
+    }
+
+    // 事実はターミナルが即時に、感情は 2 秒遅れて高木が言う（docs/story.md
+    // 「声の使い分け」）。ボス自身は喋らない — 声は 2 つに保つ
+    terminal_show_notice('灰皿撤去ユニット___出力制限を解除')
+    monologue_boss_rage()
   }
 
   override _check(other: entity_t): void {

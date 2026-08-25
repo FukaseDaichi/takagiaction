@@ -20,6 +20,7 @@ vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 // entity-player が死亡シーケンスで monologue（→ dom）に到達するため差し替える
 vi.mock('./monologue', () => ({ monologue_death: () => {} }))
 vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
+vi.mock('./screen-flash', () => ({ screen_flash: () => {} }))
 
 import { entity_player_t } from './entity-player'
 import { entity_spider_t } from './entity-spider'
