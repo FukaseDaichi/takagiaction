@@ -1,11 +1,11 @@
 import { audio_music_restore } from './audio'
-import { boss_arms } from './boss-model'
+import { boss_arms, boss_spawn_offset } from './boss-model'
 import { death_screen_show } from './death-screen'
 import {
   death_beats, death_body_y, death_drone_y, death_fade_opacity,
 } from './death-sequence-model'
 import { fade_el } from './dom'
-import { boss_spawn_offset, entity_boss_t } from './entity-boss'
+import { entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t, tile_exit_floor } from './entity-exit'
 import { entity_health_t } from './entity-health'

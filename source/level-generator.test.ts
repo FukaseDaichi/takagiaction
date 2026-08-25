@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { boss_hitbox } from './boss-model'
 import {
   arena_side, enemy_count, generate_level, is_boss_depth, level_bounds_side,
   level_vert_cost, reference_floor_tiles, room_count_range, sentry_count,
@@ -695,4 +696,65 @@ describe('ボス階の闘技場', () => {
       expect(level_vert_cost(generate_level(5, seed).tiles)).toBeLessThan(60000)
     }
   }, 30000)
+})
+
+// 4 つ目の不変条件。ボスは闘技場を動き回るので、判定 14×14 が隣接する柱の
+// 隙間を通れなければリングの内側に閉じ込められる。柱の本数・半径・大きさを
+// 触った人がこれを壊せるので、座標ではなく「通れること」で固定する。
+// 座席（中央の灰皿）は壁タイルだがボスは通過できる（entity-boss.ts の免除）
+describe('闘技場: ボスがリングの内外を行き来できる', () => {
+  // 1px 刻みの占有格子で BFS する。生成位置から出発し、灰皿の中心から
+  // 70px（目標半径の上限）より遠い位置に到達できることを見る
+  function boss_can_reach(radius: number): boolean {
+    const layout = generate_level(5, 12345)
+    const tiles = layout.tiles
+    const home_tx = layout.boss!.x
+    const home_tz = layout.boss!.z
+    const home_x = home_tx * 8 + 4
+    const home_z = home_tz * 8 + 4
+
+    const free = (x: number, z: number): boolean => {
+      const x1 = (x + boss_hitbox) >> 3
+      const z1 = (z + boss_hitbox) >> 3
+      for (let tz = z >> 3; tz <= z1; tz++) {
+        for (let tx = x >> 3; tx <= x1; tx++) {
+          if (tx === home_tx && tz === home_tz) { continue }
+          if (tiles[tx + tz * level_width] > 7) { return false }
+        }
+      }
+      return true
+    }
+
+    const start_x = home_tx * 8 - 3
+    const start_z = home_tz * 8 - 3
+    const half = arena_side >> 1
+    const min_x = (home_tx - half) * 8
+    const min_z = (home_tz - half) * 8
+    const span = arena_side * 8
+    const seen = new Uint8Array(span * span)
+    const key = (x: number, z: number) => (x - min_x) + (z - min_z) * span
+    const queue: Array<[number, number]> = [[start_x, start_z]]
+    seen[key(start_x, start_z)] = 1
+
+    while (queue.length) {
+      const [x, z] = queue.pop()!
+      const dx = x + boss_hitbox / 2 - home_x
+      const dz = z + boss_hitbox / 2 - home_z
+      if (Math.sqrt(dx * dx + dz * dz) > radius) { return true }
+      for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
+        if (nx < min_x || nz < min_z || nx >= min_x + span || nz >= min_z + span) {
+          continue
+        }
+        const k = key(nx, nz)
+        if (seen[k]) { continue }
+        seen[k] = 1
+        if (free(nx, nz)) { queue.push([nx, nz]) }
+      }
+    }
+    return false
+  }
+
+  it('生成位置から灰皿中心 70px 超の位置まで到達できる', () => {
+    expect(boss_can_reach(70)).toBe(true)
+  })
 })

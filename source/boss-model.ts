@@ -43,3 +43,20 @@ export function boss_arm_angles(angle: number, arms: number): number[] {
   }
   return out
 }
+
+// 当たり判定の一辺（ワールド単位）。見た目だけ大きくして既定の 9 のまま
+// 残すと、輪郭に撃った弾がすり抜ける。
+// この値は闘技場の柱の間隔を縛る（docs/gameplay.md「ボス階」の 4 つ目の
+// 不変条件）ため、レンダラや音に到達しない葉モジュールに置く。
+// level-generator.test.ts が不変条件の検証のために読む
+export const boss_hitbox = 14
+
+// 判定・絵・銃口が共有する中心の、entity.x/z からの距離。game.ts の AABB は
+// [x, x+w] なので、中心は半辺のところにある。3 つが別々の中心を持つと
+// 「絵の左上に撃った弾がすり抜け、右下の素の床で当たる」ことになり、
+// w を広げた意味が消える
+export const boss_centre = boss_hitbox / 2
+
+// 生成位置の補正。上の中心を灰皿タイル（8×8）の中心 = tile * 8 + 4 に重ねる
+// ための戻し量で、game.ts が生成時に足す
+export const boss_spawn_offset = 4 - boss_centre

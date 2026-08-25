@@ -1,6 +1,7 @@
 import { audio_play, audio_sfx_explode } from './audio'
 import {
-  boss_arm_angles, boss_bullet_speed, boss_hp, boss_spin_rate, boss_volleys,
+  boss_arm_angles, boss_bullet_speed, boss_centre, boss_hitbox, boss_hp,
+  boss_spin_rate, boss_volleys,
 } from './boss-model'
 import { boss_reward_show } from './boss-reward'
 import { reward_any_available } from './boss-reward-model'
@@ -31,17 +32,6 @@ const boss_size = 12
 // 「灰皿に座り込んだ大型機」が一目で読める。衝突判定は x/z だけなので
 // これは見た目専用の値（弾は y = 0 に出す。理由は _update()）
 const boss_body_y = 8
-// 当たり判定の一辺。見た目だけ大きくして既定の 9 のまま残すと、輪郭に
-// 撃った弾がすり抜ける
-const boss_hitbox = 14
-// 判定・絵・銃口が共有する中心の、entity.x/z からの距離。game.ts の AABB は
-// [x, x+w] なので、中心は半辺のところにある。3 つが別々の中心を持つと
-// 「絵の左上に撃った弾がすり抜け、右下の素の床で当たる」ことになり、
-// w を広げた意味が消える
-export const boss_centre = boss_hitbox / 2
-// 生成位置の補正。上の中心を灰皿タイル（8×8）の中心 = tile * 8 + 4 に重ねる
-// ための戻し量で、game.ts が生成時に足す
-export const boss_spawn_offset = 4 - boss_centre
 // 銃口の半径。共有の中心から測る。中から出すと、生まれた次のフレームで
 // _collides() が壁を返して弾が即座に消える。弾の判定は 6×4 なので、
 // タイルから抜けるには x で 7・z で 6 の余裕が要る。半径 10 なら最悪の角度
