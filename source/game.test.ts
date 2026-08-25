@@ -58,6 +58,7 @@ vi.mock('./monologue', () => ({
   monologue_arrival: vi.fn(),
   monologue_all_done: () => {},
   monologue_boss_arrival: vi.fn(),
+  monologue_boss_blocked: () => {},
   monologue_boss_kill: vi.fn(),
   monologue_complete: () => {},
   monologue_death: () => {},

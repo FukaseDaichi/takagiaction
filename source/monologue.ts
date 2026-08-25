@@ -135,6 +135,27 @@ export function monologue_boss_rage(): void {
   say(lines_boss_rage, false, boss_rage_delay)
 }
 
+// ボスが生きている間に灰皿へ触れたとき。ボスが灰皿を離れて動くように
+// なったので、触れても無反応だと「なぜ吸えないのか」が画面のどこにも
+// 出ない。事実ではなく高木の都合として言う（docs/story.md「声の使い分け」）
+const lines_boss_blocked = [
+  'あいつをどけねえと座れねえ',
+  'まだ吸わせてもらえねえのか……',
+  '先にあれを片付けるか……',
+]
+// 灰皿への接触は毎フレーム続くので、アンビエント扱い（表示中なら譲る）に
+// これを重ねる。8 秒は、状況を忘れさせない頻度と、同じセリフの繰り返しが
+// うるさく感じない頻度の両方に収まる間隔（whisper_interval と同じ流儀）
+const boss_blocked_interval = 8
+
+let boss_blocked_timer = 0
+
+export function monologue_boss_blocked(): void {
+  if (boss_blocked_timer > 0) { return }
+  boss_blocked_timer = boss_blocked_interval
+  say(lines_boss_blocked, true)
+}
+
 // 段階遷移は悪化方向のみ発話する。改善方向（一服による回復）で黙るので、
 // ラン開始（満タン）やフロア持ち越しでも誤発話しない。
 export function monologue_notify_stage(stage: number): void {
@@ -157,11 +178,13 @@ export function monologue_notify_stage(stage: number): void {
 
 export function monologue_reset(): void {
   bubble = bubble_idle()
+  boss_blocked_timer = 0
   bubble_el.style.opacity = '0'
   bubble_el.classList.remove('tr')
 }
 
 export function monologue_update(px: number, pz: number): void {
+  if (boss_blocked_timer > 0) { boss_blocked_timer -= state.time_elapsed }
   bubble_advance(bubble, state.time_elapsed)
   const text = bubble_visible_text(bubble)
   // 位置はフェードアウト中も追従させる（止めると消えかけの吹き出しがその場に
