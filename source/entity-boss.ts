@@ -1,7 +1,10 @@
 import { audio_play, audio_sfx_explode } from './audio'
 import {
   boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step, boss_hitbox,
-  boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
+  boss_hp, boss_orbit_omega, boss_orbit_speed,
+  boss_phase, boss_phase_rage, boss_pick_radius, boss_pick_speed_factor,
+  boss_radius_step, boss_spin_rate, boss_volleys, boss_wander_interval,
+  boss_wander_retry_min,
 } from './boss-model'
 import { boss_reward_show } from './boss-reward'
 import { reward_any_available } from './boss-reward-model'
@@ -17,20 +20,27 @@ import { camera, push_light, push_quad } from './renderer'
 import { level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
 
-// 灰皿撤去ユニット。深度が 5 の倍数のフロアで、中央の灰皿の上に居座る。
+// 灰皿撤去ユニット。深度が 5 の倍数のフロアで、中央の灰皿の上に生まれる。
 // 倒すまで一服できない（entity-smoking-area.ts が state.boss_alive を見る）。
 //
+// 据え置きではなく、床から低く浮いた機体である。浮いている高さは柱より
+// 低いので、柱は依然として遮蔽として効く。この像が要るのは、灰皿ブロック
+// （壁タイル）の上に居られることと、柱（壁タイル）は越えられないことを
+// 同時に成立させる唯一の読み方だから。
+//
 // 砲口が等角に並んだまま全体が回り、掃引が一定角度進むごとに全砲口から
-// 1 発ずつ吐く。回転しているので柱の陰（安全地帯）も一緒に回り、自機は
-// ボスの周りを同じ向きに回り続けることになる。回りながら撃ち返す形は
-// docs/gameplay.md「操作」の後退射撃そのもので、膠着が構造的に起きない。
+// 1 発ずつ吐く。加えて座席を中心に周回するので、柱の陰（安全地帯）は
+// 「回る」だけでなく「動く」。自機は陰を追い続けることになり、回りながら
+// 撃ち返す形は docs/gameplay.md「操作」の後退射撃そのもので、膠着が
+// 構造的に起きない。
 
 // 見た目の一辺（ワールド単位）。通常スプライトの 2 倍。push_sprite() は
 // 6 固定で拡大できないので、entity-slash.ts と同じく push_quad() を直に呼ぶ
 const boss_size = 12
-// 本体の足元の高さ。灰皿ブロック（高さ 8）の上に立つので全高 20 になり、
-// 「灰皿に座り込んだ大型機」が一目で読める。衝突判定は x/z だけなので
-// これは見た目専用の値（弾は y = 0 に出す。理由は _update()）
+// 本体の足元の高さ。灰皿ブロック（高さ 8）と同じ高さで浮くので、座席に
+// 居るときは「灰皿に座り込んだ大型機」に、離れたときは「低く浮いて動く
+// 大型機」に読める。衝突判定は x/z だけなのでこれは見た目専用の値
+// （弾は y = 0 に出す。理由は _spawn_bullet()）
 const boss_body_y = 8
 // 銃口の半径。共有の中心から測る。中から出すと、生まれた次のフレームで
 // _collides() が壁を返して弾が即座に消える。弾の判定は 6×4 なので、
@@ -66,6 +76,13 @@ export class entity_boss_t extends entity_t {
   _home_tx = (this.x + boss_centre) >> 3
   _home_tz = (this.z + boss_centre) >> 3
 
+  // 周回の目標。周回角と半径そのものは位置から毎フレーム導くので持たない。
+  // 別に持つと、柱に塞がれて動けなかったフレームで持っている角と実際の
+  // 位置がずれ、抜けた瞬間に飛ぶ
+  private _radius_target = boss_pick_radius(Math.random())
+  private _speed_factor = boss_pick_speed_factor(Math.random())
+  private _wander_timer = boss_wander_interval
+
   protected override _init(): void {
     this.h = boss_hp(state.depth)
     this.w = boss_hitbox
@@ -73,6 +90,8 @@ export class entity_boss_t extends entity_t {
 
   override _update(): void {
     const t = this
+    t._move()
+
     const swept_before = t._swept
     t._swept += boss_spin_rate(t._phase) * state.time_elapsed
     // 砲塔の向き。フレームを跨いで持つ状態は _swept だけで足りる
@@ -85,8 +104,54 @@ export class entity_boss_t extends entity_t {
       }
     }
 
-    // 基底の _update() は呼ばない。動かないので積分が要らないうえ、
-    // 灰皿タイルは壁なので毎フレーム _collides() が真になる
+    // 基底の _update() は呼ばない。加速度で動かさないので積分が要らず、
+    // 壁は _move() が専用の _collides() で自分で見る
+  }
+
+  // 座席を中心に回りながら、目標半径へ寄る。柱には衝突して滑る
+  private _move(): void {
+    const t = this
+    const dt = state.time_elapsed
+    const speed = boss_orbit_speed(t._phase) * t._speed_factor
+
+    t._wander_timer -= dt
+    if (t._wander_timer <= 0) { t._repick(boss_wander_interval) }
+
+    // 半径は生の値のまま渡す。ここで下限に丸めると、丸めた値が
+    // boss_radius_step() の「現在地」になり、生成直後（半径 0）に
+    // 下限まで 1 フレームで飛ぶ。下限保護は boss_orbit_omega() 自身が
+    // 持つので、ここで重ねてクランプしない
+    const dx = t.x + boss_centre - t._home_x
+    const dz = t.z + boss_centre - t._home_z
+    const radius = Math.sqrt(dx * dx + dz * dz)
+    const angle = Math.atan2(dz, dx) +
+      boss_orbit_omega(speed, radius) * t._spin * dt
+    const next = boss_radius_step(radius, t._radius_target, speed, dt)
+
+    const nx = t._home_x + Math.cos(angle) * next - boss_centre
+    const nz = t._home_z + Math.sin(angle) * next - boss_centre
+
+    // 全体が塞がれていても、x だけ / z だけなら通れることが多い。基底の
+    // _update() と同じ滑りで、擦りながら回り込む動きがこれで出る
+    if (!t._collides(nx, nz)) {
+      t.x = nx
+      t.z = nz
+    } else if (!t._collides(nx, t.z)) {
+      t.x = nx
+    } else if (!t._collides(t.x, nz)) {
+      t.z = nz
+    } else {
+      // どちらの軸でも通れない。専用の脱出挙動は作らず、目標を引き直して
+      // 次のフレームに別の半径を試す
+      t._repick(boss_wander_retry_min)
+    }
+  }
+
+  private _repick(interval: number): void {
+    const t = this
+    t._radius_target = boss_pick_radius(Math.random())
+    t._speed_factor = boss_pick_speed_factor(Math.random())
+    t._wander_timer = interval
   }
 
   // 判定と絵が共有する中心から、銃口の半径だけ離して 1 発出す。
@@ -150,14 +215,15 @@ export class entity_boss_t extends entity_t {
 
   override _receive_damage(from: entity_t, amount: number): void {
     super._receive_damage(from, amount)
-    // ノックバックを受けない。据え置きの砲台であることが被弾の反応で読める
-    // （docs/enemies.md「被弾のノックバックは硬さの表現である」）
+    // ノックバックを受けない。浮いていても軽くはないことが被弾の反応で
+    // 読める（docs/enemies.md「被弾のノックバックは硬さの表現である」）
     // 中心は entity.x/z から boss_centre ぶん離れている（_render() と同じ理由）
     spawn_particles(this.x + boss_centre, this.z + boss_centre, 3)
   }
 
   override _check(other: entity_t): void {
-    // 灰皿に近づけない。生きている間は接触そのものが壁になる
+    // 触れば削られる。座席に居る間は灰皿へ詰めること自体が塞がれ、離れて
+    // からは動く脅威になる
     if (other instanceof entity_player_t) {
       other._receive_damage(this, 1)
     }

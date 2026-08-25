@@ -28,7 +28,9 @@ vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 // 報酬ダイアログは DOM を組む
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
-import { boss_centre, boss_hitbox } from './boss-model'
+import {
+  boss_centre, boss_hitbox, boss_orbit_radius_max, boss_orbit_radius_min,
+} from './boss-model'
 import { entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
 import { level_data, level_width, state } from './state'
@@ -36,6 +38,14 @@ import { level_data, level_width, state } from './state'
 // タイル座標に壁（値 8）を立てる
 function wall(tx: number, tz: number): void {
   level_data[tx + tz * level_width] = 8
+}
+
+// 座席タイル（tx, tz）の中心にボスを生成する。game.ts の生成位置の補正
+// （boss_spawn_offset = 4 - boss_centre）と同じ式
+function spawn_boss(tx: number, tz: number): entity_boss_t {
+  return new entity_boss_t(
+    tx * 8 + 4 - boss_centre, 0, tz * 8 + 4 - boss_centre, 0, 45,
+  )
 }
 
 // _collides は protected。テストはサブクラス経由で呼ぶ（既存の流儀）
@@ -99,5 +109,80 @@ describe('ボスの壁判定', () => {
     const z = m * 8 + 4
     wall(n + 1, m + 1)
     expect(boss.collides_at(x, z)).toBe(true)
+  })
+})
+
+describe('ボスの周回', () => {
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.game_running = 1
+    state.dying = 0
+    state.depth = 5
+    state.boss_alive = 1
+    vi.clearAllMocks()
+    state.entity_player = new entity_player_t(8, 0, 8, 5, 18)
+  })
+
+  function radius(boss: entity_boss_t): number {
+    const dx = boss.x + boss_centre - boss._home_x
+    const dz = boss.z + boss_centre - boss._home_z
+    return Math.sqrt(dx * dx + dz * dz)
+  }
+
+  it('毎フレーム位置が動く', () => {
+    const boss = spawn_boss(20, 20)
+    const x0 = boss.x
+    const z0 = boss.z
+    for (let i = 0; i < 30; i++) { boss._update() }
+    expect(boss.x !== x0 || boss.z !== z0).toBe(true)
+  })
+
+  it('座席からの距離が目標半径の帯の中に収まる', () => {
+    const boss = spawn_boss(20, 20)
+    for (let i = 0; i < 60 * 30; i++) {
+      boss._update()
+      // 下限は「寄っていく途中」があるので 0 から許すが、上限は超えない
+      expect(radius(boss)).toBeLessThanOrEqual(boss_orbit_radius_max + 1)
+    }
+  })
+
+  it('十分な時間で座席から離れる（灰皿に居座り続けない）', () => {
+    const boss = spawn_boss(20, 20)
+    let max_r = 0
+    for (let i = 0; i < 60 * 30; i++) {
+      boss._update()
+      max_r = Math.max(max_r, radius(boss))
+    }
+    expect(max_r).toBeGreaterThan(boss_orbit_radius_min)
+  })
+
+  it('壁に囲まれていても壁の中へ入らない', () => {
+    // 座席の周りを壁で囲む。判定 14px はタイル 3 列ぶんあるので、静止位置
+    // （半径 0）だけで座席の前後左右 1 タイルへ既にはみ出す。中心 1 タイル
+    // だけ空けると静止位置自体が壁にめり込んでしまうため、はみ出す 3×3 を
+    // まるごと空け、壁の輪はその外側 1 タイルに置く
+    for (let tz = 17; tz <= 23; tz++) {
+      for (let tx = 17; tx <= 23; tx++) {
+        if (tx >= 19 && tx <= 21 && tz >= 19 && tz <= 21) { continue }
+        wall(tx, tz)
+      }
+    }
+    const boss = spawn_boss(20, 20)
+    for (let i = 0; i < 60 * 10; i++) {
+      boss._update()
+      // 座席タイルの中に留まっているはず（判定が座席から出られない）
+      expect(boss._home_tx).toBe(20)
+      const tx1 = (boss.x + boss.w) >> 3
+      const tz1 = (boss.z + boss.w) >> 3
+      for (let tz = boss.z >> 3; tz <= tz1; tz++) {
+        for (let tx = boss.x >> 3; tx <= tx1; tx++) {
+          if (tx === 20 && tz === 20) { continue }
+          expect(level_data[tx + tz * level_width]).toBeLessThan(8)
+        }
+      }
+    }
   })
 })
