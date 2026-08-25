@@ -33,9 +33,9 @@ vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
 import {
-  boss_centre, boss_hitbox, boss_homing_life, boss_homing_spread,
-  boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
-  boss_spawn_offset,
+  boss_bullet_speed, boss_centre, boss_hitbox, boss_homing_life,
+  boss_homing_spread, boss_orbit_radius_max, boss_orbit_radius_min,
+  boss_orbit_speed, boss_phase_rage, boss_spawn_offset,
 } from './boss-model'
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
@@ -362,6 +362,9 @@ describe('フェーズ移行', () => {
     expect(screen_flash).toHaveBeenCalledTimes(1)
     expect(camera.shake).toBe(7)
     expect(terminal_show_notice).toHaveBeenCalledTimes(1)
+    // 呼び出し回数だけだと文言が自由に drift する。移行の通知文だけ固定する
+    // （撃破の通知は Task 9 の変更ではないので触らない）
+    expect(terminal_show_notice).toHaveBeenCalledWith('灰皿撤去ユニット___出力制限を解除')
     expect(monologue_boss_rage).toHaveBeenCalledTimes(1)
   })
 
@@ -393,13 +396,50 @@ describe('フェーズ移行', () => {
   it('移行の瞬間に衝撃波が一斉に出る', () => {
     const boss = spawn_boss(20, 20)
     const before = state.entities.filter(
-      (e) => e instanceof entity_boss_plasma_t,
-    ).length
+      (e): e is entity_boss_plasma_t => e instanceof entity_boss_plasma_t,
+    )
     boss._receive_damage(boss, boss._hp_max / 2)
     const after = state.entities.filter(
-      (e) => e instanceof entity_boss_plasma_t,
-    ).length
-    expect(after - before).toBe(12)
+      (e): e is entity_boss_plasma_t => e instanceof entity_boss_plasma_t,
+    )
+    // spawn_particles() は entities に粒子も積むが、entity_boss_plasma_t では
+    // ないので instanceof の絞り込みには混ざらない。差分で今回生まれた分だけを見る
+    const shockwave = after.filter((e) => !before.includes(e))
+    expect(shockwave.length).toBe(12)
+
+    // 速さ: 激昂の弾速で出ていること。_phase の代入がループより前に無いと、
+    // 撃射時点ではまだ前半のフェーズのままで、この値が boss_bullet_speed(1)
+    // （56）になって赤くなる
+    const rage_speed = boss_bullet_speed(boss_phase_rage)
+    for (const bullet of shockwave) {
+      expect(Math.hypot(bullet.vx, bullet.vz)).toBeCloseTo(rage_speed, 6)
+    }
+
+    // 向き: 12 発が 2π を 12 等分した角度と 1 対 1 で一致すること（「全方向へ
+    // 一斉放出」の定義そのもの）。単純に隣接差を見る形は atan2 の巻き戻り
+    // （±π 境界）で壊れやすいので、両辺を [0, 2π) へ正規化し、円周上の距離
+    // （巻き戻りを跨いだ側も見る）でどの目標角に対応するかを 1 発ごとに
+    // 消し込みながら判定する
+    const two_pi = Math.PI * 2
+    const step = two_pi / 12
+    const normalize = (a: number) => ((a % two_pi) + two_pi) % two_pi
+    const remaining_targets = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    for (const bullet of shockwave) {
+      const angle = normalize(Math.atan2(bullet.vz, bullet.vx))
+      let matched = -1
+      for (const k of remaining_targets) {
+        const diff = Math.abs(angle - step * k)
+        // 0 と 2π の境界を跨ぐ組は素の差が大きく出るので、円周上の短い方を取る
+        if (Math.min(diff, two_pi - diff) < 1e-6) {
+          matched = k
+          break
+        }
+      }
+      expect(matched).not.toBe(-1)
+      remaining_targets.delete(matched)
+    }
+    // 12 通りすべてが 1 発ずつに埋まったこと（重複や欠けがないこと）
+    expect(remaining_targets.size).toBe(0)
   })
 
   it('移行後は掃射が速くなる', () => {
