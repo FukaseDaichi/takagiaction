@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   boss_arm_angles, boss_arms, boss_arms_max, boss_bullet_speed, boss_fire_step,
   boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
+  boss_orbit_omega, boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
+  boss_pick_radius, boss_pick_speed_factor, boss_radius_step,
 } from './boss-model'
 
 describe('boss_arms', () => {
@@ -96,5 +98,51 @@ describe('フェーズで変わる摘み', () => {
   it('斉射の頻度（回転 ÷ 刻み）が激昂で上がる', () => {
     const rate = (p: number) => boss_spin_rate(p) / boss_fire_step(p)
     expect(rate(boss_phase_rage)).toBeGreaterThan(rate(1))
+  })
+})
+
+describe('周回の摘み', () => {
+  it('目標半径は帯の中に収まり、端を取り切る', () => {
+    expect(boss_pick_radius(0)).toBe(boss_orbit_radius_min)
+    expect(boss_pick_radius(1)).toBe(boss_orbit_radius_max)
+    for (let i = 0; i <= 100; i++) {
+      const r = boss_pick_radius(i / 100)
+      expect(r).toBeGreaterThanOrEqual(boss_orbit_radius_min)
+      expect(r).toBeLessThanOrEqual(boss_orbit_radius_max)
+    }
+  })
+
+  it('速度係数は 1 を挟む帯に収まる', () => {
+    expect(boss_pick_speed_factor(0)).toBeLessThan(1)
+    expect(boss_pick_speed_factor(1)).toBeGreaterThan(1)
+  })
+
+  it('周回の線速度は激昂で上がる', () => {
+    expect(boss_orbit_speed(boss_phase_rage)).toBeGreaterThan(boss_orbit_speed(1))
+  })
+})
+
+describe('boss_radius_step', () => {
+  it('目標へ寄る（行き過ぎない）', () => {
+    expect(boss_radius_step(10, 70, 36, 1)).toBeCloseTo(28, 6) // 36 * 0.5 * 1
+    expect(boss_radius_step(70, 10, 36, 1)).toBeCloseTo(52, 6)
+  })
+
+  it('1 フレームで届くなら目標そのものになる', () => {
+    expect(boss_radius_step(10, 10.5, 36, 1)).toBe(10.5)
+    expect(boss_radius_step(10, 10, 36, 1)).toBe(10)
+  })
+})
+
+describe('boss_orbit_omega', () => {
+  it('線速度が半径に依らず保たれる（ω = v / r）', () => {
+    for (const r of [10, 20, 40, 70]) {
+      expect(boss_orbit_omega(36, r) * r).toBeCloseTo(36, 6)
+    }
+  })
+
+  it('半径が下限を下回っても発散しない', () => {
+    expect(boss_orbit_omega(36, 0)).toBe(36 / boss_orbit_radius_min)
+    expect(boss_orbit_omega(36, -5)).toBe(36 / boss_orbit_radius_min)
   })
 })
