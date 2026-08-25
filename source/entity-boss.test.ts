@@ -42,6 +42,7 @@ import {
 } from './boss-model'
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
+import { generate_level } from './level-generator'
 import { monologue_boss_rage } from './monologue'
 import { camera, push_light } from './renderer'
 import { screen_flash } from './screen-flash'
@@ -249,6 +250,100 @@ describe('ボスの周回', () => {
   })
 })
 
+// 上の「ボスの周回」は level_data.fill(1)（壁ゼロ）で回るので、_move() の
+// 滑り分岐には一度も入らない。「壁に囲まれていても壁の中へ入らない」も
+// 「壁の中に居ないこと」しか見ていないので、座席の周り 3×3 に閉じこもった
+// ままでも通る。つまり滑り分岐を消しても、それらは全部緑のままになる。
+//
+// ここで主張するのは「壁の中に入らない」ではなく「塞がれても前に進める」——
+// 実際の闘技場で柱に擦りながら隙間を抜け、柱リングの帯まで届くこと。
+// docs/enemies.md「柱には衝突して滑る」「擦りながら回り込む動きがこれで出る」
+// が指しているのはこの振る舞いで、実装上はその 2 分岐しか実現していない。
+describe('闘技場: 柱に塞がれても前に進める', () => {
+  // 柱の内縁（軸上）。柱の頭のタイルは座席タイルの 8 タイル先（= +64px）に
+  // あり、座席の中心はタイルの中心（+4px）なので、そのタイルの手前の縁は
+  // 座席の中心から 60px。ここを越えていれば柱リングの帯に入り込んでいる
+  const pillar_inner_edge = 60
+  // 闘技場のシード。柱の配置はシードに依らない（build_walls が書く値は
+  // すべて 8 以上 = 壁）ので、シードで変わるのは開始隅・非常口・周回の向き
+  // だけ。値そのものに意味はない
+  const arena_seed = 12345
+  // 1 シードあたりの模擬時間（秒）。滑りを消した実装は 60 秒で到達半径が
+  // 頭打ちになり、そこから先はどれだけ回しても伸びない（実測）。現行実装は
+  // 伸び続けるので、長く回すほど差が開く
+  const run_seconds = 120
+  // 走らせるシードの本数と、そのうち帯へ届くべき本数
+  const seed_count = 20
+  const required = 16
+
+  // Math.random() を差し替える決定的な線形合同法。周回は目標半径と速度係数を
+  // 2.5 秒ごとに Math.random() で引き直すので、素のままだと実行のたびに
+  // 結果が変わる。シードを固定してフレーキーなテストにしない
+  function lcg(seed: number): () => number {
+    let s = seed >>> 0
+    return () => {
+      s = (s * 1664525 + 1013904223) >>> 0
+      return s / 4294967296
+    }
+  }
+
+  beforeEach(() => {
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.game_running = 1
+    state.dying = 0
+    state.depth = 5
+    state.boss_alive = 1
+    state.boss_levels = []
+    vi.clearAllMocks()
+  })
+
+  // 1 シードぶん走らせて、座席の中心から到達した最大半径を返す
+  function max_radius(rng_seed: number): number {
+    const layout = generate_level(5, arena_seed)
+    level_data.set(layout.tiles)
+    state.entities = []
+    // 追尾弾が自機の方向を要るので、game.ts と同じ開始隅に置く
+    state.entity_player =
+      new entity_player_t(layout.start.x * 8, 0, layout.start.z * 8, 5, 18)
+
+    const random = vi.spyOn(Math, 'random').mockImplementation(lcg(rng_seed))
+    try {
+      // 生成位置の補正と回転の向きは game.ts の load_level() と同じ
+      const boss = new entity_boss_t(
+        layout.boss!.x * 8 + boss_spawn_offset, 0,
+        layout.boss!.z * 8 + boss_spawn_offset, 0, 45,
+      )
+      boss._spin = layout.boss_spin
+      let max_r = 0
+      for (let i = 0; i < run_seconds * 60; i++) {
+        boss._update()
+        const dx = boss.x + boss_centre - boss._home_x
+        const dz = boss.z + boss_centre - boss._home_z
+        max_r = Math.max(max_r, Math.sqrt(dx * dx + dz * dz))
+      }
+      return max_r
+    } finally {
+      random.mockRestore()
+    }
+  }
+
+  it('大半のシードで柱リングの内縁より外へ出る', () => {
+    let reached = 0
+    for (let seed = 1; seed <= seed_count; seed++) {
+      if (max_radius(seed) > pillar_inner_edge) { reached++ }
+    }
+    // 実測: 現行実装は 20/20（最も届かないシードでも 61.4px）。滑り分岐を
+    // 2 本とも削除すると 9/20 まで落ちる。しきい値 16 はその間に置いてあり、
+    // 上下どちらにも余裕がある — 現行から 4 シード落ちてもまだ緑、
+    // 滑りなしからは 7 シード増えないと緑にならない。
+    // 1 シードだけを見る形にしないのは、現行実装の最悪シードが 61.4px と
+    // 内縁ぎりぎりで、無関係な微修正でも簡単に裏返るため
+    expect(reached).toBeGreaterThanOrEqual(required)
+  }, 60000)
+})
+
 describe('追尾弾', () => {
   beforeEach(() => {
     level_data.fill(1)
@@ -307,9 +402,11 @@ describe('追尾弾', () => {
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
     const bullet = homing()[0]
     const before = bullet.vz
-    // 初弾は生成時に自機方向（+z 側）を向くはず。自機は座席から見て
-    // z が常に +196±70 の範囲にいるので、周回のどの位置で撃たれても
-    // vz は必ず正になる（base が反転・0 になる回帰はここで負になり赤くなる）
+    // 初弾は生成時に自機方向（+z 側）を向くはず。自機の z は 360 に固定して
+    // あり、±70 動くのは周回するボスのほう（座席の z は 164）。弾の向きが
+    // 見るのは自機とボスの差なので、それは 196∓70 = 126〜266 で常に正 ——
+    // 周回のどの位置で撃たれても vz は必ず正になる
+    // （base が反転・0 になる回帰はここで負になり赤くなる）
     expect(before).toBeGreaterThan(0)
     const z0 = bullet.z
     // 自機を反対側へ動かす
