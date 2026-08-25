@@ -85,9 +85,10 @@ export const boss_centre = boss_hitbox / 2
 export const boss_spawn_offset = 4 - boss_centre
 
 // 周回の目標半径の帯（px。灰皿タイルの中心から測る）。
-// 下限 10 は灰皿の上にまだ被る位置。上限 70 は、外周壁の内面（中心から
-// 88px）からボスの半辺（7px）と余白を引いた値 — 壁に張り付くと自機が
-// 背後を取れなくなる。柱リング（半径 8 タイル）を跨ぐ帯なので、ボスは
+// 下限 10 は灰皿の上にまだ被る位置。上限 70 は、外周壁の内面（座席の中心
+// から 92px。level-generator.ts の arena_side = 23 より、床タイルの外側に
+// 立つ壁の内面まで）からボスの半辺（7px）と余白を引いた値 — 壁に張り付くと
+// 自機が背後を取れなくなる。柱リング（半径 8 タイル）を跨ぐ帯なので、ボスは
 // 隙間を通って内外を行き来する
 export const boss_orbit_radius_min = 10
 export const boss_orbit_radius_max = 70
@@ -109,7 +110,11 @@ const boss_radius_speed_factor = 0.5
 
 // 周回の線速度（px/s）。角速度ではなく線速度を一定にする — 角速度を
 // 一定にすると半径 10 と 70 で線速度が 7 倍違い、同じ相手が半径によって
-// 別の速さで動いて見える。自機の約 130 に対して十分遅く、逃げ切れる
+// 別の速さで動いて見える。
+// 速度係数（0.7〜1.3）を掛けた実効は前半 25〜47px/s・激昂 38〜70px/s で、
+// 自機の終端速度と同じ帯かそれ以上になる。自機の 128（nicotine.ts の
+// player_speed）は加速度であって速度ではなく、終端は 128 / 摩擦 5 =
+// 25.6px/s（斜めで約 36px/s）である。128 と直接比べてはならない
 export function boss_orbit_speed(phase: number): number {
   return phase === boss_phase_rage ? 54 : 36
 }
@@ -152,15 +157,18 @@ export const boss_homing_count = 2
 // 自機方向から左右への偏角（rad）。2 発の間の開きはこの 2 倍（0.5rad ≈ 28.6°）
 export const boss_homing_spread = 0.25
 
-// 旋回速度（rad/s）。速度 44 との組で旋回半径 27.5px になる。曲がれるが、
-// 自機（約 130）が全力で離れれば必ず振り切れる
+// 旋回速度（rad/s）。速度 44 との組で旋回半径 27.5px になる。追尾弾は自機の
+// 終端速度（25.6px/s、斜めで約 36px/s。boss_orbit_speed のコメントを参照）
+// より速いので、直線で走って引き離すことはできない。当たらずに済むのは、
+// 旋回半径ぶん外へ膨らませて追い越させるか、壁や柱へ誘導して消すか
+// （壁判定は掃射と共通）、寿命（boss_homing_life）まで持ちこたえるか
 export const boss_homing_turn_rate = 1.6
 
 // 寿命（秒）。壁で消える掃射と違い、開けた場所では永久に追い続けて溜まる
 export const boss_homing_life = 5
 
-// 掃射（56）より遅い。追尾弾は「横によける」ではなく「振り切る」弾なので、
-// 速いと理不尽になる
+// 掃射（56）より遅い。追ってくる弾を掃射と同じ速さにすると、避ける余地が
+// 消える
 export function boss_homing_speed(phase: number): number {
   return phase === boss_phase_rage ? 55 : 44
 }
