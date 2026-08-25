@@ -26,6 +26,12 @@
 		@keyframes sls{from{transform:translate(-115%,-50%) rotate(-19deg);}to{transform:translate(55%,-50%) rotate(-19deg);}}
 		@keyframes slf{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
 		@media (prefers-reduced-motion: reduce){#sl{display:none;}}
+		/* ボスのフェーズ移行の合図。#wf の白フェードと同じ形の赤い全画面
+		   フラッシュ。詳細は source/screen-flash.ts。z-index は #sl の下 */
+		#bf{position:fixed;inset:0;background:#f30;opacity:0;pointer-events:none;z-index:18;}
+		#bf.on{animation:bff .25s forwards;}
+		@keyframes bff{0%{opacity:0}15%{opacity:.55}100%{opacity:0}}
+		@media (prefers-reduced-motion: reduce){#bf{display:none;}}
 		#wf{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
 		#wf.f{animation:wfo .6s forwards;}
 		@keyframes wfo{from{opacity:1}to{opacity:0}}
@@ -40,6 +46,7 @@
 	<canvas id="m" width=64 height=64></canvas>
 	<code id="sn"></code>
 	<code id="b"></code>
+	<div id="bf"></div>
 	<div id="sl"></div>
 	<div id="wf"></div>
 	<script type="module" src="/source/main.ts"></script>

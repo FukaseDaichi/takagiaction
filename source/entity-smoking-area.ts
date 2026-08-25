@@ -6,7 +6,8 @@ import { entity_t } from './entity'
 import { entity_player_t } from './entity-player'
 import { spawn_smoke } from './entity-smoke'
 import {
-  monologue_all_done, monologue_complete, monologue_dummy, monologue_interrupt,
+  monologue_all_done, monologue_boss_blocked, monologue_complete, monologue_dummy,
+  monologue_interrupt,
 } from './monologue'
 import { push_block, push_light, push_sprite } from './renderer'
 import {
@@ -134,10 +135,15 @@ export class entity_smoking_area_t extends entity_t {
     // death_screen_show() で止めたターミナルの表示チェーンを再び動かしてしまう
     // （レビュー Finding 1）。state.dying: 死亡シーケンス中（game_running はまだ 1）に
     // 死体が一服を始めない・中断のセリフを出さないため。
-    // state.boss_alive: ボス階の灰皿にはボスが居座っている。倒すまで
-    // 吸わせない（docs/gameplay.md「ボス階」）
-    if (touching && !this._done && !this._needs_release &&
-        state.game_running && !state.dying && !state.boss_alive) {
+    // state.boss_alive: ボス階の灰皿はボスの席である。倒すまで吸わせない
+    // （docs/gameplay.md「ボス階」）
+    const ready = touching && !this._done && !this._needs_release &&
+      state.game_running && !state.dying
+    if (ready && state.boss_alive) {
+      // ボスは灰皿を離れて動くので、触れても無反応だと「なぜ吸えないのか」が
+      // 画面のどこにも出ない。連呼はセリフ側のクールダウンが抑える
+      monologue_boss_blocked()
+    } else if (ready) {
       if (this.is_real) {
         smoking = this._advance()
       } else {

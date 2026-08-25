@@ -40,6 +40,8 @@ vi.mock('./audio', () => ({
   audio_play: () => {},
   audio_music_death: () => {},
   audio_music_restore: () => {},
+  audio_music_boss: vi.fn(),
+  audio_music_normal: vi.fn(),
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,
@@ -56,6 +58,7 @@ vi.mock('./monologue', () => ({
   monologue_arrival: vi.fn(),
   monologue_all_done: () => {},
   monologue_boss_arrival: vi.fn(),
+  monologue_boss_blocked: () => {},
   monologue_boss_kill: vi.fn(),
   monologue_complete: () => {},
   monologue_death: () => {},
@@ -77,6 +80,8 @@ vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 vi.mock('./boss-reward', () => ({ boss_reward_show: () => { harness.boss_rewards.push(1) } }))
 
 import { run_start } from './game'
+import { audio_music_boss, audio_music_normal } from './audio'
+import { boss_centre } from './boss-model'
 import { entity_t } from './entity'
 import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_container_t } from './entity-container'
@@ -403,11 +408,6 @@ function descend_to(depth: number): void {
 }
 
 describe('ボス', () => {
-  // 灰皿タイル（闘技場の中心）の中心。判定・絵・銃口が共有する 1 点で、
-  // ボスの entity.x/z が中心から半辺ぶん手前にある実装とは独立に決まる
-  const centre_x = (level_width >> 1) * 8 + 4
-  const centre_z = (level_height >> 1) * 8 + 4
-
   // 幅 0 の点で判定の縁を測る。ボス以外の接触は数えない（中央のタイルには
   // 喫煙所のエンティティも重なっている）
   class boss_probe_t extends entity_t {
@@ -421,6 +421,14 @@ describe('ボス', () => {
     const probe = new boss_probe_t(x, 0, z, 0, 0)
     probe.w = 0
     return probe
+  }
+
+  // ボスは周回で毎フレーム動く（entity-boss.ts「ボスの周回」）ため、位置を
+  // 固定したまま当たり判定だけを見たいテストは、時計を進めずに rAF
+  // コールバックだけを呼ぶ。time_elapsed が 0 になり、_move() は現在地を
+  // そのまま返す（速さに現在地からの移動量を掛けた値が 0 になるため）
+  function step_frozen(): void {
+    harness.pending.shift()!()
   }
 
   // 喫煙所エンティティ（本物）を見つける。ボス階では灰皿と同じタイルに
@@ -458,6 +466,12 @@ describe('ボス', () => {
       '深度 5 に到達___大型作業機の稼働音を検知',
     )
     expect(monologue_boss_arrival).toHaveBeenCalled()
+    // BGM の切替も到達通知・つぶやきと同じ if 側の分岐。この行を削っても
+    // 上のアサーションだけでは気づけない。深度 5 に着くまでの通常フロア
+    // （1〜4）でも audio_music_normal は呼ばれているので、ここで固定するのは
+    // 「ボス階でも呼ばれたこと」だけ。not.toHaveBeenCalled() 側は次の
+    // 「通常フロアには湧かない」テストが持つ
+    expect(audio_music_boss).toHaveBeenCalled()
   })
 
   it('通常フロアには湧かない', () => {
@@ -473,6 +487,9 @@ describe('ボス', () => {
     // else 側（通常フロア）自身が実際に発話したことも固定する。else を丸ごと
     // 落として何も呼ばなくても、上のアサーションだけでは気づけない
     expect(monologue_arrival).toHaveBeenCalled()
+    // BGM も同様。else を丸ごと落としても on/off の対で固定していないと気づけない
+    expect(audio_music_boss).not.toHaveBeenCalled()
+    expect(audio_music_normal).toHaveBeenCalled()
   })
 
   // 何発が何度から出るかは boss-model.test.ts が固定する。ここで見るのは
@@ -484,7 +501,7 @@ describe('ボス', () => {
     expect(state.entities.some((e) => e instanceof entity_boss_plasma_t)).toBe(true)
   })
 
-  it('被弾しても動かず、ノックバックも受けない', () => {
+  it('被弾してもノックバックを受けない', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
     const { x, z } = boss
@@ -493,21 +510,40 @@ describe('ボス', () => {
     // 足してもこのテストが通ってしまう
     const shot = new entity_plasma_t(boss.x + 40, 0, boss.z + 40, 1, 26, -Math.PI * 0.75)
     boss._receive_damage(shot, 1)
+    // 速度も位置も即座には変わらない。vx/vz を経由しない、位置へ直接書く
+    // ノックバック実装が紛れ込んでもここで検出できる
     expect(boss.vx).toBe(0)
     expect(boss.vz).toBe(0)
-    advance(2)
     expect(boss.x).toBe(x)
     expect(boss.z).toBe(z)
+    // 周回で位置は動くが（entity-boss.ts「ボスの周回」）、それは vx/vz を
+    // 経由しない直接移動なので、時間が経ってもノックバックの速度は乗らない
+    advance(2)
+    expect(boss.vx).toBe(0)
+    expect(boss.vz).toBe(0)
   })
 
   // 判定・絵・銃口が灰皿タイルの中心を共有していること。ずれると、絵の輪郭に
-  // 撃った弾がすり抜けて素の床で当たる（w を 14 に広げた目的そのもの）
+  // 撃った弾がすり抜けて素の床で当たる（w を 14 に広げた目的そのもの）。
+  // 中心の基準点はレベル形状から独立に求める（boss.x + boss_centre から
+  // 求めると、boss_spawn_offset がずれた実装でも自分自身と一致してしまい、
+  // 検出力を失う）。ボスは周回で毎フレーム動くため、判定だけを見たい
+  // ところは time_elapsed = 0 の凍結フレームで走らせる
+  // （時間を進めると _move() が中心を実際にずらしてしまう）
   it('当たり判定は絵と同じ中心を持つ', () => {
     descend_to(5)
+    const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    // 座席（_home_x/z）はレベル中央の灰皿タイルの中心と一致するはず。
+    // フィールド初期化子で 1 度決まるだけで書き換わらないので、周回で
+    // 動いたあとでも厳密な等値で見られる
+    expect(boss._home_x).toBe((level_width >> 1) * 8 + 4)
+    expect(boss._home_z).toBe((level_height >> 1) * 8 + 4)
+    const cx = boss.x + boss_centre
+    const cz = boss.z + boss_centre
     // 絵は中心 ±6（一辺 12）、判定は ±7（一辺 14）
-    const edge = probe_at(centre_x - 6, centre_z - 6) // 絵の左上の角
-    const bare = probe_at(centre_x + 8, centre_z + 8) // 絵の右下 2 外の素の床
-    step()
+    const edge = probe_at(cx - 6, cz - 6) // 絵の左上の角
+    const bare = probe_at(cx + 8, cz + 8) // 絵の右下 2 外の素の床
+    step_frozen()
     expect(edge.hits).toBe(1)
     expect(bare.hits).toBe(0)
   })
@@ -570,19 +606,23 @@ describe('ボス', () => {
     expect(monologue_boss_kill).toHaveBeenCalled()
   })
 
-  // コンテナの座標は撃破した boss.x/z ではなく灰皿タイルの中心（centre_x/z）で
-  // 見る。boss.x/z 自身を基準にすると、_kill() が同じズレたオフセットを
-  // そのまま使う実装でも通ってしまう
-  it('落ちたコンテナは撃破位置（灰皿タイルの中心）に立つ', () => {
+  // コンテナの座標は撃破した瞬間の boss.x/z + boss_centre で見る。ボスは
+  // 周回で動くため、灰皿タイルの中心という固定値はもう撃破位置と一致しない
+  // （そこから離れているのがこのタスクの主眼）。died 前に独立に計算しておき、
+  // boss.x をそのまま使う（+boss_centre を忘れる）ような _kill() の実装でも
+  // 見分けられるようにする
+  it('落ちたコンテナは撃破位置に立つ', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const cx = boss.x + boss_centre
+    const cz = boss.z + boss_centre
     boss._receive_damage(state.entity_player!, 999)
     step()
     const container = state.entities.find(
       (e): e is entity_container_t => e instanceof entity_container_t,
     )!
-    expect(container.x).toBe(centre_x)
-    expect(container.z).toBe(centre_z)
+    expect(container.x).toBe(cx)
+    expect(container.z).toBe(cz)
   })
 
   // 2 回とも同じ depth で引くので、gear_roll_tier を実装と差し替えて戻り値だけ

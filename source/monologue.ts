@@ -48,7 +48,9 @@ const lines_boss_arrival = [
   'でかいのが座り込んでやがる……',
   '……そこ、俺の席なんだが',
 ]
-// ボスの撃破。世界の危機ではなく、灰皿の上から追い払えたことだけに反応する
+// ボスの撃破。世界の危機ではなく、席が空いたことだけに反応する。撃破の
+// 瞬間のボスは座席を離れて周回している（座席に居るのはごく短い間だけ）ので、
+// 「その場から追い払った」ではなく「もう邪魔が居ない」として言う
 const lines_boss_kill = [
   'どけと言ったんだ',
   'ようやく座れる……',
@@ -91,11 +93,14 @@ let whisper_timer = 0
 // アンビエント（段階のつぶやき）は表示中・予約中なら譲る。イベントは常に
 // 上書きする。キューは持たない — 同フレームのイベント競合は呼び出し側の
 // 分岐で解決している（entity-smoking-area の全回収分岐）。
-function say(pool: string[], ambient: boolean, delay = 0): void {
-  if (ambient && bubble_active(bubble)) { return }
+// 戻り値は「実際に喋ったか」。譲ったかどうかで挙動を変えたい呼び出し側
+// （monologue_boss_blocked）のために返す
+function say(pool: string[], ambient: boolean, delay = 0): boolean {
+  if (ambient && bubble_active(bubble)) { return false }
   const line = monologue_pick(pool, last_line, Math.random())
   last_line = line
   bubble = bubble_start(line, delay)
+  return true
 }
 
 export function monologue_arrival(): void { say(lines_arrival, false, arrival_delay) }
@@ -121,6 +126,45 @@ export function monologue_boss_kill(): void {
   say(lines_boss_kill, false, boss_kill_delay)
 }
 
+// ボスの激昂。世界の危機ではなく、まだ席を明け渡さないことだけに反応する
+const lines_boss_rage = [
+  'まだどく気はねえのか……',
+  'そんなに座りたいのかよ……',
+  'うるせえ、俺の番だ',
+]
+// フェーズ移行も同じ理由で遅らせる。値はボス撃破と同じ 2 秒だが、
+// 固有の理由ではないので別の定数に持つ
+const boss_rage_delay = 2
+
+export function monologue_boss_rage(): void {
+  say(lines_boss_rage, false, boss_rage_delay)
+}
+
+// ボスが生きている間に灰皿へ触れたとき。ボスが灰皿を離れて動くように
+// なったので、触れても無反応だと「なぜ吸えないのか」が画面のどこにも
+// 出ない。事実ではなく高木の都合として言う（docs/story.md「声の使い分け」）
+const lines_boss_blocked = [
+  'あいつをどけねえと座れねえ',
+  'まだ吸わせてもらえねえのか……',
+  '先にあれを片付けるか……',
+]
+// 灰皿への接触は毎フレーム続くので、アンビエント扱い（表示中なら譲る）に
+// これを重ねる。8 秒は、状況を忘れさせない頻度と、同じセリフの繰り返しが
+// うるさく感じない頻度の両方に収まる間隔（whisper_interval と同じ流儀）
+const boss_blocked_interval = 8
+
+let boss_blocked_timer = 0
+
+export function monologue_boss_blocked(): void {
+  if (boss_blocked_timer > 0) { return }
+  // 譲ったときはクールダウンを立てない。先に立てると、何も喋らないまま
+  // 8 秒黙ることになる — ボス階に着いた直後は到達つぶやきが 2 秒遅延で
+  // 予約済みなので、そのまま灰皿へ突っ込む導線がちょうどこれを踏む。
+  // 「触れても理由が画面に出ない」を埋めるのが目的の機能なので、
+  // 喋れたときだけ間隔を数える
+  if (say(lines_boss_blocked, true)) { boss_blocked_timer = boss_blocked_interval }
+}
+
 // 段階遷移は悪化方向のみ発話する。改善方向（一服による回復）で黙るので、
 // ラン開始（満タン）やフロア持ち越しでも誤発話しない。
 export function monologue_notify_stage(stage: number): void {
@@ -143,11 +187,13 @@ export function monologue_notify_stage(stage: number): void {
 
 export function monologue_reset(): void {
   bubble = bubble_idle()
+  boss_blocked_timer = 0
   bubble_el.style.opacity = '0'
   bubble_el.classList.remove('tr')
 }
 
 export function monologue_update(px: number, pz: number): void {
+  if (boss_blocked_timer > 0) { boss_blocked_timer -= state.time_elapsed }
   bubble_advance(bubble, state.time_elapsed)
   const text = bubble_visible_text(bubble)
   // 位置はフェードアウト中も追従させる（止めると消えかけの吹き出しがその場に

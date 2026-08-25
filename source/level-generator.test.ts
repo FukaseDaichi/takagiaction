@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { boss_hitbox } from './boss-model'
 import {
   arena_side, enemy_count, generate_level, is_boss_depth, level_bounds_side,
   level_vert_cost, reference_floor_tiles, room_count_range, sentry_count,
@@ -695,4 +696,80 @@ describe('ボス階の闘技場', () => {
       expect(level_vert_cost(generate_level(5, seed).tiles)).toBeLessThan(60000)
     }
   }, 30000)
+})
+
+// 4 つ目の不変条件。ボスは闘技場を動き回るので、隣接する柱の隙間を通れなけ
+// れば、目標半径の帯（10〜70px）の上端に一度も出られない。測るのは判定その
+// もの（14×14）ではなくその 2 倍の幅で、理由は下の clearance のコメントに
+// ある。柱の本数・半径・大きさを触った人がこれを壊せるので、座標ではなく
+// 「通れること」で固定する。
+// 座席（中央の灰皿）は壁タイルだがボスは通過できる（entity-boss.ts の免除）。
+//
+// これは幾何の代理であって、_move() がその通路を実際に使えることまでは
+// 見ていない。実際に走らせる側は entity-boss.test.ts「闘技場: 柱に塞がれても
+// 前に進める」が持つ（半径 6 ではこの探索が 42.5px で止まり、実機のボスも
+// 43px 前後で頭打ちになる — 2 つの測り方は一致する）
+describe('闘技場: リングの帯を判定 2 倍の幅で通り抜けられる', () => {
+  // 1px 刻みの占有格子をスタックで探索する（深さ優先。走査順は結果に
+  // 影響しないので幅優先である必要はない）。生成位置から出発し、灰皿の
+  // 中心から 70px（目標半径の上限）より遠い位置に到達できることを見る
+  function boss_can_reach(radius: number): boolean {
+    const layout = generate_level(5, 12345)
+    const tiles = layout.tiles
+    const home_tx = layout.boss!.x
+    const home_tz = layout.boss!.z
+    const home_x = home_tx * 8 + 4
+    const home_z = home_tz * 8 + 4
+
+    // 回転しながら連続軌道で抜ける実機は、隙間を狙って一直線に通すことが
+    // できない。判定そのものと同じ幅の余白があって初めて、狙わなくても
+    // 通れる太さになる（片側半分ずつの余白で判定 1 個ぶん）ので、実効幅は
+    // 判定の 2 倍にする。半径 6 の最大通過幅は実測 23px、半径 8 は実測 39px
+    // で、判定の 2 倍（28px）はその間を余裕を持って弁別する
+    const clearance = boss_hitbox * 2
+
+    const free = (x: number, z: number): boolean => {
+      const x1 = (x + clearance) >> 3
+      const z1 = (z + clearance) >> 3
+      for (let tz = z >> 3; tz <= z1; tz++) {
+        for (let tx = x >> 3; tx <= x1; tx++) {
+          if (tx === home_tx && tz === home_tz) { continue }
+          if (tiles[tx + tz * level_width] > 7) { return false }
+        }
+      }
+      return true
+    }
+
+    const start_x = home_tx * 8 - 3
+    const start_z = home_tz * 8 - 3
+    const half = arena_side >> 1
+    const min_x = (home_tx - half) * 8
+    const min_z = (home_tz - half) * 8
+    const span = arena_side * 8
+    const seen = new Uint8Array(span * span)
+    const key = (x: number, z: number) => (x - min_x) + (z - min_z) * span
+    const queue: Array<[number, number]> = [[start_x, start_z]]
+    seen[key(start_x, start_z)] = 1
+
+    while (queue.length) {
+      const [x, z] = queue.pop()!
+      const dx = x + boss_hitbox / 2 - home_x
+      const dz = z + boss_hitbox / 2 - home_z
+      if (Math.sqrt(dx * dx + dz * dz) > radius) { return true }
+      for (const [nx, nz] of [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]]) {
+        if (nx < min_x || nz < min_z || nx >= min_x + span || nz >= min_z + span) {
+          continue
+        }
+        const k = key(nx, nz)
+        if (seen[k]) { continue }
+        seen[k] = 1
+        if (free(nx, nz)) { queue.push([nx, nz]) }
+      }
+    }
+    return false
+  }
+
+  it('生成位置から灰皿中心 70px 超の位置まで到達できる', () => {
+    expect(boss_can_reach(70)).toBe(true)
+  })
 })

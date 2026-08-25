@@ -43,8 +43,10 @@ vi.mock('./monologue', () => ({
   monologue_complete: () => { mocks.monologue.push('complete') },
   monologue_dummy: () => { mocks.monologue.push('dummy') },
   monologue_interrupt: () => { mocks.monologue.push('interrupt') },
+  monologue_boss_blocked: () => { mocks.monologue.push('boss_blocked') },
 }))
 vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
+vi.mock('./screen-flash', () => ({ screen_flash: () => {} }))
 
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_smoke_t } from './entity-smoke'
@@ -80,6 +82,7 @@ describe('喫煙所', () => {
     state.dying = 0
     state.smoke_count = 0
     state.dummy_count = 0
+    state.boss_alive = 0
     mocks.notices.length = 0
     mocks.monologue.length = 0
     mocks.sounds.length = 0
@@ -550,5 +553,68 @@ describe('喫煙所', () => {
 
     expect(mocks.monologue).toEqual([]) // 死亡演出中に中断のセリフを出さない
     expect(state.smoking).toBe(0) // ロックも解放される
+  })
+})
+
+describe('ボス生存中の灰皿', () => {
+  let player: entity_player_t
+
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 0
+    state.nicotine = 0
+    state.nicotine_max = 100
+    state.smoking = 0
+    state.exit_open = 0
+    state.game_running = 1
+    state.dying = 0
+    state.boss_alive = 1
+    mocks.monologue.length = 0
+    mocks.notices.length = 0
+    player = new entity_player_t(0, 0, 0, 5, 18)
+    state.entity_player = player
+  })
+
+  it('触れると高木が理由を口にする', () => {
+    // ボスが灰皿を離れて動くようになったので、触れても無反応だと
+    // 「なぜ吸えないのか」が画面のどこにも出ない
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    tick(area, player, 1 / 60)
+
+    expect(mocks.monologue).toEqual(['boss_blocked'])
+    // 一服は始まらない
+    expect(state.exit_open).toBe(0)
+    expect(state.nicotine).toBe(0)
+  })
+
+  it('触れている間は毎フレーム呼ぶ（連呼を抑えるのはセリフ側の役目）', () => {
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    for (let i = 0; i < 60; i++) { tick(area, player, 1 / 60) }
+
+    // クールダウンは monologue.ts が持つ。このファイルは ./monologue を
+    // モックしているのでクールダウンは効かず、ここで「連呼しない」は
+    // 検証できない。呼び出し側が余計なゲートを持っていないこと
+    // （＝抑制の責任が 1 か所にあること）をここで固定する。
+    // クールダウン自体は実機で確認する — 既存の whisper_interval も同じ
+    // 理由で単体テストを持たない（monologue.ts は dom.ts に触る）
+    expect(mocks.monologue.length).toBe(60)
+    expect([...new Set(mocks.monologue)]).toEqual(['boss_blocked'])
+  })
+
+  it('ボスが居なければ出さず、普通に一服できる', () => {
+    state.boss_alive = 0
+    const area = new entity_smoking_area_t(64, 0, 64, 0, 18)
+    area.is_real = true
+
+    for (let i = 0; i < 5; i++) { tick(area, player, 0.5) }
+
+    expect(mocks.monologue).toEqual(['complete'])
+    expect(state.exit_open).toBe(1)
   })
 })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { music_dark_meat_beat } from './music-dark-meat-beat'
+import { music_boss } from './music-boss'
 import {
   sound_beep, sound_explode, sound_hit, sound_hurt,
   sound_pickup, sound_shoot, sound_terminal,
@@ -50,5 +51,31 @@ describe('音色データ', () => {
     expect(music_dark_meat_beat.songLen).toBe(101)
     expect(music_dark_meat_beat.songData.length).toBe(6)
     expect(await digest(music_dark_meat_beat)).toBe('020050e12cd39d48')
+  })
+
+  it('ボス曲の構造が通常曲と揃っている', () => {
+    // 生成側（sonantx-reduced.js）が読む形は 2 曲で同じでなければならない
+    expect(music_boss.songData.length).toBe(music_dark_meat_beat.songData.length)
+    expect(music_boss.songLen).toBe(music_dark_meat_beat.songLen)
+    expect(music_boss.endPattern).toBe(music_dark_meat_beat.endPattern)
+    for (const instr of music_boss.songData) {
+      // ブリーフは「既存パッチの 29 から p と c を除いた 27」と想定していたが、
+      // 実測ではスカラーフィールドは 29 個（既存パッチと同じ 29 個の音色
+      // パラメータ）で、p と c はその上に追加される（合計 31 キー）。
+      // 実測値を固定する。
+      expect(Object.keys(instr).filter((k) => k !== 'p' && k !== 'c').length).toBe(29)
+    }
+  })
+
+  it('ボス曲が通常曲と別物である', () => {
+    // 複製したまま名前だけ変えた状態を防ぐ
+    expect(music_boss.rowLen).not.toBe(music_dark_meat_beat.rowLen)
+  })
+
+  it('ボス曲の値が変わっていない', async () => {
+    // 落ちたときは git diff で何が変わったかを確認する。値を意図して
+    // 変えたなら、ここのハッシュを新しい値に差し替える（既存の 7 パッチと
+    // 同じ「値そのものを固定する」テスト。このファイル冒頭のコメント参照）
+    expect(await digest(music_boss)).toBe('9f06bb7a5df96aee')
   })
 })

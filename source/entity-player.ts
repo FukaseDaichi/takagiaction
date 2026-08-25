@@ -2,9 +2,10 @@ import {
   audio_music_death, audio_play, audio_sfx_beep, audio_sfx_hit, audio_sfx_hurt,
   audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing,
 } from './audio'
+import { boss_centre } from './boss-model'
 import { death_cause_nicotine } from './death-screen-model'
 import { entity_t } from './entity'
-import { boss_centre, entity_boss_t } from './entity-boss'
+import { entity_boss_t } from './entity-boss'
 import { entity_drone_t } from './entity-drone'
 import { spawn_particles } from './entity-particle'
 import { entity_plasma_t } from './entity-plasma'

@@ -23,6 +23,7 @@ vi.mock('./renderer', () => ({
 vi.mock('./screen-slash', () => ({
   screen_slash: (color: string) => { mocks.screen_slash_calls.push(color) },
 }))
+vi.mock('./screen-flash', () => ({ screen_flash: () => {} }))
 // どの音が鳴ったかを見分けるため、バッファの代わりに名前を入れておく。
 // audio_play() は受け取った値をそのまま記録する
 vi.mock('./audio', () => ({

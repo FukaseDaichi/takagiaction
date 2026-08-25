@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  boss_arm_angles, boss_arms, boss_arms_max, boss_fire_step, boss_hp, boss_volleys,
+  boss_arm_angles, boss_arms, boss_arms_max, boss_bullet_speed, boss_fire_step,
+  boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
+  boss_orbit_omega, boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
+  boss_pick_radius, boss_pick_speed_factor, boss_radius_step,
+  boss_homing_life, boss_homing_speed, boss_homing_step, boss_homing_turn,
+  boss_homing_turn_rate,
 } from './boss-model'
 
 describe('boss_arms', () => {
@@ -35,22 +40,30 @@ describe('boss_hp', () => {
 })
 
 describe('boss_volleys', () => {
+  const step = boss_fire_step(1)
+
   it('しきい値をまたいだ回数だけ斉射する', () => {
-    expect(boss_volleys(0, boss_fire_step * 0.9)).toBe(0)
-    expect(boss_volleys(0, boss_fire_step * 1.1)).toBe(1)
-    expect(boss_volleys(boss_fire_step * 0.9, boss_fire_step * 1.1)).toBe(1)
-    expect(boss_volleys(0, boss_fire_step * 2.1)).toBe(2)
+    expect(boss_volleys(0, step * 0.9, step)).toBe(0)
+    expect(boss_volleys(0, step * 1.1, step)).toBe(1)
+    expect(boss_volleys(step * 0.9, step * 1.1, step)).toBe(1)
+    expect(boss_volleys(0, step * 2.1, step)).toBe(2)
   })
 
   it('掃引を細かく刻んでも合計の斉射数は変わらない', () => {
-    const total = boss_fire_step * 10
-    let coarse = boss_volleys(0, total)
+    const total = step * 10
+    const coarse = boss_volleys(0, total, step)
     let fine = 0
     for (let i = 0; i < 1000; i++) {
-      fine += boss_volleys(total * i / 1000, total * (i + 1) / 1000)
+      fine += boss_volleys(total * i / 1000, total * (i + 1) / 1000, step)
     }
     expect(fine).toBe(coarse)
     expect(coarse).toBe(10)
+  })
+
+  it('刻みを変えても同じ規則で数える', () => {
+    expect(boss_volleys(0, 1.5, 1.4)).toBe(1)
+    expect(boss_volleys(0, 2.9, 1.4)).toBe(2)
+    expect(boss_volleys(1.5, 2.9, 1.4)).toBe(1)
   })
 })
 
@@ -65,5 +78,128 @@ describe('boss_arm_angles', () => {
 
   it('第 1 砲口は掃引の角度そのものを向く', () => {
     expect(boss_arm_angles(1.23, 3)[0]).toBe(1.23)
+  })
+})
+
+describe('boss_phase', () => {
+  it('HP がちょうど半分で激昂に入る', () => {
+    expect(boss_phase(60, 60)).toBe(1)
+    expect(boss_phase(31, 60)).toBe(1)
+    expect(boss_phase(30, 60)).toBe(boss_phase_rage)
+    expect(boss_phase(1, 60)).toBe(boss_phase_rage)
+  })
+})
+
+describe('フェーズで変わる摘み', () => {
+  it('激昂ですべて強くなる（発射の刻みだけは小さくなる方向）', () => {
+    expect(boss_spin_rate(boss_phase_rage)).toBeGreaterThan(boss_spin_rate(1))
+    expect(boss_bullet_speed(boss_phase_rage)).toBeGreaterThan(boss_bullet_speed(1))
+    expect(boss_fire_step(boss_phase_rage)).toBeLessThan(boss_fire_step(1))
+  })
+
+  it('斉射の頻度（回転 ÷ 刻み）が激昂で上がる', () => {
+    const rate = (p: number) => boss_spin_rate(p) / boss_fire_step(p)
+    expect(rate(boss_phase_rage)).toBeGreaterThan(rate(1))
+  })
+})
+
+describe('周回の摘み', () => {
+  it('目標半径は帯の中に収まり、端を取り切る', () => {
+    expect(boss_pick_radius(0)).toBe(boss_orbit_radius_min)
+    expect(boss_pick_radius(1)).toBe(boss_orbit_radius_max)
+    for (let i = 0; i <= 100; i++) {
+      const r = boss_pick_radius(i / 100)
+      expect(r).toBeGreaterThanOrEqual(boss_orbit_radius_min)
+      expect(r).toBeLessThanOrEqual(boss_orbit_radius_max)
+    }
+  })
+
+  it('速度係数は 1 を挟む帯に収まる', () => {
+    expect(boss_pick_speed_factor(0)).toBeLessThan(1)
+    expect(boss_pick_speed_factor(1)).toBeGreaterThan(1)
+  })
+
+  it('周回の線速度は激昂で上がる', () => {
+    expect(boss_orbit_speed(boss_phase_rage)).toBeGreaterThan(boss_orbit_speed(1))
+  })
+})
+
+describe('boss_radius_step', () => {
+  it('目標へ寄る（行き過ぎない）', () => {
+    expect(boss_radius_step(10, 70, 36, 1)).toBeCloseTo(28, 6) // 36 * 0.5 * 1
+    expect(boss_radius_step(70, 10, 36, 1)).toBeCloseTo(52, 6)
+  })
+
+  it('1 フレームで届くなら目標そのものになる', () => {
+    expect(boss_radius_step(10, 10.5, 36, 1)).toBe(10.5)
+    expect(boss_radius_step(10, 10, 36, 1)).toBe(10)
+  })
+})
+
+describe('boss_orbit_omega', () => {
+  it('線速度が半径に依らず保たれる（ω = v / r）', () => {
+    for (const r of [10, 20, 40, 70]) {
+      expect(boss_orbit_omega(36, r) * r).toBeCloseTo(36, 6)
+    }
+  })
+
+  it('半径が下限を下回っても発散しない', () => {
+    expect(boss_orbit_omega(36, 0)).toBe(36 / boss_orbit_radius_min)
+    expect(boss_orbit_omega(36, -5)).toBe(36 / boss_orbit_radius_min)
+  })
+})
+
+describe('boss_homing_turn', () => {
+  const mag = (v: [number, number]) => Math.sqrt(v[0] * v[0] + v[1] * v[1])
+
+  it('速度の大きさを変えない', () => {
+    const out = boss_homing_turn(44, 0, 0, 1, 1.6, 1 / 60)
+    expect(mag(out)).toBeCloseTo(44, 6)
+  })
+
+  it('目標の方向へ寄る', () => {
+    // +x へ飛んでいる弾に、+z 方向の目標を与える
+    const [vx, vz] = boss_homing_turn(44, 0, 0, 100, 1.6, 1 / 60)
+    expect(vz).toBeGreaterThan(0)
+    expect(vx).toBeGreaterThan(0) // 1 フレームで振り向き切らない
+  })
+
+  it('1 フレームの旋回角が上限を超えない', () => {
+    const dt = 1 / 60
+    // 真後ろ（180°）の目標でも上限ぶんしか回らない
+    const [vx, vz] = boss_homing_turn(44, 0, -100, 0.001, 1.6, dt)
+    const turned = Math.abs(Math.atan2(vz, vx))
+    expect(turned).toBeLessThanOrEqual(1.6 * dt + 1e-9)
+  })
+
+  it('回る向きは近いほうを選ぶ（-π〜π で正規化する）', () => {
+    // わずかに -z 側の目標。+z 側へ大回りしてはいけない
+    const [, vz] = boss_homing_turn(44, 0, 100, -1, 1.6, 1 / 60)
+    expect(vz).toBeLessThan(0)
+  })
+
+  it('十分な時間をかければ目標の方向へ収束する', () => {
+    let v: [number, number] = [44, 0]
+    for (let i = 0; i < 600; i++) {
+      v = boss_homing_turn(v[0], v[1], 0, 100, 1.6, 1 / 60)
+    }
+    expect(Math.atan2(v[1], v[0])).toBeCloseTo(Math.PI / 2, 4)
+  })
+})
+
+describe('追尾弾の摘み', () => {
+  it('掃射より遅く、激昂で速くなる', () => {
+    expect(boss_homing_speed(1)).toBeLessThan(boss_bullet_speed(1))
+    expect(boss_homing_speed(boss_phase_rage))
+      .toBeGreaterThan(boss_homing_speed(1))
+  })
+
+  it('刻みは掃射と桁が離れている（別の攻撃として読める）', () => {
+    expect(boss_homing_step).toBeGreaterThan(boss_fire_step(1) * 5)
+  })
+
+  it('寿命と旋回速度は深度で動かさない定数である', () => {
+    expect(typeof boss_homing_life).toBe('number')
+    expect(typeof boss_homing_turn_rate).toBe('number')
   })
 })

@@ -24,6 +24,7 @@ vi.mock('./equip-screen', () => ({
   equip_screen_show: (slot: string, tier: number) => { opened.push([slot, tier]) },
 }))
 vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
+vi.mock('./screen-flash', () => ({ screen_flash: () => {} }))
 
 import { entity_container_t } from './entity-container'
 import { entity_player_t } from './entity-player'

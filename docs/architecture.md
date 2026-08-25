@@ -7,7 +7,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `main.ts` — エントリポイント。起動シーケンス（イントロ → クリック → `renderer_init()` → アトラス読み込み → 死亡画面）を持つ唯一の場所
 - `state.ts` — ラン中の共有可変データ
 - `meta.ts` — ラン間で持ち越す恒久状態と強化テーブル、拾った装備の段
-- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
+- `dom.ts` — `canvas` / `minimap_canvas` / `terminal_el` / `hero_el` / `sniff_el` / `bubble_el` / `fade_el` / `slash_el` / `flash_el` の取得と型付けを集約。HUD のパネルは `hud.ts` が自前で組むためここには現れない
 - `input.ts` — キー状態。「追跡対象のキーか」は `code in keys` で判定する
 - `random.ts` — シード付き LCG。完全に決定論的で、手続き的生成の土台
 - `level-generator.ts` — フロアの間取り生成。実行時 import は `random.ts` と `state.ts`（定数のみ）だけ
@@ -20,8 +20,9 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `entity-slash.ts` — 薙ぎの弧。`slash-model.ts` の形を `push_quad` で積むだけの、判定を持たない絵のエンティティ
 - `slash-model.ts` — 薙ぎの弧のジオメトリ（掃引の進み具合と三日月の 4 隅）。3D の見た目を自動では確認できないため、形の性質はここでテストする
 - `entity-boss.ts` — ボス（灰皿撤去ユニット）とその弾。当たり判定を `entity_t.w` で広げ、絵を `push_quad` で積む（後述の「スプライトの大きさと当たり判定」）
-- `boss-model.ts` — ボスの数値と掃射の幾何（砲口の本数・耐久・角速度・発射を刻む掃引角）。`slash-model.ts` と同じ流儀で、形の性質だけをここでテストする
+- `boss-model.ts` — ボスの数値と幾何（砲口の本数・耐久・フェーズ・周回の半径と速度・発射を刻む掃引角・追尾の旋回）。`slash-model.ts` と同じ流儀で、形の性質だけをここでテストする。当たり判定の一辺だけは `level-generator.test.ts` も読む（闘技場の柱の隙間を縛るため。docs/gameplay.md「ボス階」）
 - `screen-slash.ts` — 一撃必殺の決めの閃光（`#sl` のクラス付け替え）。CSS は `index.html` が持つ
+- `screen-flash.ts` — ボスのフェーズ移行の赤い全画面フラッシュ（`#bf` のクラス付け替え）。`screen-slash.ts` と同じ形だが別の層で、CSS も `index.html` が持つ。斜めの閃光帯（`#sl`）は「斬った」という意味を持つ絵なので流用しない
 - `nicotine.ts` — ニコチンの数値ロジック（段階判定・減少速度・移動速度・射撃と薙ぎの間隔）
 - `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。画像も DOM も知らない
 - `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコン 30 枚の静的 import はここが持つ。スタイルは `equip-screen.css`
@@ -37,7 +38,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `monologue.ts` — 高木の内心の吹き出しの DOM とセリフプール。位置は `projection.ts` で自機頭上に追従させる
 - `monologue-model.ts` — 吹き出しのタイプライター状態機械とセリフ抽選
 - `terminal.ts` — 施設端末の表示。表示チェーンの契約は後述
-- `audio.ts` — `AudioContext` と再生。音色データは `sound-effects.ts`（効果音）と `music-dark-meat-beat.ts`（BGM）
+- `audio.ts` — `AudioContext` と再生。音色データは `sound-effects.ts`（効果音）と `music-dark-meat-beat.ts` / `music-boss.ts`（BGM 2 曲。後述の「BGM は 2 曲」）
 - `sonantx-reduced.js` — サードパーティ（後述）
 - テストは `source/*.test.ts` に併置する。`test-setup.ts` は Vitest の `setupFiles`（後述の「テストと localStorage」）
 
@@ -45,7 +46,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 
 似ているが別の 2 つの性質があり、モジュールを足すときはどちらに入れるかを先に決める。
 
-- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat`。後述の循環参照の起点になりえない
+- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat` `music-boss`。後述の循環参照の起点になりえない
 - **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`boss-reward-model`（→ `meta`）・`hud-model` と `death-screen-model`（→ `nicotine`）を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
 
 `dom` が 1 つ目だけを満たすとおり、この 2 つは一致しない。数値・時間割・状態機械を DOM から切り離して `*-model.ts` に置いているのは、2 つ目を満たすためである。
@@ -132,7 +133,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残し、型は手書きの
 `sonantx-reduced.d.ts` が担う（`.d.ts` があれば TS は `.js` 本体を読まないため `allowJs` は不要）。原本からの変更は末尾の `export` 追加と `_math` → `Math` の置換のみ。**アルゴリズム・数値・ライセンスヘッダには触れない。**
 
-音色データ（`sound-effects.ts` / `music-dark-meat-beat.ts`）は `SonantInstrument` インターフェースで型付けする。フィールド名の打ち間違いが無音で失敗するのを防ぐため。
+音色データ（`sound-effects.ts` / `music-dark-meat-beat.ts` / `music-boss.ts`）は `SonantInstrument` インターフェースで型付けする。フィールド名の打ち間違いが無音で失敗するのを防ぐため。
 
 ## tsconfig の非自明な設定
 
@@ -164,7 +165,18 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 非常口の標識（47）と床（48）は `tools/exit_tiles.py` が焼く。この 2 枚も `slash_tiles.py` と同じくコードが原本になる — 16×16 の 1 ピクセルごとの配置が「走る人と扉」という記号そのもので、大きい絵から縮小すると潰れて読めなくなるためである。したがってこの 2 枚は再生成できる。番号は tool と `entity-exit.ts`（標識）/ `game.ts`（床）が共有する契約である。緑の選び方は docs/gameplay.md「非常口」を参照。
 
-ボス（45）は `tools/atlas.py` が画像から焼くタイルで、焼き込み元をリポジトリに含めないため `m/q2.png` が唯一の原本である。眼の 4 texel は敵の赤 `(255,66,0)` で、フラグメントシェーダの full-bright 規則（`r>0.95 && g>0.25 && b==0`）を満たす。弾（46）は `tools/boss_tiles.py` がコードから焼く単色の点で、外周に同じ敵の赤、芯に橙を使い、どちらも full-bright 規則を満たす。**この規則から外れる色に変えてはならない** — ライトを積めない弾を等しい明るさで見せる唯一の経路である（docs/enemies.md「ボス（灰皿撤去ユニット）」）。番号は tool と `game.ts`（本体の生成）/ `entity-boss.ts`（弾の生成）が共有する契約である。
+ボス（45）は `tools/atlas.py` が画像から焼くタイルで、焼き込み元をリポジトリに含めないため `m/q2.png` が唯一の原本である。眼の 4 texel は敵の赤 `(255,66,0)` で、フラグメントシェーダの full-bright 規則のうち赤の 1 本を満たす。掃射の弾（46）と追尾弾（49）は `tools/boss_tiles.py` がコードから焼く単色の点で、外周と芯の 2 色を持つ — 46 は同じ敵の赤と橙、49 は水色の 2 段である。**4 色とも full-bright 規則から外れる色に変えてはならない** — ライトを積めない弾を等しい明るさで見せる唯一の経路である（docs/enemies.md「ボス（灰皿撤去ユニット）」）。弾種を色で見分けられることも要件なので、46 と 49 を同じ帯の色に寄せてもいけない。番号は tool と `game.ts`（本体の生成）/ `entity-boss.ts`（2 種の弾の生成）が共有する契約である。
+
+### full-bright 規則は 2 本ある
+
+フラグメントシェーダは、次のどちらかを満たす texel をライトも霧も通さずそのまま出す。
+
+- 赤〜橙〜黄 — `t.r>0.95 && t.g>0.25 && t.b==0.0`（蜘蛛・セントリー・清掃ドローン・ボスの眼、喫煙所の標識、ボスの掃射）
+- 水色 — `t.b>0.95 && t.g>0.25 && t.r==0.0`（ボスの追尾弾）
+
+1 本目が `b==0.0` という厳密な等値を含むため、満たせる色域は 1 つの帯に縛られる。**別系統の色を full-bright にしたければ規則を増やすしかない** — 条件を緩めて 1 本に畳む形は採らない。緩めるほど、意図せず規則を満たす texel が既存のタイルから出る危険が増える。
+
+**規則を足すときは、足す前にアトラスの全タイルを走査して、その規則を誤って満たす texel が 1 つもないことを確認する。** 誤爆は「特定のタイルの一部だけが霧を無視する」形で出るので、遊んで気づける保証がない。現行の 2 本については、`m/q2.png` の 64 タイルのうち上に挙げた絵以外にこの条件を満たす texel は無い。
 
 ## renderer.ts と projection.ts の定数複製
 
@@ -185,6 +197,29 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 解錠済みかどうかはモジュール変数のフラグで持つ。`audio_ctx.state` を見る形は使えない: Chrome では `resume()` の直後に同期で読んでもまだ `'suspended'` のままで（実機で確認済み）、`audio_unlock()` 自身が鳴らす BGM がそこで落ちる。
 
 この結果、自動再生が許可されている環境（Media Engagement Index が高いなど）でもイントロは無音になる。クリックまで音が出ないのは docs/gameplay.md「操作」に書いたとおりの挙動であり、環境によって鳴る／鳴らないが変わらないほうが望ましい。
+
+## BGM は 2 曲
+
+通常曲（`music-dark-meat-beat.ts`）とボス階専用（`music-boss.ts`）の 2 本を、それぞれ別の `AudioBuffer` として生成して持つ。BGM は効果音と別のチェーン（`music_source` → `music_gain` → `music_filter` → `audio_gain`）に載っており、レート・音量・ローパスを効果音と独立に動かせる。曲の差し替えはこのチェーンの入口（`music_source`）だけを付け替えて行う。
+
+**2 曲のデータは共通化せず、独立した創作アセットとして持つ。** `music-boss.ts` が通常曲と同じ 6 楽器の構造を持っていても、配列や音色を共通の基底から導く形にはしない。片方の編曲がもう片方へ波及し、曲単体の調整ができなくなるためである。`audio-data.test.ts` はボス曲全体のハッシュを固定しており、意図して編曲したときだけ差分を確認してハッシュを更新する。
+
+**生成順が契約である。通常曲だけが起動の臨界パスに載る。** `audio_init()` のコールバック（ゲーム開始のクリックハンドラを張る経路）は通常曲の完成で呼び、ボス曲の生成はその**あとから続けて**始める。2 曲を同時に走らせると、生成が `setTimeout` で刻まれる都合で 1 曲目の完成が遅れ、起動時間がそのぶん伸びる。最初のボス階（深度 5）に着くのは数分後なので実際に間に合わないことはないが、未生成なら通常曲のまま続ける分岐を 1 本持つ。
+
+**同じ曲への切替は鳴らし直さない。** 今鳴っているバッファを覚えておき、一致したら何もしない。鳴らし直すとループの頭出しが起きて、フロアを跨ぐたびに曲が巻き戻る。差し替えるときだけ、ポップを避けるために音量を 0.25 秒でランプする。
+
+| 契機 | 動作 |
+| --- | --- |
+| ボス階のロード | ボス曲へ差し替え |
+| ボス階以外のロード | 通常曲へ差し替え（既に通常曲なら何もしない） |
+| ボスのフェーズ移行 | `playbackRate` を 0.6 秒かけて 1.12 へ上げる |
+| ボス撃破 | 通常曲へ差し替え |
+| 自機の死 | テープストップ（レートとローパスを落として無音へ） |
+| 次のラン開始 | 通常再生へ復帰 |
+
+**復帰はバッファまで戻す。** レート・ローパス・音量だけを戻す形では、ボス階で死んだ次のランがボス曲で始まる。この 4 つは 1 つの関数（`audio_music_restore()`）が一緒に戻す責務を持ち、呼ぶのはラン開始の 1 か所だけである。
+
+フェーズ 2 用に 3 曲目は作らない。曲データと生成コストが 1 本ぶん増えるのに対し、再生レートを上げるだけで「速くなった」は伝わる。レート操作は死亡のテープストップで既に使っている経路なので、新しい仕組みも要らない。
 
 ## ビルドとデプロイ
 
