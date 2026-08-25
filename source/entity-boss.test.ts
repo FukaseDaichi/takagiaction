@@ -29,8 +29,9 @@ vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
 import {
-  boss_centre, boss_hitbox, boss_homing_life, boss_orbit_radius_max,
-  boss_orbit_radius_min, boss_orbit_speed, boss_spawn_offset,
+  boss_centre, boss_hitbox, boss_homing_life, boss_homing_spread,
+  boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
+  boss_spawn_offset,
 } from './boss-model'
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
@@ -264,6 +265,13 @@ describe('追尾弾', () => {
     let guard = 0
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
     expect(homing().length).toBe(2)
+    // 2 発の進行方向の開きが boss_homing_spread のちょうど 2 倍（片側の
+    // 偏角の合計）であることを固定する。式から `* 2` を落とす回帰が
+    // 入ると、ここが半分の値になって赤くなる
+    const [a, b] = homing()
+    const angle_a = Math.atan2(a.vz, a.vx)
+    const angle_b = Math.atan2(b.vz, b.vx)
+    expect(angle_b - angle_a).toBeCloseTo(boss_homing_spread * 2, 6)
   })
 
   it('掃射よりずっと少ない頻度で出る', () => {
@@ -272,7 +280,10 @@ describe('追尾弾', () => {
     const sweep = state.entities.filter(
       (e) => e instanceof entity_boss_plasma_t && !(e instanceof entity_boss_homing_t),
     ).length
-    expect(homing().length).toBeLessThan(sweep)
+    // 単純な不等号だと boss_homing_step を boss_fire_step と同じ値に
+    // 変えた回帰が「32 < 32」の同数ぎりぎりで検出されてしまう。4 倍しても
+    // なお下回ることを見て、頻度差に余裕を持たせて固定する
+    expect(homing().length * 4).toBeLessThan(sweep)
   })
 
   it('自機のほうへ曲がる', () => {
@@ -284,11 +295,19 @@ describe('追尾弾', () => {
     let guard = 0
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
     const bullet = homing()[0]
+    const before = bullet.vz
+    // 初弾は生成時に自機方向（+z 側）を向くはず。自機は座席から見て
+    // z が常に +196±70 の範囲にいるので、周回のどの位置で撃たれても
+    // vz は必ず正になる（base が反転・0 になる回帰はここで負になり赤くなる）
+    expect(before).toBeGreaterThan(0)
+    const z0 = bullet.z
     // 自機を反対側へ動かす
     state.entity_player!.z = 20 * 8 - 200
-    const before = bullet.vz
     for (let i = 0; i < 30; i++) { bullet._update() }
     expect(bullet.vz).toBeLessThan(before)
+    // 曲がるだけでなく実際に飛んでいることも見る。super._update() が
+    // 抜けて積分が止まる回帰は、曲がっても位置が変わらず赤くならない
+    expect(bullet.z).not.toBe(z0)
   })
 
   it('寿命で消える', () => {
