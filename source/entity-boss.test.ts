@@ -168,39 +168,41 @@ describe('ボスの周回', () => {
 
   // 半径だけを見る上のテストは、角速度を半径に依らない定数にしても
   // （周回せず座席から一直線に出入りするだけでも）通ってしまう。
-  // ここでは実際の移動そのもの——1 フレームの移動距離の上限と、偏角が
-  // 単調に進むこと——を固定し、その 2 つの回帰を検出する
+  // ここでは実際の移動そのもの——接線方向の速さの上限と、偏角が単調に
+  // 進むこと——を固定し、その 2 つの回帰を検出する
   it('線速度が一定に保たれ、周回角が単調に進む', () => {
     const boss = spawn_boss(20, 20)
-    // 1 フレームで動いてよい距離の上限。速度係数の上限 1.3
-    // （boss_pick_speed_factor）と、動径方向の合成上限 1.12
-    // （boss-model.ts の boss_radius_speed_factor コメント：0.5 なら合成が
-    // 基準の 1.12 倍に収まる）を掛ける。角速度を半径に依らない定数にすると、
-    // 半径が大きいところ（最大 70）でこれを大きく超える——半径 10 と 70 で
-    // 線速度が 7 倍という設計そのものの裏返し
-    const max_step = boss_orbit_speed(1) * 1.3 * 1.12 * state.time_elapsed
-    let prev_x = boss.x
-    let prev_z = boss.z
+    // 線速度の上限（速度係数の上限 1.3 を掛けた値）。周回角の変化量 Δθ と
+    // 「更新前」の半径 r（更新後の next ではない）から接線方向の速さ
+    // r * |Δθ| / dt を求めると、正しい実装では r >= 10 のとき厳密にこの
+    // 上限に等しく（boss_orbit_omega が ω = v/r を返すため r*ω = v）、
+    // r < 10 ではそれより小さい（下限で割るため）。座標の移動距離
+    // （Math.hypot の差分）を「合成上限 1.12」のような近似係数で抑える
+    // やり方だと、_move() が角度の計算に「更新後」の半径 next を使う関係で
+    // r ≈ 10 付近では正しい実装でも近似式をわずかに超え、実測で約 3% の
+    // 頻度で誤って赤くなった。この量なら近似ではなく等式で抑えられる
+    const max_tangential = boss_orbit_speed(1) * 1.3
     let prev_angle = angle(boss)
+    let prev_radius = radius(boss)
     let angle_advanced = false
     for (let i = 0; i < 60 * 5; i++) {
       boss._update()
-      if (i > 0) {
-        // 最初の 1 フレームだけは対象外（生成直後は半径 0 で偏角が不定）
-        const step = Math.hypot(boss.x - prev_x, boss.z - prev_z)
-        expect(step).toBeLessThanOrEqual(max_step)
-      }
       const a = angle(boss)
       let delta = a - prev_angle
       while (delta > Math.PI) { delta -= Math.PI * 2 }
       while (delta < -Math.PI) { delta += Math.PI * 2 }
+      // 更新前の半径 prev_radius を使う（更新後の半径だと next 基準の
+      // ずれが乗る）。浮動小数の丸め用に極小の余裕だけ足す
+      const tangential_speed = prev_radius * Math.abs(delta) / state.time_elapsed
+      expect(tangential_speed).toBeLessThanOrEqual(max_tangential + 1e-6)
       // _spin と同じ向きにしか進まない（逆行しない）。角速度 0 の回帰は
       // delta が常に 0 になるので、下の angle_advanced で検出する
+      // （接線速度の上限だけでは ω = 0 を検出できない——半径方向だけの
+      // 動きは常にこの上限の半分以下に収まるため）
       expect(delta * boss._spin).toBeGreaterThanOrEqual(0)
       if (delta !== 0) { angle_advanced = true }
-      prev_x = boss.x
-      prev_z = boss.z
       prev_angle = a
+      prev_radius = radius(boss)
     }
     expect(angle_advanced).toBe(true)
   })
