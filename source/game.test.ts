@@ -40,8 +40,8 @@ vi.mock('./audio', () => ({
   audio_play: () => {},
   audio_music_death: () => {},
   audio_music_restore: () => {},
-  audio_music_boss: () => {},
-  audio_music_normal: () => {},
+  audio_music_boss: vi.fn(),
+  audio_music_normal: vi.fn(),
   audio_sfx_shoot: undefined,
   audio_sfx_hit: undefined,
   audio_sfx_hurt: undefined,
@@ -79,6 +79,7 @@ vi.mock('./equip-screen', () => ({ equip_screen_show: () => {} }))
 vi.mock('./boss-reward', () => ({ boss_reward_show: () => { harness.boss_rewards.push(1) } }))
 
 import { run_start } from './game'
+import { audio_music_boss, audio_music_normal } from './audio'
 import { boss_centre } from './boss-model'
 import { entity_t } from './entity'
 import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
@@ -464,6 +465,12 @@ describe('ボス', () => {
       '深度 5 に到達___大型作業機の稼働音を検知',
     )
     expect(monologue_boss_arrival).toHaveBeenCalled()
+    // BGM の切替も到達通知・つぶやきと同じ if 側の分岐。この行を削っても
+    // 上のアサーションだけでは気づけない。深度 5 に着くまでの通常フロア
+    // （1〜4）でも audio_music_normal は呼ばれているので、ここで固定するのは
+    // 「ボス階でも呼ばれたこと」だけ。not.toHaveBeenCalled() 側は次の
+    // 「通常フロアには湧かない」テストが持つ
+    expect(audio_music_boss).toHaveBeenCalled()
   })
 
   it('通常フロアには湧かない', () => {
@@ -479,6 +486,9 @@ describe('ボス', () => {
     // else 側（通常フロア）自身が実際に発話したことも固定する。else を丸ごと
     // 落として何も呼ばなくても、上のアサーションだけでは気づけない
     expect(monologue_arrival).toHaveBeenCalled()
+    // BGM も同様。else を丸ごと落としても on/off の対で固定していないと気づけない
+    expect(audio_music_boss).not.toHaveBeenCalled()
+    expect(audio_music_normal).toHaveBeenCalled()
   })
 
   // 何発が何度から出るかは boss-model.test.ts が固定する。ここで見るのは

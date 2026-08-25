@@ -233,6 +233,9 @@ describe('ボス階のBGM', () => {
     expect(fake.started.length).toBe(1)
     expect(fake.started[0].buffer).toBe(fake.music_boss)
     expect(fake.started[0].loop).toBe(true)
+    // 差し替えのポップを避けるための音量ランプ。ctx.currentTime = 7、
+    // music_swap_ramp は 0.25 秒
+    expect(fake.gains[1].gain.calls).toContainEqual(['linear', 1, 7.25])
   })
 
   it('通常曲へ戻すと、通常曲を鳴らす', async () => {

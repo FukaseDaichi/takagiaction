@@ -34,6 +34,7 @@ vi.mock('./screen-slash', () => ({ screen_slash: () => {} }))
 // 報酬ダイアログは DOM を組む
 vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
+import { audio_music_boss_rage, audio_music_normal } from './audio'
 import {
   boss_bullet_speed, boss_centre, boss_hitbox, boss_homing_life,
   boss_homing_spread, boss_orbit_radius_max, boss_orbit_radius_min,
@@ -368,6 +369,8 @@ describe('フェーズ移行', () => {
     // （撃破の通知は Task 9 の変更ではないので触らない）
     expect(terminal_show_notice).toHaveBeenCalledWith('灰皿撤去ユニット___出力制限を解除')
     expect(monologue_boss_rage).toHaveBeenCalledTimes(1)
+    // 激昂でBGMのレートも上げる（_enter_rage() の配線）
+    expect(audio_music_boss_rage).toHaveBeenCalledTimes(1)
   })
 
   it('半分を割ってさらに削っても 2 度目は走らない', () => {
@@ -393,6 +396,8 @@ describe('フェーズ移行', () => {
     expect(screen_flash).not.toHaveBeenCalled()
     // 撃破のシェイクは 8（移行の 7 で上書きされていないこと）
     expect(camera.shake).toBe(8)
+    // 戦いが終わったので通常BGMへ戻る（_kill() の配線）
+    expect(audio_music_normal).toHaveBeenCalledTimes(1)
   })
 
   it('移行の瞬間に衝撃波が一斉に出る', () => {
