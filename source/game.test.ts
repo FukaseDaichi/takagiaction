@@ -93,7 +93,7 @@ import { meta, meta_max_level, meta_upgrade_ids } from './meta'
 import {
   monologue_arrival, monologue_boss_arrival, monologue_boss_kill,
 } from './monologue'
-import { level_data, state } from './state'
+import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
 // state.death_elapsed に丸め誤差が溜まらず、ビートの境界をまたぐ位置が動かない
@@ -491,13 +491,18 @@ describe('ボス', () => {
   it('被弾してもノックバックを受けない', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    const { x, z } = boss
     // 速度を持つ弾から食らわせる。セントリーは from の速度の 0.1 倍で弾かれる
     // （docs/enemies.md）ので、止まっている相手から食らうとノックバックを
     // 足してもこのテストが通ってしまう
     const shot = new entity_plasma_t(boss.x + 40, 0, boss.z + 40, 1, 26, -Math.PI * 0.75)
     boss._receive_damage(shot, 1)
+    // 速度も位置も即座には変わらない。vx/vz を経由しない、位置へ直接書く
+    // ノックバック実装が紛れ込んでもここで検出できる
     expect(boss.vx).toBe(0)
     expect(boss.vz).toBe(0)
+    expect(boss.x).toBe(x)
+    expect(boss.z).toBe(z)
     // 周回で位置は動くが（entity-boss.ts「ボスの周回」）、それは vx/vz を
     // 経由しない直接移動なので、時間が経ってもノックバックの速度は乗らない
     advance(2)
@@ -507,12 +512,19 @@ describe('ボス', () => {
 
   // 判定・絵・銃口が灰皿タイルの中心を共有していること。ずれると、絵の輪郭に
   // 撃った弾がすり抜けて素の床で当たる（w を 14 に広げた目的そのもの）。
-  // ボスは周回で毎フレーム動くため、固定の灰皿中心ではなくその時点の実際の
-  // 中心から測り、time_elapsed = 0 の凍結フレームで判定だけを走らせる
-  // （時間を進めると _move() がこの中心自体をずらしてしまう）
+  // 中心の基準点はレベル形状から独立に求める（boss.x + boss_centre から
+  // 求めると、boss_spawn_offset がずれた実装でも自分自身と一致してしまい、
+  // 検出力を失う）。ボスは周回で毎フレーム動くため、判定だけを見たい
+  // ところは time_elapsed = 0 の凍結フレームで走らせる
+  // （時間を進めると _move() が中心を実際にずらしてしまう）
   it('当たり判定は絵と同じ中心を持つ', () => {
     descend_to(5)
     const boss = state.entities.find((e) => e instanceof entity_boss_t)!
+    // 座席（_home_x/z）はレベル中央の灰皿タイルの中心と一致するはず。
+    // フィールド初期化子で 1 度決まるだけで書き換わらないので、周回で
+    // 動いたあとでも厳密な等値で見られる
+    expect(boss._home_x).toBe((level_width >> 1) * 8 + 4)
+    expect(boss._home_z).toBe((level_height >> 1) * 8 + 4)
     const cx = boss.x + boss_centre
     const cz = boss.z + boss_centre
     // 絵は中心 ±6（一辺 12）、判定は ±7（一辺 14）

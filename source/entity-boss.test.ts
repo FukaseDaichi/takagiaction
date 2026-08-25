@@ -30,6 +30,7 @@ vi.mock('./boss-reward', () => ({ boss_reward_show: vi.fn() }))
 
 import {
   boss_centre, boss_hitbox, boss_orbit_radius_max, boss_orbit_radius_min,
+  boss_orbit_speed, boss_spawn_offset,
 } from './boss-model'
 import { entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
@@ -40,11 +41,10 @@ function wall(tx: number, tz: number): void {
   level_data[tx + tz * level_width] = 8
 }
 
-// 座席タイル（tx, tz）の中心にボスを生成する。game.ts の生成位置の補正
-// （boss_spawn_offset = 4 - boss_centre）と同じ式
+// 座席タイル（tx, tz）の中心にボスを生成する。game.ts の生成位置の補正と同じ式
 function spawn_boss(tx: number, tz: number): entity_boss_t {
   return new entity_boss_t(
-    tx * 8 + 4 - boss_centre, 0, tz * 8 + 4 - boss_centre, 0, 45,
+    tx * 8 + boss_spawn_offset, 0, tz * 8 + boss_spawn_offset, 0, 45,
   )
 }
 
@@ -132,6 +132,13 @@ describe('ボスの周回', () => {
     return Math.sqrt(dx * dx + dz * dz)
   }
 
+  // 座席から見た偏角。radius() と同じ中心を使う
+  function angle(boss: entity_boss_t): number {
+    return Math.atan2(
+      boss.z + boss_centre - boss._home_z, boss.x + boss_centre - boss._home_x,
+    )
+  }
+
   it('毎フレーム位置が動く', () => {
     const boss = spawn_boss(20, 20)
     const x0 = boss.x
@@ -159,27 +166,68 @@ describe('ボスの周回', () => {
     expect(max_r).toBeGreaterThan(boss_orbit_radius_min)
   })
 
+  // 半径だけを見る上のテストは、角速度を半径に依らない定数にしても
+  // （周回せず座席から一直線に出入りするだけでも）通ってしまう。
+  // ここでは実際の移動そのもの——1 フレームの移動距離の上限と、偏角が
+  // 単調に進むこと——を固定し、その 2 つの回帰を検出する
+  it('線速度が一定に保たれ、周回角が単調に進む', () => {
+    const boss = spawn_boss(20, 20)
+    // 1 フレームで動いてよい距離の上限。速度係数の上限 1.3
+    // （boss_pick_speed_factor）と、動径方向の合成上限 1.12
+    // （boss-model.ts の boss_radius_speed_factor コメント：0.5 なら合成が
+    // 基準の 1.12 倍に収まる）を掛ける。角速度を半径に依らない定数にすると、
+    // 半径が大きいところ（最大 70）でこれを大きく超える——半径 10 と 70 で
+    // 線速度が 7 倍という設計そのものの裏返し
+    const max_step = boss_orbit_speed(1) * 1.3 * 1.12 * state.time_elapsed
+    let prev_x = boss.x
+    let prev_z = boss.z
+    let prev_angle = angle(boss)
+    let angle_advanced = false
+    for (let i = 0; i < 60 * 5; i++) {
+      boss._update()
+      if (i > 0) {
+        // 最初の 1 フレームだけは対象外（生成直後は半径 0 で偏角が不定）
+        const step = Math.hypot(boss.x - prev_x, boss.z - prev_z)
+        expect(step).toBeLessThanOrEqual(max_step)
+      }
+      const a = angle(boss)
+      let delta = a - prev_angle
+      while (delta > Math.PI) { delta -= Math.PI * 2 }
+      while (delta < -Math.PI) { delta += Math.PI * 2 }
+      // _spin と同じ向きにしか進まない（逆行しない）。角速度 0 の回帰は
+      // delta が常に 0 になるので、下の angle_advanced で検出する
+      expect(delta * boss._spin).toBeGreaterThanOrEqual(0)
+      if (delta !== 0) { angle_advanced = true }
+      prev_x = boss.x
+      prev_z = boss.z
+      prev_angle = a
+    }
+    expect(angle_advanced).toBe(true)
+  })
+
   it('壁に囲まれていても壁の中へ入らない', () => {
     // 座席の周りを壁で囲む。判定 14px はタイル 3 列ぶんあるので、静止位置
     // （半径 0）だけで座席の前後左右 1 タイルへ既にはみ出す。中心 1 タイル
     // だけ空けると静止位置自体が壁にめり込んでしまうため、はみ出す 3×3 を
     // まるごと空け、壁の輪はその外側 1 タイルに置く
-    for (let tz = 17; tz <= 23; tz++) {
-      for (let tx = 17; tx <= 23; tx++) {
+    for (let tz = 18; tz <= 22; tz++) {
+      for (let tx = 18; tx <= 22; tx++) {
         if (tx >= 19 && tx <= 21 && tz >= 19 && tz <= 21) { continue }
         wall(tx, tz)
       }
     }
     const boss = spawn_boss(20, 20)
+    // フィールド初期化子で一度決まるだけで書き換わらない。ループの外で 1 回
+    // 見れば足りる（毎回同じ結果になる値をループ内で見ても検出力が増えない）
+    expect(boss._home_tx).toBe(20)
     for (let i = 0; i < 60 * 10; i++) {
       boss._update()
-      // 座席タイルの中に留まっているはず（判定が座席から出られない）
-      expect(boss._home_tx).toBe(20)
+      // 座席タイル (20, 20) は元から床（壁にしていない）なので免除は要らない。
+      // 判定が及ぶタイルはすべて素の床であるはず——壁の輪へ食い込んでいない
       const tx1 = (boss.x + boss.w) >> 3
       const tz1 = (boss.z + boss.w) >> 3
       for (let tz = boss.z >> 3; tz <= tz1; tz++) {
         for (let tx = boss.x >> 3; tx <= tx1; tx++) {
-          if (tx === 20 && tz === 20) { continue }
           expect(level_data[tx + tz * level_width]).toBeLessThan(8)
         }
       }
