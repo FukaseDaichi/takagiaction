@@ -66,13 +66,16 @@ const fake = vi.hoisted(() => {
   const globals = globalThis as Record<string, unknown>
   globals.AudioContext = function () { return ctx }
   globals.location = { hostname: 'example.com' }
-  return { ctx, started, gains, filters, music, music_boss, song_calls: 0 }
+  return { ctx, started, gains, filters, music, music_boss, song_calls: 0, skip_boss_song: false }
 })
 
 vi.mock('./sonantx-reduced', () => ({
   // 1 曲目が通常BGM、2 曲目がボス曲（audio.ts の生成順）
   sonantxr_generate_song: (_ctx: unknown, _song: unknown, cb: (b: unknown) => void) => {
     fake.song_calls++
+    // ボス曲の生成は起動の臨界パスから外してあるので、最初のボス階に
+    // 間に合っていない可能性がある。その経路を作るためコールバックを呼ばない
+    if (fake.song_calls === 2 && fake.skip_boss_song) { return }
     cb(fake.song_calls === 1 ? fake.music : fake.music_boss)
   },
   sonantxr_generate_sound: (_ctx: unknown, _inst: unknown, _note: number, cb: (b: unknown) => void) => {
@@ -83,7 +86,7 @@ vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 
 // audio_unlocked はモジュール変数なので、テストごとにモジュールを読み直して
 // 「解錠前」の状態から始める
-async function load_audio() {
+async function load_audio(options: { boss_song?: boolean } = {}) {
   vi.resetModules()
   fake.started.length = 0
   fake.gains.length = 0
@@ -91,6 +94,7 @@ async function load_audio() {
   fake.ctx.resume_count = 0
   fake.ctx.state = 'suspended'
   fake.song_calls = 0
+  fake.skip_boss_song = options.boss_song === false
   const audio = await import('./audio')
   audio.audio_init(() => {})
   return audio
@@ -293,5 +297,32 @@ describe('ボス階のBGM', () => {
     audio.audio_music_boss()
 
     expect(fake.started.length).toBe(0)
+  })
+
+  // ボス曲が間に合わなかったときの経路。audio.ts はそこを「通常BGMのまま
+  // 続ける」と設計しているので、その後始末（レートを戻すこと）まで含めて固定する
+  it('ボス曲が未生成でも、撃破後に激昂のレートが通常曲へ残らない', async () => {
+    const audio = await load_audio({ boss_song: false })
+    audio.audio_unlock()
+    // 通常曲の source。以下ずっとこれが鳴り続ける
+    expect(fake.started.length).toBe(1)
+    const rate = fake.started[0].playbackRate
+
+    // ボス階へ入るが、ボス曲は未生成なので鳴らし直しは起きない
+    audio.audio_music_boss()
+    expect(fake.started.length).toBe(1)
+
+    // 激昂のレートは「通常曲」の source に乗る
+    audio.audio_music_boss_rage()
+    expect(rate.calls).toContainEqual(['linear', 1.12, 7.6])
+
+    // 撃破で通常BGMへ。バッファが同じなので source は作り直されない ——
+    // だからレートを明示的に戻さないと 1.12 のままランが続く
+    audio.audio_music_normal()
+    expect(fake.started.length).toBe(1)
+    // 予約済みのランプを捨ててから即時値の 1 で上書きしていること。
+    // rate.value だけを見る形にしないのは、この fake の linearRamp が value を
+    // 動かさないため（戻し忘れても value は 1 のままで、赤くならない）
+    expect(rate.calls.slice(-2)).toEqual([['cancel', 0, 7], ['set', 1, 7]])
   })
 })

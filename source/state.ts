@@ -50,8 +50,10 @@ export const state = {
   // 跨いでは保持し、run_start() が 0 に戻す
   melee_active: 0,
   exit_open: 0, // 一服完了で 1。非常口が通れるようになる
-  // ボスが生きている間は 1。灰皿に居座っているので一服できない
-  // （entity-smoking-area.ts のガード）。load_level が立て、
+  // ボスが生きている間は 1。一服を止めているのはこの 1 本だけで、機体の
+  // 位置ではない — ボスは座席を離れて周回するので、灰皿が空いて見えても
+  // 吸えない（entity-smoking-area.ts のガード。無反応にならないよう
+  // monologue_boss_blocked() が理由を言う）。load_level が立て、
   // entity-boss の _kill() が下ろす
   boss_alive: 0,
   // 降下までの残り秒数（0 = 予約なし）。非常口に触れると descend_duration が

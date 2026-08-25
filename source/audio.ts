@@ -94,7 +94,11 @@ export function audio_init(callback: () => void): void {
 }
 
 // ユーザー操作起点で AudioContext を再開し、BGM を鳴らし始める。
-// main.ts のゲーム開始クリック（ページ唯一の必須ジェスチャ）から呼ぶ
+// main.ts のゲーム開始クリック（ページ唯一の必須ジェスチャ）から呼ぶ。
+// audio_music は必ず埋まっている — そのクリックハンドラを張るのが
+// audio_init() のコールバック（= 通常BGMの生成完了）自身だから。
+// music_start() は未生成なら黙って return するので、この不変条件が将来
+// 壊れても例外にはならず「BGM が一生鳴らない」形で出る
 export function audio_unlock(): void {
   audio_unlocked = true
   audio_ctx.resume()
@@ -126,8 +130,18 @@ export function audio_music_boss(): void {
   music_start(audio_music_boss_buffer)
 }
 
-// ボス撃破とボス階以外のロードで呼ぶ
+// ボス撃破とボス階以外のロードで呼ぶ。
+// 激昂のレートはここで必ず 1 に戻す。ボス曲が未生成のままボス階に入ると
+// audio_music_boss() が no-op になり（上の「通常BGMのまま続ける」経路）、
+// 激昂のレートは通常曲の source に乗る。撃破で戻ってきても music_start() は
+// 同じバッファなので source を作り直さず、レートだけがラン終了まで残る
 export function audio_music_normal(): void {
+  if (music_source) {
+    const now = audio_ctx.currentTime
+    const rate = music_source.playbackRate
+    rate.cancelScheduledValues(now)
+    rate.setValueAtTime(1, now)
+  }
   music_start(audio_music)
 }
 
@@ -172,12 +186,8 @@ export function audio_music_restore(): void {
   music_filter.frequency.setValueAtTime(music_filter_open_hz, now)
   music_gain.gain.cancelScheduledValues(now)
   music_gain.gain.setValueAtTime(1, now)
-  if (music_source) {
-    const rate = music_source.playbackRate
-    rate.cancelScheduledValues(now)
-    rate.setValueAtTime(1, now)
-  }
-  // 現在の曲がボス曲なら通常曲へ戻す。music_start() が同一なら何もしない
+  // レートを 1 に戻すのも、現在の曲がボス曲なら通常曲へ戻すのも
+  // audio_music_normal() がやる（music_start() は同一バッファなら何もしない）
   audio_music_normal()
 }
 

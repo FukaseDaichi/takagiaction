@@ -190,7 +190,12 @@ export class entity_boss_t extends entity_t {
   private _spawn_homing(): void {
     const t = this
     const player = state.entity_player
-    if (!player) { return }
+    // 死亡シーケンス中は撃たない。死体を追わないのは生まれたあとの旋回だけ
+    // では足りず（entity_boss_homing_t._update()）、生成時の向き付けも
+    // 止めないと新しい弾が死体へ寄り続けて演出が濁る。死亡シーケンス中も
+    // ボスは _update() され続ける（game.ts の game_tick）。
+    // 掃射は自機を狙わないので止めない — 闘技場が静まり返ることもない
+    if (!player || state.dying) { return }
     const base = Math.atan2(
       player.z - (t.z + boss_centre), player.x - (t.x + boss_centre),
     )
