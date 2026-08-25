@@ -703,8 +703,9 @@ describe('ボス階の闘技場', () => {
 // 触った人がこれを壊せるので、座標ではなく「通れること」で固定する。
 // 座席（中央の灰皿）は壁タイルだがボスは通過できる（entity-boss.ts の免除）
 describe('闘技場: ボスがリングの内外を行き来できる', () => {
-  // 1px 刻みの占有格子で BFS する。生成位置から出発し、灰皿の中心から
-  // 70px（目標半径の上限）より遠い位置に到達できることを見る
+  // 1px 刻みの占有格子をスタックで探索する（深さ優先。走査順は結果に
+  // 影響しないので幅優先である必要はない）。生成位置から出発し、灰皿の
+  // 中心から 70px（目標半径の上限）より遠い位置に到達できることを見る
   function boss_can_reach(radius: number): boolean {
     const layout = generate_level(5, 12345)
     const tiles = layout.tiles
@@ -713,9 +714,17 @@ describe('闘技場: ボスがリングの内外を行き来できる', () => {
     const home_x = home_tx * 8 + 4
     const home_z = home_tz * 8 + 4
 
+    // 判定 14px ちょうどに収まる隙間（余白 0）は、静止した箱の理屈では
+    // 「通れる」が、回転しながら連続軌道で抜けるボスの実機では通れない。
+    // 8 本の柱の隙間は Math.round() の丸めで一様ではなく、1 タイル（8px）
+    // の余白では最も広い隙間をすり抜けてしまい半径 6 でも真になる
+    // （実測: 半径 6 の最大通過幅は 23px）。2 タイル（16px）の余白を
+    // 要求すると半径 6 では偽、半径 8（最大通過幅 39px）では真になる
+    const clearance = boss_hitbox + 16
+
     const free = (x: number, z: number): boolean => {
-      const x1 = (x + boss_hitbox) >> 3
-      const z1 = (z + boss_hitbox) >> 3
+      const x1 = (x + clearance) >> 3
+      const z1 = (z + clearance) >> 3
       for (let tz = z >> 3; tz <= z1; tz++) {
         for (let tx = x >> 3; tx <= x1; tx++) {
           if (tx === home_tx && tz === home_tz) { continue }
