@@ -4,6 +4,8 @@ import {
   boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
   boss_orbit_omega, boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
   boss_pick_radius, boss_pick_speed_factor, boss_radius_step,
+  boss_homing_life, boss_homing_speed, boss_homing_step, boss_homing_turn,
+  boss_homing_turn_rate,
 } from './boss-model'
 
 describe('boss_arms', () => {
@@ -144,5 +146,60 @@ describe('boss_orbit_omega', () => {
   it('半径が下限を下回っても発散しない', () => {
     expect(boss_orbit_omega(36, 0)).toBe(36 / boss_orbit_radius_min)
     expect(boss_orbit_omega(36, -5)).toBe(36 / boss_orbit_radius_min)
+  })
+})
+
+describe('boss_homing_turn', () => {
+  const mag = (v: [number, number]) => Math.sqrt(v[0] * v[0] + v[1] * v[1])
+
+  it('速度の大きさを変えない', () => {
+    const out = boss_homing_turn(44, 0, 0, 1, 1.6, 1 / 60)
+    expect(mag(out)).toBeCloseTo(44, 6)
+  })
+
+  it('目標の方向へ寄る', () => {
+    // +x へ飛んでいる弾に、+z 方向の目標を与える
+    const [vx, vz] = boss_homing_turn(44, 0, 0, 100, 1.6, 1 / 60)
+    expect(vz).toBeGreaterThan(0)
+    expect(vx).toBeGreaterThan(0) // 1 フレームで振り向き切らない
+  })
+
+  it('1 フレームの旋回角が上限を超えない', () => {
+    const dt = 1 / 60
+    // 真後ろ（180°）の目標でも上限ぶんしか回らない
+    const [vx, vz] = boss_homing_turn(44, 0, -100, 0.001, 1.6, dt)
+    const turned = Math.abs(Math.atan2(vz, vx))
+    expect(turned).toBeLessThanOrEqual(1.6 * dt + 1e-9)
+  })
+
+  it('回る向きは近いほうを選ぶ（-π〜π で正規化する）', () => {
+    // わずかに -z 側の目標。+z 側へ大回りしてはいけない
+    const [, vz] = boss_homing_turn(44, 0, 100, -1, 1.6, 1 / 60)
+    expect(vz).toBeLessThan(0)
+  })
+
+  it('十分な時間をかければ目標の方向へ収束する', () => {
+    let v: [number, number] = [44, 0]
+    for (let i = 0; i < 600; i++) {
+      v = boss_homing_turn(v[0], v[1], 0, 100, 1.6, 1 / 60)
+    }
+    expect(Math.atan2(v[1], v[0])).toBeCloseTo(Math.PI / 2, 4)
+  })
+})
+
+describe('追尾弾の摘み', () => {
+  it('掃射より遅く、激昂で速くなる', () => {
+    expect(boss_homing_speed(1)).toBeLessThan(boss_bullet_speed(1))
+    expect(boss_homing_speed(boss_phase_rage))
+      .toBeGreaterThan(boss_homing_speed(1))
+  })
+
+  it('刻みは掃射と桁が離れている（別の攻撃として読める）', () => {
+    expect(boss_homing_step).toBeGreaterThan(boss_fire_step(1) * 5)
+  })
+
+  it('寿命と旋回速度は深度で動かさない定数である', () => {
+    expect(typeof boss_homing_life).toBe('number')
+    expect(typeof boss_homing_turn_rate).toBe('number')
   })
 })

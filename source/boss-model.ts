@@ -137,3 +137,47 @@ export function boss_radius_step(
 export function boss_orbit_omega(speed: number, radius: number): number {
   return speed / Math.max(radius, boss_orbit_radius_min)
 }
+
+// 追尾弾。掃射と同じ「掃引した角度」で刻む（時間で刻む別のタイマーを
+// 持ち込まない）。刻みは掃射の 0.18 と桁を離してあるので、2 つは別の
+// 攻撃として読める。前半で約 2.8 秒ごと、激昂では砲塔が速くなるぶん
+// 自動的に約 1.87 秒ごとになる — 摘みを増やさずに頻度が上がる
+export const boss_homing_step = 1.4
+
+// 1 回に出す数。深度で増やさない。増やすと深度スケールの軸が 2 本になり、
+// 「回転速度と弾速を一緒に動かさない」（docs/enemies.md）と同じ二重スケールの
+// 問題が再発する
+export const boss_homing_count = 2
+
+// 2 発を自機方向から左右へ開く角（rad）
+export const boss_homing_spread = 0.25
+
+// 旋回速度（rad/s）。速度 44 との組で旋回半径 27.5px になる。曲がれるが、
+// 自機（約 130）が全力で離れれば必ず振り切れる
+export const boss_homing_turn_rate = 1.6
+
+// 寿命（秒）。壁で消える掃射と違い、開けた場所では永久に追い続けて溜まる
+export const boss_homing_life = 5
+
+// 掃射（56）より遅い。追尾弾は「横によける」ではなく「振り切る」弾なので、
+// 速いと理不尽になる
+export function boss_homing_speed(phase: number): number {
+  return phase === boss_phase_rage ? 55 : 44
+}
+
+// 速度ベクトルを目標方向へ、1 フレームぶんの上限まで回す。速度の大きさは
+// 変えない（速さは boss_homing_speed が持つ）
+export function boss_homing_turn(
+  vx: number, vz: number, dx: number, dz: number, turn_rate: number, dt: number,
+): [number, number] {
+  const speed = Math.sqrt(vx * vx + vz * vz)
+  const current = Math.atan2(vz, vx)
+  let delta = Math.atan2(dz, dx) - current
+  // -π〜π に正規化してから上限で切る。しないと、わずかに逆側の目標へ
+  // ほぼ一周ぶん遠回りして回ることになる
+  while (delta > Math.PI) { delta -= Math.PI * 2 }
+  while (delta < -Math.PI) { delta += Math.PI * 2 }
+  const max = turn_rate * dt
+  const angle = current + Math.max(-max, Math.min(max, delta))
+  return [Math.cos(angle) * speed, Math.sin(angle) * speed]
+}
