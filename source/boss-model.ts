@@ -19,20 +19,43 @@ export function boss_hp(depth: number): number {
   return 40 + 4 * depth
 }
 
-// 砲塔の角速度（rad/s）。1 周 12.6 秒
-export const boss_spin_rate = 0.5
+// フェーズ。1 = 前半、2 = 激昂。段を 3 つ以上にしないのは、各段が短くなって
+// 違いが読めなくなるため
+export const boss_phase_rage = 2
+
+// HP がちょうど半分のときは激昂に入れる。境界をどちらに寄せるかは
+// 恣意的だが、決めておかないと実装とテストが食い違う
+export function boss_phase(hp: number, hp_max: number): number {
+  return hp <= hp_max / 2 ? boss_phase_rage : 1
+}
+
+// 以下 4 つは激昂で変わる摘み。倍率を 1 つの係数で表さず値を直に並べるのは、
+// 上がり方が揃っていないため（回転 ×1.5 / 刻み ×0.83 / 弾速 ×1.25）。
+// 係数にすると「揃っている」という嘘の情報が入る
+
+// 砲塔の角速度（rad/s）。前半は 1 周 12.6 秒
+export function boss_spin_rate(phase: number): number {
+  return phase === boss_phase_rage ? 0.75 : 0.5
+}
 
 // 発射を刻む角度（rad）。時間ではなく掃引した角度で刻むのは、回転速度を
 // 変えても弾の空間密度が変わらないようにするため
-export const boss_fire_step = 0.18
+export function boss_fire_step(phase: number): number {
+  return phase === boss_phase_rage ? 0.15 : 0.18
+}
 
-// 弾速。セントリーの 64 より遅い。中央から闘技場の端（88px）まで約 1.6 秒
-export const boss_bullet_speed = 56
+// 掃射の弾速。前半の 56 はセントリーの 64 より遅い。激昂の 70 はそれを
+// 上回る — ラン中で最も速い弾を激昂したボスが撃つのは序列として正しい
+export function boss_bullet_speed(phase: number): number {
+  return phase === boss_phase_rage ? 70 : 56
+}
 
 // 掃引が発射のしきい値を何回またいだか。またいだ回数だけ斉射する。
-// 引数は累積の掃引角（常に増える）で、回転の向きは含まない
-export function boss_volleys(before: number, after: number): number {
-  return Math.floor(after / boss_fire_step) - Math.floor(before / boss_fire_step)
+// 引数は累積の掃引角（常に増える）で、回転の向きは含まない。
+// step を引数に取るのは、掃射（boss_fire_step）と追尾弾（boss_homing_step）が
+// 同じ規則を共有するため。時間で刻む別のタイマーを持ち込まない
+export function boss_volleys(before: number, after: number, step: number): number {
+  return Math.floor(after / step) - Math.floor(before / step)
 }
 
 // n 本の砲口の角度。等角に並んだまま全体が回る

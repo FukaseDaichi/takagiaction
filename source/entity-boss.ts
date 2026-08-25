@@ -1,7 +1,7 @@
 import { audio_play, audio_sfx_explode } from './audio'
 import {
-  boss_arm_angles, boss_bullet_speed, boss_centre, boss_hitbox, boss_hp,
-  boss_spin_rate, boss_volleys,
+  boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step, boss_hitbox,
+  boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
 } from './boss-model'
 import { boss_reward_show } from './boss-reward'
 import { reward_any_available } from './boss-reward-model'
@@ -45,6 +45,13 @@ export class entity_boss_t extends entity_t {
   _spin = 1
   _arms = 2
 
+  // 最大 HP。_init() が h に代入した値をそのまま覚える。フィールド初期化子は
+  // 基底 constructor（_init() を含む）の後に走るので、この順で正しい
+  // （entity_sentry_t._target_x = this.x と同じ手）
+  _hp_max = this.h
+  // 現在のフェーズ。1 = 前半、2 = 激昂
+  private _phase = 1
+
   // 掃引した総角度。常に増える。発射はこれで刻むので、回転の向きを含めない
   private _swept = 0
 
@@ -56,27 +63,38 @@ export class entity_boss_t extends entity_t {
   override _update(): void {
     const t = this
     const swept_before = t._swept
-    t._swept += boss_spin_rate * state.time_elapsed
+    t._swept += boss_spin_rate(t._phase) * state.time_elapsed
     // 砲塔の向き。フレームを跨いで持つ状態は _swept だけで足りる
     const facing = t._swept * t._spin
 
-    const volleys = boss_volleys(swept_before, t._swept)
+    const volleys = boss_volleys(swept_before, t._swept, boss_fire_step(t._phase))
     for (let v = 0; v < volleys; v++) {
       for (const angle of boss_arm_angles(facing, t._arms)) {
-        // 判定と絵が共有する中心から、銃口の半径だけ離して出す。
-        // 弾の判定は 6×4 なので、その中心を銃口に合わせる
-        const mx = t.x + boss_centre + Math.cos(angle) * boss_muzzle
-        const mz = t.z + boss_centre + Math.sin(angle) * boss_muzzle
-        // 弾の y は 0。ビュー行列は 45° 傾いているので y は画面上で奥行きに
-        // 化け、砲口の高さ（14）に出すと絵が当たり判定（x/z のみ）から
-        // 1 タイルぶんずれる。弾を避け続ける戦いなので、砲口の高さより
-        // 絵と判定の一致を取る（自機も他の弾もすべて y = 0）
-        new entity_boss_plasma_t(mx - 3, 0, mz - 2, 0, boss_bullet_tile, angle)
+        t._spawn_bullet(angle)
       }
     }
 
     // 基底の _update() は呼ばない。動かないので積分が要らないうえ、
     // 灰皿タイルは壁なので毎フレーム _collides() が真になる
+  }
+
+  // 判定と絵が共有する中心から、銃口の半径だけ離して 1 発出す。
+  // 中から出すと、生まれた次のフレームで _collides() が壁を返して弾が
+  // 即座に消える。弾の判定は 6×4 なので、タイルから抜けるには x で 7・
+  // z で 6 の余裕が要る。半径 10 なら最悪の角度（斜め 45°）でも成分が
+  // 7.07 になり、必ずどちらかの軸で抜ける
+  private _spawn_bullet(angle: number): void {
+    const t = this
+    const mx = t.x + boss_centre + Math.cos(angle) * boss_muzzle
+    const mz = t.z + boss_centre + Math.sin(angle) * boss_muzzle
+    // 弾の y は 0。ビュー行列は 45° 傾いているので y は画面上で奥行きに
+    // 化け、砲口の高さ（14）に出すと絵が当たり判定（x/z のみ）から
+    // 1 タイルぶんずれる。弾を避け続ける戦いなので、砲口の高さより
+    // 絵と判定の一致を取る（自機も他の弾もすべて y = 0）
+    const bullet = new entity_boss_plasma_t(mx - 3, 0, mz - 2, 0, boss_bullet_tile)
+    const speed = boss_bullet_speed(t._phase)
+    bullet.vx = Math.cos(angle) * speed
+    bullet.vz = Math.sin(angle) * speed
   }
 
   override _render(): void {
@@ -167,10 +185,8 @@ export class entity_boss_t extends entity_t {
 }
 
 export class entity_boss_plasma_t extends entity_t {
-  protected override _init(angle: number): void {
-    this.vx = Math.cos(angle) * boss_bullet_speed
-    this.vz = Math.sin(angle) * boss_bullet_speed
-  }
+  // 速度は生成側（entity_boss_t._spawn_bullet）が vx/vz に直接代入する。
+  // フェーズで弾速が変わるので、_init() の引数 1 本では足りない
 
   // ライトを積まない。同時に最大 26 発飛ぶので max_lights = 16 を超え、
   // 光る弾と光らない弾が混ざる。代わりにタイル 46 を full-bright 規則

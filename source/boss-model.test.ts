@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  boss_arm_angles, boss_arms, boss_arms_max, boss_fire_step, boss_hp, boss_volleys,
+  boss_arm_angles, boss_arms, boss_arms_max, boss_bullet_speed, boss_fire_step,
+  boss_hp, boss_phase, boss_phase_rage, boss_spin_rate, boss_volleys,
 } from './boss-model'
 
 describe('boss_arms', () => {
@@ -35,22 +36,30 @@ describe('boss_hp', () => {
 })
 
 describe('boss_volleys', () => {
+  const step = boss_fire_step(1)
+
   it('しきい値をまたいだ回数だけ斉射する', () => {
-    expect(boss_volleys(0, boss_fire_step * 0.9)).toBe(0)
-    expect(boss_volleys(0, boss_fire_step * 1.1)).toBe(1)
-    expect(boss_volleys(boss_fire_step * 0.9, boss_fire_step * 1.1)).toBe(1)
-    expect(boss_volleys(0, boss_fire_step * 2.1)).toBe(2)
+    expect(boss_volleys(0, step * 0.9, step)).toBe(0)
+    expect(boss_volleys(0, step * 1.1, step)).toBe(1)
+    expect(boss_volleys(step * 0.9, step * 1.1, step)).toBe(1)
+    expect(boss_volleys(0, step * 2.1, step)).toBe(2)
   })
 
   it('掃引を細かく刻んでも合計の斉射数は変わらない', () => {
-    const total = boss_fire_step * 10
-    let coarse = boss_volleys(0, total)
+    const total = step * 10
+    const coarse = boss_volleys(0, total, step)
     let fine = 0
     for (let i = 0; i < 1000; i++) {
-      fine += boss_volleys(total * i / 1000, total * (i + 1) / 1000)
+      fine += boss_volleys(total * i / 1000, total * (i + 1) / 1000, step)
     }
     expect(fine).toBe(coarse)
     expect(coarse).toBe(10)
+  })
+
+  it('刻みを変えても同じ規則で数える', () => {
+    expect(boss_volleys(0, 1.5, 1.4)).toBe(1)
+    expect(boss_volleys(0, 2.9, 1.4)).toBe(2)
+    expect(boss_volleys(1.5, 2.9, 1.4)).toBe(1)
   })
 })
 
@@ -65,5 +74,27 @@ describe('boss_arm_angles', () => {
 
   it('第 1 砲口は掃引の角度そのものを向く', () => {
     expect(boss_arm_angles(1.23, 3)[0]).toBe(1.23)
+  })
+})
+
+describe('boss_phase', () => {
+  it('HP がちょうど半分で激昂に入る', () => {
+    expect(boss_phase(60, 60)).toBe(1)
+    expect(boss_phase(31, 60)).toBe(1)
+    expect(boss_phase(30, 60)).toBe(boss_phase_rage)
+    expect(boss_phase(1, 60)).toBe(boss_phase_rage)
+  })
+})
+
+describe('フェーズで変わる摘み', () => {
+  it('激昂ですべて強くなる（発射の刻みだけは小さくなる方向）', () => {
+    expect(boss_spin_rate(boss_phase_rage)).toBeGreaterThan(boss_spin_rate(1))
+    expect(boss_bullet_speed(boss_phase_rage)).toBeGreaterThan(boss_bullet_speed(1))
+    expect(boss_fire_step(boss_phase_rage)).toBeLessThan(boss_fire_step(1))
+  })
+
+  it('斉射の頻度（回転 ÷ 刻み）が激昂で上がる', () => {
+    const rate = (p: number) => boss_spin_rate(p) / boss_fire_step(p)
+    expect(rate(boss_phase_rage)).toBeGreaterThan(rate(1))
   })
 })
