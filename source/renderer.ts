@@ -67,7 +67,10 @@ const fragment_shader =
     "vec4 t=texture2D(s,vuv);" +
     "if(t.a<.8)" + // 1) discard alpha
       "discard;" +
-    "if(t.r>0.95&&t.g>0.25&&t.b==0.0)" + // 2) red glowing spider eyes
+    // 2) 霧もライトも受けない色。赤（蜘蛛の目・ボスの掃射）と
+    //    水色（ボスの追尾弾）の 2 つ。闘技場の端でも全弾が見えることが
+    //    要件なので、弾はここを通す（docs/gameplay.md「ボス階」）
+    "if((t.r>0.95&&t.g>0.25&&t.b==0.0)||(t.b>0.95&&t.g>0.25&&t.r==0.0))" +
       "gl_FragColor=t;" +
     "else{" +  // 3) calculate color with lights and fog
       "gl_FragColor=t*vec4(vl,1.);" +
