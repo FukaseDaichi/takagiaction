@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // renderer は dom.ts 経由で document と canvas に触るため Node 環境では評価できない
 vi.mock('./renderer', () => ({
   push_sprite: () => {},
-  push_light: () => {},
+  // フェーズ移行のライト色を検証するため引数を記録する。他のテストは
+  // _render() を呼ばないので、この変更は他の describe には影響しない
+  push_light: vi.fn(),
   push_quad: () => {},
   push_block: () => {},
   camera: { x: 0, y: 0, z: 0, shake: 0 },
@@ -38,7 +40,7 @@ import {
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
 import { monologue_boss_rage } from './monologue'
-import { camera } from './renderer'
+import { camera, push_light } from './renderer'
 import { screen_flash } from './screen-flash'
 import { level_data, level_width, state } from './state'
 import { terminal_show_notice } from './terminal'
@@ -417,5 +419,20 @@ describe('フェーズ移行', () => {
     ).length
 
     expect(fast_count).toBeGreaterThan(slow_count)
+  })
+
+  it('移行後はライトの色と強度が激昂の固定値に切り替わる', () => {
+    const boss = spawn_boss(20, 20)
+
+    // 位置（x/y/z）は周回で動くので見ない。色と強度（末尾 4 引数）だけを
+    // 固定値で比較する — 「変わった」だけでは、別の値に化けた回帰を拾えない
+    boss._render()
+    const before = vi.mocked(push_light).mock.calls.at(-1)!
+    expect(before.slice(3)).toEqual([1.2, 0.4, 0.2, 0.05])
+
+    boss._receive_damage(boss, boss._hp_max / 2)
+    boss._render()
+    const after = vi.mocked(push_light).mock.calls.at(-1)!
+    expect(after.slice(3)).toEqual([1.6, 0.2, 0.1, 0.04])
   })
 })
