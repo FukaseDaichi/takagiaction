@@ -341,9 +341,12 @@ const upgrade_sfx: Record<meta_upgrade_id_t, () => AudioBuffer | undefined> = {
   spare: () => audio_sfx_lighter,
 }
 
-// 演出の長さ。いちばん長い肺（膨張 → 戻り → 煙）に合わせて一律にする。
-// 部位ごとに変えると、連続で買ったときのテンポが項目によってばらつく
-const upgrade_duration = 1100
+// 演出の長さ。いちばん長い肺（膨張 → 気管の光 → 戻る → 口元の煙 3 粒）に
+// 合わせて一律にする。部位ごとに変えると、連続で買ったときのテンポが項目に
+// よってばらつく。煙は肺が戻り切る 1.05s から --step（80ms）刻みで 3 粒立ち、
+// 最後の 1 粒が 1.56s で消えるので、そこに余白を足した値
+// （死亡画面レビュー Finding 1: 煙が仕様に対して欠けていたぶんを追加した）
+const upgrade_duration = 1600
 
 let upgrade_timer: ReturnType<typeof setTimeout> = 0
 

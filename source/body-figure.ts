@@ -78,12 +78,16 @@ export const organ_svg: Record<meta_upgrade_id_t, string> = {
     '<polyline class="ds-o-smoke" points="196,20 160,42 132,56"/>' +
     '<polyline class="ds-o-smoke" points="200,64 164,60 132,58"/>' +
     '<polyline class="ds-o-smoke" points="190,108 158,80 132,62"/>',
-  // 左右の肺と気管。膨張はこの 2 つの ellipse を scale する
+  // 左右の肺と気管、口元の煙 3 粒（cx をわずかにばらけさせ、1 点から吐く
+  // のではなく散る煙に見せる）。膨張はこの 2 つの ellipse を scale する
   lung:
     '<ellipse class="ds-o-lung ds-o-lung-l" cx="106" cy="136" rx="21" ry="31"/>' +
     '<ellipse class="ds-o-lung ds-o-lung-r" cx="150" cy="136" rx="21" ry="31"/>' +
     '<polyline class="ds-o-trachea" points="128,88 128,116 106,132"/>' +
-    '<polyline class="ds-o-trachea" points="128,116 150,132"/>',
+    '<polyline class="ds-o-trachea" points="128,116 150,132"/>' +
+    '<circle class="ds-o-puff" cx="124" cy="58" r="2.5"/>' +
+    '<circle class="ds-o-puff" cx="129" cy="56" r="2.5"/>' +
+    '<circle class="ds-o-puff" cx="133" cy="59" r="2.5"/>',
   // 肩から手へ降りる腕のラインと、両手の輪。反動はこの <g> ごと動かす
   power:
     '<polyline class="ds-o-arm" points="88,104 70,180 56,254"/>' +

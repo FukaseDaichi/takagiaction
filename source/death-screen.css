@@ -212,7 +212,15 @@
     stroke-dashoffset .34s var(--ease-in) calc(.16s + var(--i) * var(--step));
 }
 
-#ds .ds-organ { opacity: 0; }
+#ds .ds-organ {
+  opacity: 0;
+  /* mode-upgrade を外す（idle へ戻る Tab）ときの「後」のスタイルはこの基底
+     ルールになる。CSS Transitions は変化後のスタイルが持つ transition を
+     見るので、ここに無いとフェードせず一瞬で消える。.ds-wire（上の
+     :197-206 のコメント）と同じ理由・同じ形の不具合の再発だった
+     （Task 7 レビュー Finding 2） */
+  transition: opacity .3s var(--ease-in);
+}
 #ds .ds-organ * {
   fill: none;
   stroke: var(--c);
@@ -420,8 +428,8 @@
 
 /* --- 強化演出 --- */
 
-/* 器官はフォーカス中だけ薄く光り、購入の瞬間に強く光る */
-#ds.mode-upgrade .ds-organ { transition: opacity .3s var(--ease-in); }
+/* 器官はフォーカス中だけ薄く光り、購入の瞬間に強く光る。フェードの
+   transition は基底の #ds .ds-organ 側に置いてある（上を参照） */
 #ds.mode-upgrade .ds-organ[data-part] { opacity: 0; }
 /* フォーカスした部位の器官を薄く光らせる（段階開示 ②「器官 0.08s」）。
    直前の [data-part] 既定・下の up-<id> と詳細度がすべて (1,3,0) で並ぶため、
@@ -436,7 +444,10 @@
 #ds.up-spare .ds-organ[data-part="spare"],
 #ds.up-leg .ds-organ[data-part="leg"] { opacity: 1; }
 
-/* 肺活量: 膨らむ → 気管へ光が流れる → 戻る → 口元から煙 */
+/* 肺活量: 膨らむ → 気管へ光が流れる → 戻る → 口元から煙が 3 粒昇って消える。
+   煙は肺が戻り切る 1.05s から粒ごとに --step（80ms）ずつ遅れて立つ。
+   3 粒目が消えるのが 1.56s なので、upgrade_duration をそれに合わせて
+   延ばしてある（死亡画面レビュー Finding 1: この煙が仕様に対して欠けていた） */
 #ds.up-lung .ds-o-lung {
   transform-box: fill-box;
   transform-origin: center;
@@ -446,6 +457,17 @@
   stroke-dasharray: 60;
   animation: ds-flow .4s linear .1s;
 }
+/* 煙は待機中も opacity: 0 に固定し、フォーカスだけ（.ds-organ が .5 で
+   見えている状態）でうっすら輪だけ浮かないようにする。表示はもっぱら
+   下の up-lung 側の animation が 0 から作る */
+#ds .ds-o-puff { opacity: 0; }
+#ds.up-lung .ds-o-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ds-puff .35s var(--ease-in) 1.05s;
+}
+#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(1.05s + var(--step)); }
+#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(1.05s + var(--step) * 2); }
 
 /* ニコチン耐性: 脳が点灯し、神経ラインへパルスが降りる */
 #ds.up-tolerance .ds-o-brain { animation: ds-pulse .5s ease-out 2; }
@@ -547,6 +569,11 @@
   100% { transform: scale(1); }
 }
 @keyframes ds-flow { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+@keyframes ds-puff {
+  0% { transform: translateY(0) scale(.7); opacity: 0; }
+  35% { opacity: .85; }
+  100% { transform: translateY(-16px) scale(1.5); opacity: 0; }
+}
 @keyframes ds-suck { from { stroke-dashoffset: -90; opacity: 0; } 40% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 0; } }
 @keyframes ds-pulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px var(--c)) brightness(1.6); } }
 @keyframes ds-flash { 0%, 100% { opacity: .6; } 50% { opacity: 1; filter: drop-shadow(0 0 12px var(--c)); } }
