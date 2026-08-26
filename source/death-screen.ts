@@ -125,15 +125,23 @@ function build(): HTMLDivElement {
 
   document.body.appendChild(el)
 
+  // busy 中とパネル表示中はキーボードと同じくクリックも拒否する。先に state を
+  // 書き換えてから dispatch() の changed 判定に持ち込むと、ds_reduce が Enter を
+  // 却下したとき（ヤニ不足の購入・busy 中・パネル表示中）でも state だけが
+  // 動いて apply() が走らず、DOM と state が食い違ったまま残ってしまうため
   el.querySelectorAll<HTMLButtonElement>('.ds-item').forEach((button) => {
     button.onclick = () => {
+      if (state.busy || state.panel !== 'none') { return }
       state = { ...state, mode: 'idle', focus: Number(button.dataset.item) }
+      apply()
       dispatch('Enter')
     }
   })
   el.querySelectorAll<SVGGElement>('.ds-part').forEach((g, index) => {
     g.onclick = () => {
+      if (state.busy || state.panel !== 'none') { return }
       state = { ...state, mode: 'upgrade', focus: index }
+      apply()
       dispatch('Enter')
     }
   })
@@ -208,8 +216,15 @@ function dispatch(key: string): void {
 }
 
 function on_key(event: KeyboardEvent): void {
-  // preventDefault() を外すとブラウザ既定のフォーカス移動が走る
-  if (event.key === 'Tab') { event.preventDefault() }
+  // Tab はブラウザ既定のフォーカス移動を止めるため。Enter/Space は、クリックで
+  // ネイティブフォーカスが残った <button>（.ds-item）がキー入力でも独自に
+  // 活性化し、dispatch() と二重に反応するのを止めるため（.ds-part は SVG の
+  // <g> でネイティブな活性化を持たないが、同じ条件式にまとめても実害はない。
+  // この画面は Tab を横取りして独自のフォーカスモデルを持つので、
+  // ボタンのネイティブな活性化には関与させない）
+  if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+  }
   dispatch(event.key)
 }
 

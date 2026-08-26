@@ -18,6 +18,9 @@
   --ease-in: cubic-bezier(.2, .8, .2, 1);
   --ease-out: cubic-bezier(.6, 0, .8, .2);
 }
+/* busy ガードは JS 側（on_key / .ds-item・.ds-part の onclick）が主。ここは
+   CSS 層での多重防御と、busy class が読まれていることの明示を兼ねる */
+#ds.busy { pointer-events: none; }
 
 /* --- 背景 3 枚 --- */
 
@@ -222,7 +225,25 @@
   transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px));
   transition-delay: calc(var(--i) * var(--step));
 }
-#ds .ds-part.active { transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px)) scale(1.15); }
+#ds .ds-part.active {
+  transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px)) scale(1.15);
+  /* mode-upgrade 側の transition-delay（calc(var(--i) * var(--step))）を
+     引き継いだままだと、フォーカスが移るたびに新しい部位の拡大が段階開示と
+     同じだけ遅延してしまう。フォーカス移動はその都度即応させたいので、
+     新しくフォーカスを得た部位だけ 0 に戻す（前の部位が退く側の遅延は
+     Task 6 のフォーカス切替演出に委ねる） */
+  transition-delay: 0s;
+}
+
+/* 入場シーケンス 0.70s: 6 アイコンが収納位置で 80ms 間隔に点灯する（設計書）。
+   opacity だけを動かす — transform を動かすと収納/展開の translate と衝突する。
+   forwards/both は使わない: 終了後も opacity: 1 に固定されてしまうと、
+   .dim（.65）/.inactive（.35）の強調階層を永久に上書きする。backwards な
+   from-only キーフレームなら、0 から cascade が決めた値（active/dim/inactive の
+   いずれか）まで補間できる */
+#ds.entering .ds-part {
+  animation: ds-icon-in .35s var(--ease-in) calc(.7s + var(--i) * var(--step)) backwards;
+}
 
 #ds .ds-arc-bg { fill: rgba(4, 10, 7, .8); stroke: rgba(120, 160, 135, .3); stroke-width: 2; }
 #ds .ds-arc {
@@ -298,6 +319,8 @@
   from { opacity: 0; transform: translate(-50%, -48%) scale(.96); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+/* from-only（forwards/both を使わない理由は #ds.entering .ds-part を参照） */
+@keyframes ds-icon-in { from { opacity: 0; } }
 @keyframes ds-fade-back { to { opacity: .4; } }
 @keyframes ds-wire-draw { to { opacity: .55; stroke-dashoffset: 0; } }
 @keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
