@@ -27,63 +27,58 @@
    使い、@keyframes に置き換える。to を書かないことで、終端はインライン
    style（等級色）にそのまま合流する。.just-revealed は三幕目の最初の描画
    だけに付き、←→ の再描画では付かないので、フラッシュは開封の瞬間だけ走る */
-#eq .eq-box.just-revealed { animation: eqf 0.25s ease-out; }
-@keyframes eqf { from { border-color: #8a8a8a; box-shadow: 0 0 2vw #8a8a8a44; } }
+#eq .eq-box.just-revealed { animation: eqf 0.45s ease-out; }
+@keyframes eqf {
+  from { border-color: #8a8a8a; box-shadow: 0 0 2vw #8a8a8a44; }
+  40% { border-color: #fff; box-shadow: 0 0 calc(var(--gb) * 1.5) var(--gc); }
+}
 #eq .eq-head { font-size: 1vw; letter-spacing: 0.2em; color: #7fe0a8; }
 #eq .eq-wait { font-size: 1.6vw; padding: 2.4vw 0; letter-spacing: 0.1em; }
 #eq .eq-wait b { animation: eqd 1s steps(4) infinite; }
 @keyframes eqd { to { clip-path: inset(0 100% 0 0); } }
-#eq .eq-grade { font-size: 1.1vw; font-weight: bold; letter-spacing: 0.3em; margin-top: 0.6vw; }
+#eq .eq-grade {
+  font-size: 1.1vw;
+  font-weight: bold;
+  letter-spacing: 0.3em;
+  margin-top: 0.6vw;
+  color: var(--gc);
+  text-shadow: 0 0 calc(var(--gb) * 0.3) var(--gc);
+}
+/* 等級の★。数は 5 等級そのままで、点灯した星だけが等級色で光る。等級名の
+   「並品〜銘品」は覚えないと大小が分からないが、星は数で分かる */
+#eq .eq-stars { font-size: 1.4vw; line-height: 1; letter-spacing: 0.3em; margin-top: 0.4vw; }
+#eq .eq-stars span { display: inline-block; color: rgba(80, 110, 95, 0.5); }
+#eq .eq-stars span.on { color: var(--gc); text-shadow: 0 0 calc(var(--gb) * 0.25) var(--gc); }
+/* 開封の二拍目。品名のポップイン（0.28 秒）の途中から左の星から順に点灯し、
+   点いた瞬間だけ規定より強く光る。遅延は要素ごとにインラインで置き、backwards で
+   自分の順番が来るまでは消えたまま待つ。.just-revealed は三幕目の最初の描画
+   だけに付くので、←→ の再描画では点灯し直さない */
+#eq .eq-stars.just-revealed span.on { animation: eqs 0.4s ease-out backwards; }
+@keyframes eqs {
+  from { opacity: 0; transform: scale(2.4); }
+  55% { text-shadow: 0 0 calc(var(--gb) * 0.55) var(--gc), 0 0 var(--gb) var(--gc); }
+}
 /* .just-revealed が無い（←→ の再描画）ときはポップインを再生しない */
 #eq .eq-item.just-revealed { animation: eqp 0.28s ease-out; }
 @keyframes eqp { from { transform: scale(0.7); opacity: 0; } }
 #eq .eq-item img { width: 8vw; height: 8vw; image-rendering: pixelated; }
-#eq .eq-name { font-size: 1.5vw; font-weight: bold; }
+#eq .eq-name {
+  font-size: 1.5vw;
+  font-weight: bold;
+  color: var(--gc);
+  text-shadow: 0 0 calc(var(--gb) * 0.35) var(--gc);
+}
 #eq .eq-slot { font-size: 0.9vw; color: #6f9c80; }
-/* 判定 — 段は全順序（上位は下位の完全な上位互換）なので、差分行を読み比べる
-   前に結論が 1 語で出る。等級色は「いくらになるか」の軸で、ここは「強くなるか」
-   の軸。混ぜないために、良し悪しは差分行と同じ固定の緑と赤で出す。
-   色は .eq-verdict に 1 回だけ置き、判定語・左の帯・段メーターの差分セルが
-   currentColor で受ける */
-#eq .eq-verdict {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.9vw;
-  margin-top: 0.8vw;
-  padding: 0.5vw 0.7vw;
-  border: 1px solid rgba(46, 107, 79, 0.45);
-  border-left: 0.3vw solid currentColor;
-  border-radius: 0.3vw;
-  background: rgba(6, 20, 12, 0.7);
-  color: #b9dcc4; /* 同格。推奨がないことを、緑でも赤でもない本文色で言う */
-}
-#eq .eq-verdict.up, #eq .eq-verdict.new { color: #7fe0a8; }
-#eq .eq-verdict.down { color: #e0705f; }
-#eq .eq-verdict b { font-size: 1.15vw; letter-spacing: 0.25em; }
-#eq .eq-verdict i {
-  font-style: normal;
-  font-size: 0.9vw;
-  color: #7fa892;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-/* 段メーター。両方が持つ段までが地の色、そこから上の差分だけが判定色。
-   塗り分けの境目が現在の装備の位置になるので、目盛りを別に描かない */
-#eq .eq-ladder { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.15vw; }
-#eq .eq-ladder span { height: 0.7vw; background: rgba(46, 107, 79, 0.16); }
-#eq .eq-ladder span.b { background: #63846f; }
-#eq .eq-ladder span.d { background: currentColor; }
-/* 開封の二拍目。品名のポップイン（0.28 秒）が終わる頃に判定が入る。
-   backwards で待ちの間は消えたまま置く */
-#eq .eq-verdict.just-revealed { animation: eqv 0.3s ease-out 0.22s backwards; }
-@keyframes eqv { from { opacity: 0; transform: translateY(0.5vw); } }
-#eq .eq-stats { margin: 0.8vw 0 1vw; display: grid; gap: 0.25vw; }
+#eq .eq-stats { margin: 0.8vw 3vw 1vw; display: grid; gap: 0.25vw; }
 #eq .eq-stat {
   display: grid;
   grid-template-columns: 9vw 1fr 1.6vw 1fr;
   align-items: center;
   font-size: 1vw;
+  /* 良化行だけ値が 1.2vw になるので、行の高さは大きいほうの字面に合わせて
+     固定する。揃えないと、上がった項目と据え置きの項目が同じ表に並んだとき、
+     上がった行だけが背伸びして表が波打つ */
+  min-height: 1.75vw;
   border-bottom: 1px solid rgba(46, 107, 79, 0.35);
   padding: 0.2vw 0;
 }
@@ -99,7 +94,7 @@
 #eq .eq-stat i { font-style: normal; color: #6f8a7a; text-align: right; }
 #eq .eq-stat em { font-style: normal; color: #4f6f5c; }
 #eq .eq-stat b { text-align: right; }
-#eq .eq-stat b.up { color: #7fe0a8; }
+#eq .eq-stat b.up { color: #7fe0a8; font-size: 1.2vw; }
 #eq .eq-stat b.down { color: #e0705f; }
 #eq .eq-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8vw; }
 #eq .eq-choice {
@@ -128,13 +123,14 @@
   border-radius: 0.2vw;
   white-space: nowrap;
 }
-/* 同格の札は緑にしない。緑は「良い」の色で、どちらでも同じことは良くも
-   悪くもない — 判定の帯が同格で本文色になるのと同じ理由 */
-#eq .eq-rec.even { color: #b9dcc4; border-color: #4f6f5c; }
 #eq .eq-choice b { display: block; font-size: 1.1vw; }
 #eq .eq-choice i { font-style: normal; font-size: 0.85vw; color: #7fa892; }
+/* 入れ替える側の添え書きは能力の向きを言う。判定行と同じ緑・赤で、同格は
+   本文色のまま。クラスは判定語をそのまま受けるので、規則も .eq-verdict と揃う */
+#eq .eq-choice i.up, #eq .eq-choice i.new { color: #7fe0a8; }
+#eq .eq-choice i.down { color: #e0705f; }
 #eq .eq-keys { margin-top: 0.8vw; font-size: 0.85vw; color: #6f9c80; }
 @media (prefers-reduced-motion: reduce) {
   #eq .eq-box.just-revealed, #eq .eq-item.just-revealed, #eq .eq-wait b,
-  #eq .eq-verdict.just-revealed { animation: none; }
+  #eq .eq-stars.just-revealed span.on { animation: none; }
 }
