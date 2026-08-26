@@ -418,6 +418,104 @@
 }
 #ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s both; }
 
+/* --- 強化演出 --- */
+
+/* 器官はフォーカス中だけ薄く光り、購入の瞬間に強く光る */
+#ds.mode-upgrade .ds-organ { transition: opacity .3s var(--ease-in); }
+#ds.mode-upgrade .ds-organ[data-part] { opacity: 0; }
+/* フォーカスした部位の器官を薄く光らせる（段階開示 ②「器官 0.08s」）。
+   直前の [data-part] 既定・下の up-<id> と詳細度がすべて (1,3,0) で並ぶため、
+   このプロパティの勝敗は源順序で決まる。up-<id> より手前に置かないと、
+   購入の瞬間もこの .5 が opacity: 1 を上書きしたまま止まってしまう */
+#ds.mode-upgrade .ds-organ.active { opacity: .5; transition-delay: .08s; }
+/* JS が付ける up-<id> と、フォーカス中の部位に対応する器官を出す */
+#ds.up-lung .ds-organ[data-part="lung"],
+#ds.up-tolerance .ds-organ[data-part="tolerance"],
+#ds.up-sniff .ds-organ[data-part="sniff"],
+#ds.up-power .ds-organ[data-part="power"],
+#ds.up-spare .ds-organ[data-part="spare"],
+#ds.up-leg .ds-organ[data-part="leg"] { opacity: 1; }
+
+/* 肺活量: 膨らむ → 気管へ光が流れる → 戻る → 口元から煙 */
+#ds.up-lung .ds-o-lung {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ds-lung-swell 1.05s var(--ease-in);
+}
+#ds.up-lung .ds-o-trachea {
+  stroke-dasharray: 60;
+  animation: ds-flow .4s linear .1s;
+}
+
+/* ニコチン耐性: 脳が点灯し、神経ラインへパルスが降りる */
+#ds.up-tolerance .ds-o-brain { animation: ds-pulse .5s ease-out 2; }
+#ds.up-tolerance .ds-o-nerve {
+  stroke-dasharray: 220;
+  animation: ds-flow .5s linear;
+}
+#ds.up-tolerance .ds-o-nerve:nth-of-type(2) { animation-delay: .06s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(3) { animation-delay: .12s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(4) { animation-delay: .18s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(5) { animation-delay: .24s; }
+
+/* 嗅覚: 外周から煙の粒子が鼻へ吸い込まれる */
+#ds.up-sniff .ds-o-smoke {
+  stroke-dasharray: 90;
+  animation: ds-suck .55s var(--ease-in);
+}
+#ds.up-sniff .ds-o-nose { animation: ds-pulse .5s ease-out 2; }
+
+/* 火力: 腕へラインが接続 → 手先で閃光 → 模型が反動で後退 */
+#ds.up-power .ds-o-arm { stroke-dasharray: 140; animation: ds-flow .3s linear; }
+#ds.up-power .ds-o-hand { animation: ds-flash .18s ease-out .3s 2; }
+/* 反動は .ds-figure だけに掛ける。ds-recoil は translate(-50%,-50%) を土台に
+   しており、それを持たない .ds-body（SVG の <image>）に当てると模型が飛ぶ */
+#ds.up-power .ds-figure { animation: ds-recoil .18s ease-out .3s 2; }
+
+/* 予備の一本: 煙草が弧を描いてポケットへ落ちる */
+#ds.up-spare .ds-o-cig { animation: ds-drop .5s var(--ease-in); }
+#ds.up-spare .ds-o-pocket { animation: ds-pulse .4s ease-out .45s; }
+
+/* 脚力: 骨盤から足へエネルギーが降り、足元へ衝撃 */
+#ds.up-leg .ds-o-leg { stroke-dasharray: 260; animation: ds-flow .45s linear; }
+#ds.up-leg .ds-o-ground { animation: ds-shock .4s var(--ease-out) .4s; }
+#ds.up-leg .ds-figure { animation: ds-shake .12s linear .4s 2; }
+
+/* 数値の差し替えを目立たせる。ロールアップではなく 1 度の点滅にする —
+   桁が動くだけの演出は、重い機械という狙いから外れる */
+#ds.upgrading .ds-detail-cur { animation: ds-value-in .45s var(--ease-in) .4s; }
+
+/* 背景の闇サイト端末が明滅し、右上のヤニ残高へ線が走る */
+#ds .ds-terminal-glow {
+  position: absolute;
+  right: 8%;
+  top: 62%;
+  width: 22vw;
+  height: 18vh;
+  background: radial-gradient(closest-side, rgba(255, 60, 40, .45), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+#ds.yani-spend .ds-terminal-glow { animation: ds-terminal-blink .6s ease-out; }
+#ds .ds-yani-beam {
+  position: absolute;
+  right: 9%;
+  top: 10%;
+  width: 2px;
+  height: 52vh;
+  background: linear-gradient(180deg, rgba(255, 170, 43, .9), transparent);
+  transform-origin: top;
+  transform: scaleY(0);
+  opacity: 0;
+  pointer-events: none;
+}
+#ds.yani-spend .ds-yani-beam { animation: ds-beam .5s var(--ease-in) .1s; }
+#ds.yani-spend .ds-yani-value { animation: ds-pulse .4s ease-out .4s; }
+
+/* ヤニ不足の拒否。赤く巨大に警告せず、1 回だけ震える */
+#ds .ds-detail.reject, #ds .ds-yani.reject { animation: ds-reject .3s linear; }
+#ds .ds-detail.reject .ds-detail-need, #ds .ds-yani.reject .ds-yani-value { color: #ff6b5e; }
+
 /* --- キーフレーム --- */
 
 @keyframes ds-bg-in { to { opacity: 1; } }
@@ -443,6 +541,27 @@
   0%, 100% { opacity: 1; transform: none; }
   33% { opacity: .2; transform: translateX(.4vw); }
 }
+@keyframes ds-lung-swell {
+  0% { transform: scale(1); }
+  33% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+@keyframes ds-flow { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+@keyframes ds-suck { from { stroke-dashoffset: -90; opacity: 0; } 40% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes ds-pulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px var(--c)) brightness(1.6); } }
+@keyframes ds-flash { 0%, 100% { opacity: .6; } 50% { opacity: 1; filter: drop-shadow(0 0 12px var(--c)); } }
+@keyframes ds-recoil { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(calc(-50% + 3px), -50%); } }
+@keyframes ds-drop {
+  from { transform: translate(120px, -180px); opacity: 0; }
+  60% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes ds-shock { from { transform: scale(.2); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes ds-shake { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, calc(-50% + 2px)); } }
+@keyframes ds-value-in { from { opacity: 0; transform: translateY(-.4vh); } to { opacity: 1; transform: none; } }
+@keyframes ds-terminal-blink { 0%, 100% { opacity: 0; } 20%, 60% { opacity: 1; } }
+@keyframes ds-beam { 0% { transform: scaleY(0); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+@keyframes ds-reject { 0%, 100% { transform: none; } 25% { transform: translateX(-.3vw); } 75% { transform: translateX(.3vw); } }
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない
    （index.html の #wf / #sl / #bf と同じ流儀） */

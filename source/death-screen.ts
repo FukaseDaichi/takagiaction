@@ -1,4 +1,7 @@
-import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
+import {
+  audio_play, audio_sfx_beep, audio_sfx_exhale, audio_sfx_hit, audio_sfx_lighter,
+  audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
+} from './audio'
 import {
   body_height, body_parts, body_stow_position, body_width, figure_view_box, organ_svg,
 } from './body-figure'
@@ -8,6 +11,7 @@ import {
 } from './death-screen-model'
 import type { ds_state_t, run_result_t } from './death-screen-model'
 import { meta, meta_buy, meta_max_level, meta_upgrade_price } from './meta'
+import type { meta_upgrade_id_t } from './meta'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
 import { upgrade_rows } from './upgrade-rows'
 import './death-screen.css'
@@ -105,6 +109,8 @@ function build(): HTMLDivElement {
     '<div class="ds-bg" style="background-image:url(' + hero_url + ')"></div>' +
     '<div class="ds-scrim"></div>' +
     '<div class="ds-well"></div>' +
+    '<div class="ds-terminal-glow"></div>' +
+    '<div class="ds-yani-beam"></div>' +
     '<div class="ds-dim"></div>' +
     '<h1 class="ds-title"></h1>' +
     '<p class="ds-sub"></p>' +
@@ -197,6 +203,15 @@ function apply(): void {
   el.classList.toggle('panel-none', state.panel === 'none')
   el.classList.toggle('busy', state.busy)
 
+  // .reject は「直前の操作が却下された」ことだけを示す一撃の演出フラグで、
+  // ds_state_t には持たない。ここで毎回外さないと、一度でも購入に失敗した
+  // 部位の赤みが .poor の判定と無関係にこの画面を閉じるまで居座ってしまう
+  // （.ds-detail は全部位で使い回す 1 要素なので、フォーカスを移しても
+  // class は自然には落ちない）。buy() の却下分岐は apply() を呼ばないので、
+  // ここで消しても点灯直後の 1 フレームで消える心配はない
+  el.querySelector<HTMLElement>('.ds-detail')!.classList.remove('reject')
+  el.querySelector<HTMLElement>('.ds-yani')!.classList.remove('reject')
+
   text('.ds-yani-value', String(meta.yani))
 
   el.querySelectorAll<SVGGElement>('.ds-part').forEach((g, index) => {
@@ -205,6 +220,8 @@ function apply(): void {
     const max = meta_max_level[part.id]
     const maxed = level >= max
     set_layer(g, ds_part_layer(state, index))
+    const organ = el.querySelector<SVGGElement>('.ds-organ[data-part="' + part.id + '"]')!
+    organ.classList.toggle('active', ds_part_layer(state, index) === 'active')
     g.classList.toggle('maxed', maxed)
     // 買えない項目は円弧とアイコンがわずかに赤みを帯びるだけにする。
     // 赤く巨大な警告は出さない
@@ -309,17 +326,60 @@ function on_key(event: KeyboardEvent): void {
   dispatch(event.key)
 }
 
+// 強化ごとの音。docs/gameplay.md のとおりこの画面は無音なので、これが唯一
+// 鳴る音になる。sound-effects.ts に instrument は増やさない。
+// 値ではなく () => にするのは、audio_sfx_* が audio_init() 内の
+// sonantxr_generate_sound コールバックで非同期に埋まる export let だから
+// （source/audio.ts）。このテーブルを値のまま作ると生成前の undefined を
+// 捉えたまま固定され、6 音とも一生鳴らなくなる
+const upgrade_sfx: Record<meta_upgrade_id_t, () => AudioBuffer | undefined> = {
+  lung: () => audio_sfx_exhale,
+  tolerance: () => audio_sfx_hit,
+  sniff: () => audio_sfx_terminal,
+  leg: () => audio_sfx_swing,
+  power: () => audio_sfx_shoot,
+  spare: () => audio_sfx_lighter,
+}
+
+// 演出の長さ。いちばん長い肺（膨張 → 戻り → 煙）に合わせて一律にする。
+// 部位ごとに変えると、連続で買ったときのテンポが項目によってばらつく
+const upgrade_duration = 1100
+
+let upgrade_timer: ReturnType<typeof setTimeout> = 0
+
 function buy(): void {
-  if (meta_buy(body_parts[state.focus].id)) {
-    audio_play(audio_sfx_pickup)
-    apply()
+  const id = body_parts[state.focus].id
+  if (!meta_buy(id)) {
+    // ヤニ不足では音を鳴らさない。残高と必要ヤニが 1 回だけ赤く震える
+    const detail = root!.querySelector<HTMLElement>('.ds-detail')!
+    const yani = root!.querySelector<HTMLElement>('.ds-yani')!
+    for (const el of [detail, yani]) {
+      el.classList.remove('reject')
+      void el.offsetWidth
+      el.classList.add('reject')
+    }
+    return
   }
+  audio_play(upgrade_sfx[id]())
+  state = { ...state, busy: true }
+  apply()
+  // 演出用の class は部位名を持つ。CSS 側がどの器官を動かすかを選ぶ
+  root!.classList.add('upgrading', 'up-' + id)
+  // 背景の闇サイト端末が明滅し、右上のヤニ残高へ線が走る
+  root!.classList.add('yani-spend')
+  clearTimeout(upgrade_timer)
+  upgrade_timer = setTimeout(() => {
+    root!.classList.remove('upgrading', 'up-' + id, 'yani-spend')
+    state = { ...state, busy: false }
+    apply()
+  }, upgrade_duration)
 }
 
 function descend(): void {
   audio_play(audio_sfx_beep)
   document.removeEventListener('keydown', on_key)
   clearTimeout(entry_timer)
+  clearTimeout(upgrade_timer)
   root!.style.display = 'none'
   canvas.style.opacity = '1'
   on_descend_cb()
