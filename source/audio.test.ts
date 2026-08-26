@@ -84,6 +84,13 @@ vi.mock('./sonantx-reduced', () => ({
 }))
 vi.mock('./terminal', () => ({ terminal_show_notice: () => {} }))
 
+// 各テストは vi.resetModules() の後に audio を import し直す（下記 load_audio）。
+// その import をテスト本体で初めて行うと、モジュールグラフの取得と変換のコストが
+// per-test の 5000ms 予算に乗る。並列実行の負荷が高いと先頭テストだけで 3.5〜4.2 秒を
+// 使い、まれにタイムアウトしていた。ここで一度読んで collect フェーズへ前倒しする
+// （minimap.test.ts がトップレベルで import しているのと同じ理由）
+import './audio'
+
 // audio_unlocked はモジュール変数なので、テストごとにモジュールを読み直して
 // 「解錠前」の状態から始める
 async function load_audio(options: { boss_song?: boolean } = {}) {
