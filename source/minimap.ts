@@ -186,7 +186,7 @@ function minimap_draw(): void {
   // ため game_running のガードは生存系と同じく通す。
   // 落ちている吸い殻そのものは出さない。ドローン 1 体の撃破で 30 個以上が
   // 同じ場所へ散るため、1 タイル 1 ピクセルのミニマップでは点が面になり、
-  // 生存系の明滅を覆い隠す（docs/meta-progression.md「収入系が指すのは機会の在り処」）
+  // 生存系の明滅を覆い隠す（docs/meta-progression.md「ミニマップの 1 点は 1 つの機会を指す」）
   const loot = state.game_running && meta_sniff_loot()
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
