@@ -235,13 +235,6 @@ export function gear_stats(slot: gear_slot_t, tier: number): gear_stat_t[] {
 // 「どちらが得か」という結論そのものは Node で直接テストできる側に要る。
 export type gear_verdict_t = 'new' | 'up' | 'same' | 'down'
 
-// 判定語。等級名（gear_grades[].name）と同じくラベルはこのモジュールが持つ。
-// 色は CSS が持つ — 良し悪しの緑と赤は等級色と違って段によらない固定の 2 色で、
-// インライン style で流し込む相手がいない
-export const gear_verdict_labels: Record<gear_verdict_t, string> = {
-  new: '新規', up: '強化', same: '同格', down: '格下',
-}
-
 export function gear_verdict(owned: number, tier: number): gear_verdict_t {
   if (owned === 0) { return 'new' }
   if (tier > owned) { return 'up' }
@@ -250,10 +243,9 @@ export function gear_verdict(owned: number, tier: number): gear_verdict_t {
 }
 
 // 推奨する選択。段が全順序なので「良いほうを残す」が常に正解になる。
-// 同格だけは推奨を持たない（null）— 装備も転売額（5 × 段²）も完全に一致するので、
-// どちらかを勧めると嘘になる。既定のカーソル位置は推奨に置くが、
-// 推奨のない同格では転売に置く（従来どおり）
-export function gear_recommend_keep(verdict: gear_verdict_t): boolean | null {
-  if (verdict === 'same') { return null }
-  return verdict !== 'down'
+// 同格は転売を勧める — 装備も転売額（5 × 段²）も完全に一致して損得が無いので、
+// そのときは手が止まらないほうを既定にする。推奨を持たない判定は無く、
+// 既定のカーソル位置もつねに推奨の上に置ける
+export function gear_recommend_keep(verdict: gear_verdict_t): boolean {
+  return verdict === 'new' || verdict === 'up'
 }
