@@ -33,6 +33,11 @@ let entry_timer: ReturnType<typeof setTimeout> = 0
 // upgrade_rows は表示定義の順、body_parts は解剖順。行を id で引くための索引
 const row_of = new Map(upgrade_rows.map((row) => [row.id, row]))
 
+// 詳細パネルのフォーカス交代アニメーション（.swap、spec ③）を「強化モードへの
+// 初回突入」と区別して起動するための、直近描画の記録
+let detail_last_open = false
+let detail_last_focus = -1
+
 export function death_screen_show(
   result: run_result_t | null, on_start: () => void,
 ): void {
@@ -66,6 +71,10 @@ function build(): HTMLDivElement {
   const el = document.createElement('div')
   el.id = 'ds'
 
+  // meta_max_level は 5 か 10 のどちらかなので 10 個作れば全部位を覆える。
+  // fill_detail() はこの固定ノードの class/display を切り替えるだけで、
+  // キー入力のたびに作り直さない（Task 6 レビュー Finding 4）
+  const pips = '<i></i>'.repeat(10)
   let icons = ''
   let wires = ''
   let organs = ''
@@ -129,7 +138,7 @@ function build(): HTMLDivElement {
     '<b class="ds-detail-nxt"></b>' +
     '</div>' +
     '<div class="ds-detail-level">Lv. <b class="ds-detail-lv"></b>' +
-    ' / <b class="ds-detail-mx"></b><span class="ds-detail-pips"></span></div>' +
+    ' / <b class="ds-detail-mx"></b><span class="ds-detail-pips">' + pips + '</span></div>' +
     '<div class="ds-detail-cost">所持 <b class="ds-detail-own"></b>' +
     '<span class="ds-detail-need-wrap">必要 <b class="ds-detail-need"></b></span></div>' +
     '</div>' +
@@ -218,13 +227,28 @@ function apply(): void {
 // upgrade_rows[].value(level) 経由で meta.ts の getter から引き、式を
 // 画面側に書き写さない
 function fill_detail(): void {
-  if (state.mode !== 'upgrade') { return }
+  if (state.mode !== 'upgrade') {
+    detail_last_open = false
+    return
+  }
   const part = body_parts[state.focus]
   const row = row_of.get(part.id)!
   const level = meta.levels[part.id]
   const max = meta_max_level[part.id]
   const maxed = level >= max
   const detail = root!.querySelector<HTMLElement>('.ds-detail')!
+
+  // フォーカスそのものが変わったときだけ .swap を焚く（spec ③）。強化モード
+  // への初回突入（detail_last_open が false）はパネル自身の展開演出と二重に
+  // なるため除外し、フォーカスを変えない Enter（購入）も除外する
+  const focus_changed = detail_last_open && detail_last_focus !== state.focus
+  detail_last_open = true
+  detail_last_focus = state.focus
+  if (focus_changed) {
+    detail.classList.remove('swap')
+    void detail.offsetWidth
+    detail.classList.add('swap')
+  }
 
   detail.style.setProperty('--c', row.color)
   detail.classList.toggle('maxed', maxed)
@@ -241,9 +265,13 @@ function fill_detail(): void {
   text('.ds-detail-need', String(cost))
   detail.classList.toggle('poor', !maxed && meta.yani < cost)
 
-  let pips = ''
-  for (let p = 0; p < max; p++) { pips += '<i class="' + (p < level ? 'on' : '') + '"></i>' }
-  root!.querySelector<HTMLElement>('.ds-detail-pips')!.innerHTML = pips
+  // pips は build() が 10 個ぶん作り切ったノードを使い回す。class と
+  // display だけを切り替え、キー入力のたびに innerHTML で作り直さない
+  // （不変条件：ノードは 1 度だけ組む。Task 6 レビュー Finding 4）
+  root!.querySelectorAll<HTMLElement>('.ds-detail-pips i').forEach((pip, p) => {
+    pip.classList.toggle('on', p < level)
+    pip.style.display = p < max ? '' : 'none'
+  })
 }
 
 function set_layer(el: Element, layer: string): void {

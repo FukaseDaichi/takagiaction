@@ -194,9 +194,22 @@
   opacity: 0;
   stroke-dasharray: 400;
   stroke-dashoffset: 400;
+  /* 描画は animation でなく transition で行う。animation + forwards だと
+     保持している .55 は「アニメーションが乗せている見た目の値」でしかなく、
+     transition が比較する非アニメーションのカスケード値は opacity: 0 の
+     ままなので、#ds.mode-upgrade が外れても変化なしと判定されて transition
+     が発火せず瞬時に消えてしまう（実機で確認。Task 6 レビュー Finding 2）。
+     opacity/stroke-dashoffset を実値として transition させれば両方向とも
+     滑らかになる。0.3s はパネル本体の退場（0.22s）より遅く、アイコンの帰還
+     （translate 0.4s）より速い ― 「接続線が切れてからアイコンが体へ帰る」の
+     順を守るため */
+  transition: opacity .3s var(--ease-out), stroke-dashoffset .3s var(--ease-out);
 }
 #ds.mode-upgrade .ds-wire {
-  animation: ds-wire-draw .34s var(--ease-in) calc(.16s + var(--i) * var(--step)) forwards;
+  opacity: .55;
+  stroke-dashoffset: 0;
+  transition: opacity .34s var(--ease-in) calc(.16s + var(--i) * var(--step)),
+    stroke-dashoffset .34s var(--ease-in) calc(.16s + var(--i) * var(--step));
 }
 
 #ds .ds-organ { opacity: 0; }
@@ -219,7 +232,10 @@
   /* 収納位置↔定位置は translate、フォーカスの拡大は scale。個別プロパティに
      分けるのは、この 2 つが別のタイミングで動くから（下の transition-delay
      を参照）。translate は圧縮 transform を使うと scale と delay を共有して
-     しまい、フォーカス切替のたびに再分離できない */
+     しまい、フォーカス切替のたびに再分離できない。
+     以降 .ds-part に transform: を書かない。個別プロパティとは上書きではなく
+     合成（translate → rotate → scale → transform の順）になり、二重に移動する。
+     移動は translate:、拡大は scale: を使う */
   translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px);
   scale: 1;
   transition: translate .4s var(--ease-in), opacity .3s var(--ease-in), scale .4s var(--ease-in);
@@ -227,22 +243,29 @@
 }
 #ds.mode-upgrade .ds-part {
   translate: calc(var(--ix) * 1px) calc(var(--iy) * 1px);
-  /* --i の段差（0/80/160/240/320/400ms）は「収納位置→定位置」という強化
-     モード突入時 1 度きりの translate 移動にだけ掛ける。scale と opacity は
-     フォーカスが移るたびに変わる値なので常に 0 に固定する。1 つの
+  /* 段階開示 ②（暗転0.00→器官0.08→接続線0.16→アイコン0.24→パネル0.32→
+     数値0.40）どおり、アイコンの移動は接続線（0.16s）より後の 0.24s から
+     始める。ここへ --i の段差を足す（240/320/400/480/560/640ms、Task 6
+     レビュー Finding 5。旧実装は 0/80/…/400ms で、線より先にアイコンが
+     動き出す段順の逆転だった）。
+     この段差は「収納位置→定位置」という強化モード突入時 1 度きりの translate
+     移動にだけ掛け、scale と opacity は常に 0 に固定する。1 つの
      transition-delay を全プロパティ共有のままにしておくと、フォーカスを
-     外れた側のアイコンは --i 分だけ縮小開始が遅れ、320〜400ms のあいだ
-     拡大したまま居座って見える（Task 5 レビューで実測）。新しくフォーカスを
-     得る側は translate が既に定位置なので元々このバグの影響を受けない ―
-     不具合があるのは退く側だけだった */
-  transition-delay: calc(var(--i) * var(--step)), 0s, 0s;
+     外れた側のアイコンは --i 分だけ縮小開始が遅れ、拡大したまま居座って
+     見える（Task 5 レビューで実測）。新しくフォーカスを得る側は translate が
+     既に定位置なので元々このバグの影響を受けない ― 不具合があるのは退く側
+     だけだった。
+     （3 値は上の transition の translate, opacity, scale の並びに位置で
+     対応する） */
+  transition-delay: calc(.24s + var(--i) * var(--step)), 0s, 0s;
 }
 #ds .ds-part.active {
   scale: 1.15;
 }
 
 /* 入場シーケンス 0.70s: 6 アイコンが収納位置で 80ms 間隔に点灯する（設計書）。
-   opacity だけを動かす — transform を動かすと収納/展開の translate と衝突する。
+   opacity だけを動かす — transform を動かすと収納/展開の translate に合成
+   されて二重にずれる。
    forwards/both は使わない: 終了後も opacity: 1 に固定されてしまうと、
    .dim（.65）/.inactive（.35）の強調階層を永久に上書きする。backwards な
    from-only キーフレームなら、0 から cascade が決めた値（active/dim/inactive の
@@ -323,6 +346,31 @@
 }
 #ds.panel-record .ds-detail, #ds.panel-gear .ds-detail { opacity: 0; }
 
+/* フォーカス交代のたびに fill_detail() が .swap を張り直して再生する
+   （spec ③）。.ds-detail は使い回しの 1 要素なので「旧パネル」「新パネル」を
+   別要素にはできない。テキストは既に新しい値へ差し替わっている前提で、
+   同じ要素の opacity/transform を素早く沈めてから戻す 1 本のアニメーションで
+   代用する。収納 0.12s が沈み切る前、0.10s の時点で展開へ転じる（トラフの
+   深さはその比から逆算した近似値）― 完全に直列（沈み切ってから展開）だと
+   待ちが長く、完全に並列（最初から両方同時）だと変化したことが伝わらない
+   （Task 6 レビュー Finding 1） */
+#ds .ds-detail.swap { animation: ds-detail-swap .3s var(--ease-in); }
+
+/* 「数値」段（現在値→次段値・Lv/pips・所持/必要）はパネル本体（名前・
+   フレーバー・枠）と別の opacity を持つ。退場はパネル（0.22s）より速く消し、
+   入場はパネル（0.32s 遅延）より 0.08s 遅い 0.40s から出す ― 段階開示 ②
+   「パネル0.32→数値0.40」のとおり。opacity は入れ子で乗算されるので、この
+   3 つに transition を足すだけでパネル自身の opacity/transform には触れずに
+   独立した段になる（Task 6 レビュー Finding 2） */
+#ds .ds-detail-stat, #ds .ds-detail-level, #ds .ds-detail-cost {
+  opacity: 0;
+  transition: opacity .12s var(--ease-out);
+}
+#ds.mode-upgrade .ds-detail-stat, #ds.mode-upgrade .ds-detail-level, #ds.mode-upgrade .ds-detail-cost {
+  opacity: 1;
+  transition: opacity .2s var(--ease-in) .4s;
+}
+
 #ds .ds-detail-name {
   font-size: 1.3vw;
   font-weight: bold;
@@ -388,8 +436,13 @@
 /* from-only（forwards/both を使わない理由は #ds.entering .ds-part を参照） */
 @keyframes ds-icon-in { from { opacity: 0; } }
 @keyframes ds-fade-back { to { opacity: .4; } }
-@keyframes ds-wire-draw { to { opacity: .55; stroke-dashoffset: 0; } }
 @keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* 33% ≈ 0.10s / 0.3s。トラフの深さは「0.12s で 0 まで沈む速さのまま
+   0.10s まで進んだ位置」の近似値（#ds .ds-detail.swap 参照） */
+@keyframes ds-detail-swap {
+  0%, 100% { opacity: 1; transform: none; }
+  33% { opacity: .2; transform: translateX(.4vw); }
+}
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない
    （index.html の #wf / #sl / #bf と同じ流儀） */
