@@ -1,253 +1,314 @@
 /* 死亡画面（リザルト＋闇サイト）。index.html の <style> とは独立
    （id 限定スタイルだけでなく、裸の型セレクタ（b / div:last-child）も
    index.html 側で #a 限定にしてあるため干渉しない）。
-   寸法はすべて vw 単位で、16:9 前後のアスペクト比を前提にしている。
-   極端に横長・縦長な画面では右列の内容や状態パネルがはみ出す
-   （旧テキスト UI でも同じで、退行ではない） */
+   寸法はすべて vw / vh 単位で、16:9 前後のアスペクト比を前提にしている。 */
 #ds {
   position: fixed;
   inset: 0;
   display: none;
-  grid-template-rows: 1fr auto;
-  gap: 0.8vw;
-  padding: 1.2vw 1.5vw;
   box-sizing: border-box;
-  background:
-    radial-gradient(120% 90% at 50% 0%, #101d14 0%, #070d09 60%, #050805 100%);
+  background: #050805;
   color: #b9dcc4;
   font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
   z-index: 10;
   user-select: none;
-  overflow: auto;
-}
-#ds .ds-main { display: grid; grid-template-columns: 52fr 48fr; gap: 1.5vw; min-height: 0; }
-#ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; }
-/* イラストが左半分の背景で、記録と状態パネルがその上に浮く */
-#ds .ds-left-body {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8vw;
+  overflow: hidden;
+  /* 段階開示の刻み。--i を掛けて animation-delay にする */
+  --step: 80ms;
+  --ease-in: cubic-bezier(.2, .8, .2, 1);
+  --ease-out: cubic-bezier(.6, 0, .8, .2);
 }
 
+/* --- 背景 3 枚 --- */
+
+/* 16:9 では画像の高さの 38.5% にあたる帯が見える。center 16% で
+   左＝高木の顔と煙草、右上＝張り紙、右下＝闇サイト端末 の構図になる。
+   cover は縦にしか溢れないので background-position-x は効かない */
+#ds .ds-bg {
+  position: absolute;
+  inset: 0;
+  background-position: center 16%;
+  background-size: cover;
+  opacity: 0;
+  animation: ds-bg-in 1.2s var(--ease-in) forwards;
+}
+#ds .ds-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 100% at 50% 45%, rgba(5, 8, 5, .55) 0%, rgba(5, 8, 5, .88) 70%,
+      rgba(3, 5, 3, .96) 100%),
+    linear-gradient(90deg, rgba(3, 6, 4, .82) 0%, rgba(3, 6, 4, 0) 34%);
+}
+/* 模型の背後だけを落とす暗がり。背景で最も明るい 2 点（張り紙・端末画面）が
+   模型と同じ右半分にあるため、これが無いと模型が読めない */
+#ds .ds-well {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(38% 62% at 60% 52%,
+    rgba(2, 4, 3, .92) 0%, rgba(2, 4, 3, .55) 55%, rgba(2, 4, 3, 0) 100%);
+}
+/* 段階的な減光の専用レイヤー。ds-scrim の opacity を上げる形にすると 1 で
+   頭打ちになって効かない（既に 1 のため）ので、別の膜として重ねる。
+   ⑦ の「照明が落ちる」もこの 1 枚が担う */
+#ds .ds-dim {
+  position: absolute;
+  inset: 0;
+  background: #020403;
+  opacity: 0;
+  transition: opacity .35s var(--ease-in);
+}
+#ds.mode-upgrade .ds-dim { opacity: .22; }
+#ds.panel-record .ds-dim, #ds.panel-gear .ds-dim { opacity: .42; }
+
+/* --- 見出し --- */
+
 #ds .ds-title {
+  position: absolute;
+  left: 4%;
+  top: 5%;
   margin: 0;
-  font-size: 3.4vw;
+  font-size: 2.2vw;
   font-weight: bold;
   color: #ffaa2b;
   text-shadow: 0 0 14px #f70;
-  letter-spacing: 0.1em;
+  letter-spacing: .08em;
 }
-#ds .ds-sub { margin: 0; font-size: 1.1vw; color: #cfe8d8; }
-
-#ds .ds-panel {
-  border: 1px solid #2e6b4f;
-  border-radius: 0.4vw;
-  background: rgba(6, 20, 12, 0.85);
-  box-shadow: inset 0 0 18px rgba(20, 80, 50, 0.25);
-  padding: 0.8vw 1vw;
-}
-#ds .ds-panel-title { color: #7fe0a8; font-weight: bold; font-size: 1.15vw; margin-bottom: 0.5vw; }
-
-/* position: relative は、DOM 順で先行する absolute な .ds-hero の下に
-   隠れないようにするための重ね順の土台（消すとパネルが消えたように見える） */
-#ds .ds-record { width: 45%; position: relative; }
-#ds .ds-record-row {
-  display: flex; align-items: center; gap: 0.5vw;
-  font-size: 1.15vw; padding: 0.28vw 0;
-  border-bottom: 1px solid rgba(46, 107, 79, 0.4);
-}
-#ds .ds-record-row:last-child { border-bottom: none; }
-#ds .ds-record-row img { width: 1.4vw; height: 1.4vw; }
-#ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
-/* 記録更新した行の強調。バッジは点滅させない — render() はキー入力の
-   たびに innerHTML を組み直すため、ここにアニメーションを置くと
-   矢印キーを押すたびに位相がリセットされる（演出はバナー側が持つ） */
-#ds .ds-record-row.record b { color: #ffd24a; text-shadow: 0 0 8px rgba(255, 210, 74, 0.8); }
-#ds .ds-record-prev {
-  margin-left: 0.5vw; font-size: 0.9vw; font-weight: normal; color: #7fe0a8;
-}
-#ds .ds-record-new {
-  margin-left: 0.5vw; padding: 0 0.35vw;
-  border: 1px solid #ffd24a; border-radius: 0.2vw;
-  font-size: 0.8vw; color: #ffd24a;
-}
-
-/* position: relative は .ds-record と同じ理由（絶対配置の .ds-hero の下に
-   隠れないようにする重ね順の土台） */
-#ds .ds-gear { width: 45%; position: relative; }
-#ds .ds-gear-none { color: #5d7a68; }
-
-#ds .ds-hero {
+#ds .ds-sub {
   position: absolute;
-  inset: 0;
-  border-radius: 0.4vw;
-  background-position: center 20%;
-  background-size: cover;
-  image-rendering: auto;
+  left: 4%;
+  top: 10.5%;
+  margin: 0;
+  font-size: .95vw;
+  color: #cfe8d8;
 }
+/* 3 秒後に存在感を落とす。死は 1 度伝われば十分で、以降は世界観の一部として
+   背景に馴染ませる */
+#ds.entering .ds-title { animation: ds-in-left .5s var(--ease-in) .15s both, ds-fade-back 1.2s var(--ease-in) 3s forwards; }
+#ds.entering .ds-sub { animation: ds-in-left .5s var(--ease-in) .3s both, ds-fade-back 1.2s var(--ease-in) 3s forwards; }
 
-/* 右列は「残高 → 強化 6 行 → 地下へ戻る」の一本道 */
-#ds .ds-right { display: flex; flex-direction: column; gap: 0.6vw; min-height: 0; }
-#ds .ds-shop {
-  border: 1px solid #b3271e;
-  border-radius: 0.4vw;
-  background: rgba(25, 8, 4, 0.85);
-  padding: 0.5vw 1vw;
-  display: flex; align-items: center; justify-content: space-between; gap: 1vw;
-}
-#ds .ds-shop-title { color: #ff6b5e; font-size: 1.3vw; font-weight: bold; letter-spacing: 0.08em; }
-#ds .ds-shop-sub { color: #e8c9a8; font-size: 0.9vw; margin-top: 0.15vw; }
-#ds .ds-warning { color: #ff6b5e; font-size: 0.9vw; margin-top: 0.15vw; }
-#ds .ds-shop-balance { color: #e8c9a8; font-size: 1vw; text-align: right; white-space: nowrap; }
-#ds .ds-shop-balance b {
-  display: block; color: #ffaa2b; font-size: 1.9vw; line-height: 1.1;
-  text-shadow: 0 0 10px #f70;
-}
+/* --- ヤニ残高 --- */
 
-#ds .ds-row {
-  display: grid;
-  grid-template-columns: 3vw 1fr auto;
-  gap: 0.7vw;
-  align-items: center;
-  flex: 1 0 auto; /* 6 行で右列を埋める。行の高さはこれで決まる */
-  border: 1px solid #2e6b4f;
-  border-radius: 0.4vw;
-  background: rgba(8, 22, 14, 0.85);
-  padding: 0.4vw 0.7vw;
-}
-#ds .ds-row.selected { border-color: #ffaa2b; box-shadow: 0 0 10px rgba(255, 170, 43, 0.5); }
-#ds .ds-row img { width: 2.8vw; height: 2.8vw; }
-#ds .ds-row-name { font-weight: bold; font-size: 1.1vw; }
-#ds .ds-row-name small { color: #9cc4aa; font-weight: normal; font-size: 0.85vw; margin-left: 0.6vw; }
-/* 効果は「ラベル 現在値 → 次の値」。次の値だけ行の色（インライン指定）で光る */
-#ds .ds-row-stat { font-size: 0.95vw; color: #9cc4aa; margin-top: 0.15vw; }
-#ds .ds-row-stat b { font-size: 1.15vw; color: #eaf5ee; }
-#ds .ds-arrow { color: #6b8f78; margin: 0 0.5vw; }
-#ds .ds-next { text-shadow: 0 0 8px currentColor; }
-/* text-align: right が効くのは「Lv. n / m」の匿名テキストだけ。
-   flex-direction: column の既定 align-items: stretch がその匿名テキストを
-   幅いっぱいに伸ばすので右寄せが成立する（子の .ds-pips は個別に flex-end で右寄せ） */
-#ds .ds-row-level {
-  font-size: 0.95vw; color: #eaf5ee; text-align: right;
-  display: flex; flex-direction: column; justify-content: center;
-}
-#ds .ds-pips { display: flex; gap: 0.22vw; margin-top: 0.25vw; justify-content: flex-end; }
-#ds .ds-pips i { width: 0.6vw; height: 0.6vw; border-radius: 50%; background: #1c3a2a; }
-#ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
-#ds .ds-buy {
-  align-self: stretch; /* 行の高さいっぱいの箱にする */
-  display: flex; align-items: center; justify-content: center; gap: 0.5vw;
-  min-width: 5vw; /* 行ごとに桁数が違ってもボタン列を揃える */
-  border: 1px solid #ffaa2b; border-radius: 0.3vw;
-  background: rgba(60, 35, 5, 0.6);
-  color: #ffaa2b; font: inherit; font-size: 1vw; font-weight: bold;
-  padding: 0.3vw 0.6vw; cursor: pointer;
-}
-#ds .ds-cost { text-align: center; line-height: 1.2; }
-#ds .ds-plus { font-size: 1.6vw; }
-#ds .ds-buy:disabled { opacity: 0.35; cursor: default; }
-/* ds-row は align-items:center なので、値の箱を行の高さまで伸ばすには
-   この列だけ stretch に戻す必要がある */
-#ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.7vw; }
-
-/* 唯一の CTA。扉と推奨深度（次の潜入準備）をこの中に吸収する */
-#ds .ds-descend {
-  display: flex; align-items: center; justify-content: center; gap: 1vw;
-  border: 2px solid #ffaa2b; border-radius: 0.5vw;
-  background: linear-gradient(180deg, rgba(90, 50, 5, 0.7), rgba(40, 20, 2, 0.9));
-  color: #ffaa2b; font: inherit; font-weight: bold; font-size: 2vw;
-  text-shadow: 0 0 10px #f70; box-shadow: 0 0 16px rgba(255, 170, 43, 0.4);
-  cursor: pointer; padding: 0.5vw 1vw;
-}
-#ds .ds-descend img { height: 3.8vw; }
-#ds .ds-descend small { display: block; font-size: 0.95vw; font-weight: normal; color: #e8c9a8; text-shadow: none; }
-#ds .ds-descend.selected { box-shadow: 0 0 26px rgba(255, 170, 43, 0.9); }
-
-#ds .ds-footer {
-  border-top: 1px solid #2e6b4f;
-  padding-top: 0.5vw;
-  color: #7fe0a8;
-  font-size: 1vw;
-  display: flex; gap: 2.5vw;
-}
-
-/* ニューレコード演出。#ds（z-index 10）の兄弟として body 直下に作る。
-   render() の innerHTML 再構築の外に置くための配置で、理由は
-   death-screen.ts の show_record_banner() にある。
-   アニメーションは毎回作り直される内側の 2 要素が持ち、外枠は配置だけ。
-
-   位置は左列（イラスト）の、記録パネルと状態パネルの間に空く帯。16:9 で
-   高さ 232px・幅 628px あり、横 1 行のバナーが収まる */
-#ds-nr {
-  position: fixed;
-  left: 1.5vw;
-  top: 42vh;
-  width: 48vw;
-  display: none;
-  z-index: 11;
-  pointer-events: none;
-  user-select: none;
-  text-align: center;
-  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
-}
-
-/* padding はグロー（text-shadow）が overflow: hidden で切られないための余白。
-   overflow: hidden 自体は ::after のスイープを箱の中に留めるために要る */
-#ds-nr .ds-nr-title {
-  position: relative;
-  overflow: hidden;
-  padding: 0.6vw 1.2vw;
-  font-size: 5vw;
-  line-height: 1.05;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  color: #ffd24a;
-  animation:
-    ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) both,
-    ds-nr-glitch 0.35s steps(1) 0.35s forwards,
-    ds-nr-glow 2s ease-in-out 0.7s infinite;
-}
-#ds-nr .ds-nr-title::after {
-  content: '';
+#ds .ds-yani {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
-  animation: ds-nr-sweep 1.8s ease-in-out 0.7s infinite;
+  right: 3%;
+  top: 3%;
+  text-align: right;
+  font-size: .9vw;
+  color: #e8c9a8;
+  white-space: nowrap;
 }
-#ds-nr .ds-nr-sub {
-  font-size: 1.6vw;
-  font-weight: bold;
+#ds .ds-yani-icon { width: 1.1vw; height: 1.1vw; vertical-align: middle; opacity: .8; }
+#ds .ds-yani-value {
+  margin-left: .5vw;
+  font-size: 1.8vw;
   color: #ffaa2b;
   text-shadow: 0 0 10px #f70;
-  animation: ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) 0.2s both;
+  vertical-align: middle;
+}
+#ds .ds-yani-warn {
+  display: none;
+  margin-top: .2vw;
+  font-size: .75vw;
+  color: #ff6b5e;
+  max-width: 16vw;
+  white-space: normal;
+}
+#ds.entering .ds-yani { animation: ds-in-up .5s var(--ease-in) 1.1s both; }
+
+/* --- 記録確認 / 装備確認 --- */
+
+#ds .ds-menu {
+  position: absolute;
+  left: 4%;
+  top: 42%;
+  display: flex;
+  flex-direction: column;
+  gap: .8vh;
+}
+#ds .ds-item {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 1.1vw;
+  letter-spacing: .12em;
+  color: #b9dcc4;
+  text-align: left;
+  padding: .3vh 0;
+  cursor: pointer;
+  transition: opacity .25s var(--ease-in), text-shadow .25s var(--ease-in),
+    transform .25s var(--ease-in);
+}
+/* フォーカスは枠でなく光と字間で示す */
+#ds .ds-item::before { content: '［'; opacity: .5; }
+#ds .ds-item::after { content: '］'; opacity: .5; }
+#ds.entering .ds-menu { animation: ds-in-left .5s var(--ease-in) 1.25s both; }
+
+/* --- 強調階層。枠線で囲わず明度・発光・拡大で示す --- */
+
+.ds-item.active, .ds-part.active { opacity: 1; }
+.ds-item.dim, .ds-part.dim { opacity: .65; }
+.ds-item.inactive, .ds-part.inactive { opacity: .35; }
+#ds .ds-item.active {
+  color: #7fe0a8;
+  text-shadow: 0 0 12px rgba(127, 224, 168, .9);
+  transform: translateX(.4vw);
 }
 
-@keyframes ds-nr-in {
-  from { opacity: 0; transform: translateX(-6vw) scale(1.4); }
+/* --- 人体模型 --- */
+
+#ds .ds-figure {
+  position: absolute;
+  top: 50%;
+  left: 60%;
+  height: 66vh;
+  /* viewBox 416:532 の比。下地と SVG が同じ箱に載る */
+  aspect-ratio: 416 / 532;
+  transform: translate(-50%, -50%);
+  transition: opacity .35s var(--ease-in), transform .35s var(--ease-in);
+}
+#ds.panel-record .ds-figure, #ds.panel-gear .ds-figure { opacity: .3; }
+#ds.entering .ds-figure { animation: ds-figure-in .8s var(--ease-in) .45s both; }
+
+/* 下地は SVG の <image>。背景が near-black（rgb(12,15,12)）なので screen で
+   黒が抜ける。既定は彩度を落として灰色にし、強化モードで少しだけ色を戻す。
+   重ね順は文書順（接続線 → 下地 → 器官 → アイコン）で決まる — SVG に
+   z-index は無い。接続線が下地より先にあるおかげで、身体の明るい線の上を
+   通る箇所だけが下地の発光で覆われ、「線が腕の後ろを通っている」という
+   奥行きとして読める */
+#ds .ds-body {
+  mix-blend-mode: screen;
+  filter: saturate(.12) brightness(.55);
+  transition: filter .4s var(--ease-in);
+}
+#ds.mode-upgrade .ds-body { filter: saturate(.3) brightness(.8); }
+
+#ds .ds-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+#ds .ds-wire {
+  stroke: var(--c);
+  stroke-width: 1;
+  opacity: 0;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+}
+#ds.mode-upgrade .ds-wire {
+  animation: ds-wire-draw .34s var(--ease-in) calc(.16s + var(--i) * var(--step)) forwards;
+}
+
+#ds .ds-organ { opacity: 0; }
+#ds .ds-organ * {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- 強化アイコン --- */
+
+#ds .ds-part {
+  /* transform-box の既定値は view-box。SVG 要素にそのまま scale/rotate を
+     掛けると基準点が viewBox 全体の中心になり、.active の scale(1.15) が
+     アイコンを模型ごしに吹き飛ばしてしまう。fill-box にして要素自身の
+     bounding box を基準にする */
+  transform-box: fill-box;
+  /* 収納位置と定位置の切り替え。座標は JS が CSS 変数で渡す */
+  transform: translate(calc(var(--sx) * 1px), calc(var(--sy) * 1px));
+  transition: transform .4s var(--ease-in), opacity .3s var(--ease-in);
+  cursor: pointer;
+}
+#ds.mode-upgrade .ds-part {
+  transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px));
+  transition-delay: calc(var(--i) * var(--step));
+}
+#ds .ds-part.active { transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px)) scale(1.15); }
+
+#ds .ds-arc-bg { fill: rgba(4, 10, 7, .8); stroke: rgba(120, 160, 135, .3); stroke-width: 2; }
+#ds .ds-arc {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 2.5;
+  /* transform-box を fill-box にしないと、下の transform-origin: center が
+     この円ではなく viewBox 全体の中心を指してしまう（R3） */
+  transform-box: fill-box;
+  /* 12 時から時計回りに満ちる */
+  transform: rotate(-90deg);
+  transform-origin: center;
+  filter: saturate(.15);
+  transition: stroke-dashoffset .45s var(--ease-in), filter .3s var(--ease-in);
+}
+#ds.mode-upgrade .ds-arc { filter: saturate(.6); }
+#ds .ds-part.active .ds-arc { filter: none; }
+#ds .ds-part.active .ds-arc-bg {
+  stroke: var(--c);
+  filter: drop-shadow(0 0 6px var(--c));
+}
+#ds .ds-part-icon { filter: saturate(.15) brightness(.8); transition: filter .3s var(--ease-in); }
+#ds.mode-upgrade .ds-part-icon { filter: saturate(.55) brightness(.9); }
+#ds .ds-part.active .ds-part-icon { filter: none; }
+
+/* ヤニ不足は静かに赤みを帯びるだけ */
+#ds .ds-part.poor .ds-arc { stroke: #b3564a; }
+#ds .ds-part.poor .ds-part-icon { filter: saturate(.1) brightness(.6) sepia(.5) hue-rotate(-30deg); }
+
+/* MAX は円弧が閉じてリングになり、小さなチェックが乗る。MAX ボタンは置かない */
+#ds .ds-check {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transform: translateY(19px);
+}
+#ds .ds-part.maxed .ds-check { opacity: .9; }
+#ds .ds-part.maxed .ds-arc { stroke-dashoffset: 0 !important; }
+
+/* 強化可能な部位だけが呼吸する。買えない・MAX は静止したまま */
+#ds.mode-upgrade .ds-part:not(.poor):not(.maxed):not(.active) .ds-arc-bg {
+  animation: ds-breathe 2.4s ease-in-out infinite;
+}
+
+/* --- キーヒント --- */
+
+#ds .ds-hint {
+  position: absolute;
+  left: 4%;
+  bottom: 4%;
+  display: flex;
+  gap: 2vw;
+  font-size: .85vw;
+  color: #7fe0a8;
+  opacity: .7;
+}
+#ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s both; }
+
+/* --- キーフレーム --- */
+
+@keyframes ds-bg-in { to { opacity: 1; } }
+@keyframes ds-in-left {
+  from { opacity: 0; transform: translateX(-1.5vw); }
   to { opacity: 1; transform: none; }
 }
-/* 色収差と水平ずれ。steps(1) で瞬間的に切り替える。transform を ds-nr-in と
-   奪い合うので、animation 一覧では必ず ds-nr-in より後に置く。
-   fill-mode が forwards なのは both だと遅延前にも 0% の値が当たり
-   （backwards fill）、後方にいるぶん 0〜0.35s のスライドインと拡大を
-   丸ごと打ち消してしまうため。終了後に transform: none を保つ役目は
-   forwards だけで足りる */
-@keyframes ds-nr-glitch {
-  0%   { transform: translateX(-0.5vw); text-shadow: 0.35vw 0 0 #f0f, -0.35vw 0 0 #0ff; }
-  25%  { transform: translateX(0.6vw); text-shadow: -0.4vw 0 0 #f0f, 0.4vw 0 0 #0ff; }
-  50%  { transform: translateX(-0.3vw); text-shadow: 0.25vw 0 0 #0ff, -0.25vw 0 0 #f0f; }
-  75%  { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
-  100% { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
+@keyframes ds-in-up {
+  from { opacity: 0; transform: translateY(1vh); }
+  to { opacity: 1; transform: none; }
 }
-@keyframes ds-nr-glow {
-  0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, 0.7); }
-  50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, 0.95); }
+@keyframes ds-figure-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-@keyframes ds-nr-sweep {
-  0% { transform: translateX(-120%); }
-  55%, 100% { transform: translateX(120%); }
+@keyframes ds-fade-back { to { opacity: .4; } }
+@keyframes ds-wire-draw { to { opacity: .55; stroke-dashoffset: 0; } }
+@keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない
+   （index.html の #wf / #sl / #bf と同じ流儀） */
+@media (prefers-reduced-motion: reduce) {
+  #ds *, #ds *::before, #ds *::after {
+    animation-duration: .001s !important;
+    animation-delay: 0s !important;
+    transition-duration: .001s !important;
+    transition-delay: 0s !important;
+  }
 }

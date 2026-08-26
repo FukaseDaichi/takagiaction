@@ -1,251 +1,230 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
+import {
+  body_height, body_parts, body_stow_position, body_width, figure_view_box, organ_svg,
+} from './body-figure'
 import { canvas } from './dom'
 import {
-  death_message, format_run_time, is_new_record,
+  death_message, ds_initial_state, ds_item_layer, ds_part_layer, ds_reduce,
 } from './death-screen-model'
-import type { run_result_t } from './death-screen-model'
-import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
-import type { gear_slot_t } from './equipment'
+import type { ds_state_t, run_result_t } from './death-screen-model'
 import { meta, meta_buy, meta_max_level, meta_upgrade_price } from './meta'
-import type { meta_upgrade_id_t } from './meta'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
 import { upgrade_rows } from './upgrade-rows'
 import './death-screen.css'
 
 import hero_url from '../m/ui/hero.webp'
-import door_url from '../m/ui/door.webp'
-import stat_depth_url from '../m/ui/icon-stat-depth.webp'
-import stat_time_url from '../m/ui/icon-stat-time.webp'
-import stat_kills_url from '../m/ui/icon-stat-kills.webp'
-import stat_smoke_url from '../m/ui/icon-stat-smoke.webp'
-import stat_dummy_url from '../m/ui/icon-stat-dummy.webp'
+import body_url from '../m/ui/body.webp'
+import cig_url from '../m/ui/icon-cig.webp'
 
 // 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。
-// result = null は初回起動モード（記録と状態パネルを隠す）。
+// result = null は初回起動モード。
+//
+// この画面は DOM を 1 度だけ組み、以降はノードを作り直さない。作り直すと
+// CSS アニメーションが破棄されて位相が 0 に戻り、段階開示の演出が成立しない
+// （docs/superpowers/specs/2026-08-26-death-screen-redesign-design.md）。
 
-// 選択位置。0 〜 upgrade_rows.length-1 = 強化行、upgrade_rows.length = 地下へ戻る
-let selected = 0
+let state: ds_state_t = ds_initial_state()
 let current: run_result_t | null = null
-let on_descend = (): void => {}
+let on_descend_cb = (): void => {}
 let root: HTMLDivElement | null = null
-// ニューレコード演出のバナー。#ds の兄弟として作る理由は show_record_banner() を見よ
-let banner: HTMLDivElement | null = null
+// 入場シーケンスの解除タイマー。表示のたびに張り直すので id を控える
+let entry_timer: ReturnType<typeof setTimeout> = 0
+
+// upgrade_rows は表示定義の順、body_parts は解剖順。行を id で引くための索引
+const row_of = new Map(upgrade_rows.map((row) => [row.id, row]))
 
 export function death_screen_show(
   result: run_result_t | null, on_start: () => void,
 ): void {
   current = result
-  on_descend = on_start
-  selected = 0
-  if (!root) {
-    root = document.createElement('div')
-    root.id = 'ds'
-    document.body.appendChild(root)
-  }
+  on_descend_cb = on_start
+  state = ds_initial_state()
+  if (!root) { root = build() }
   canvas.style.opacity = '0.3'
   // 死亡画面はターミナルを使わない。表示中の通知チェーンや起動時の文字が
   // 裏で動いたまま・映ったまま残らないよう、ここで止めて隠す
   terminal_cancel()
   terminal_clear()
   terminal_hide()
-  render()
-  root.style.display = 'grid'
-  show_record_banner(result)
+  fill_static()
+  apply()
+  root.style.display = 'block'
+  // 入場シーケンスをやり直させる。class を外して強制リフローを挟まないと、
+  // 同じ class を付け直しても animation が再生されない
+  root.classList.remove('entering')
+  void root.offsetWidth
+  root.classList.add('entering')
+  clearTimeout(entry_timer)
+  entry_timer = setTimeout(() => {
+    state = { ...state, busy: false }
+    apply()
+  }, 1400)
   document.addEventListener('keydown', on_key)
 }
 
-// バナーを #ds の中ではなく兄弟として作るのは、render() が root.innerHTML を
-// 丸ごと組み直すため。中に置くと矢印キーを押すたびにスライドインとグリッチが
-// 再生し直される。アニメーションは innerHTML で毎回作り直す内側の 2 要素が
-// 持ち、外枠（#ds-nr）は配置だけを持つので、表示のたびに 1 度だけ走る
-function show_record_banner(result: run_result_t | null): void {
-  if (!banner) {
-    banner = document.createElement('div')
-    banner.id = 'ds-nr'
-    document.body.appendChild(banner)
+function build(): HTMLDivElement {
+  const el = document.createElement('div')
+  el.id = 'ds'
+
+  let icons = ''
+  let wires = ''
+  let organs = ''
+  for (let i = 0; i < body_parts.length; i++) {
+    const part = body_parts[i]
+    const row = row_of.get(part.id)!
+    const stow = body_stow_position(part)
+    wires += '<line class="ds-wire" data-part="' + part.id + '" style="--i:' + i +
+      ';--c:' + row.color + '" x1="' + part.ax + '" y1="' + part.ay +
+      '" x2="' + part.ix + '" y2="' + part.iy + '"/>'
+    organs += '<g class="ds-organ" data-part="' + part.id +
+      '" style="--c:' + row.color + '">' + organ_svg[part.id] + '</g>'
+    // --sx/--sy が収納位置、--ix/--iy が定位置。強化モードの class で
+    // どちらへ translate するかを CSS が選ぶ
+    icons += '<g class="ds-part" data-part="' + part.id + '" style="--i:' + i +
+      ';--c:' + row.color +
+      ';--sx:' + stow.x + ';--sy:' + stow.y +
+      ';--ix:' + part.ix + ';--iy:' + part.iy + '">' +
+      '<circle class="ds-arc-bg" r="21"/>' +
+      '<circle class="ds-arc" r="21"/>' +
+      '<image class="ds-part-icon" href="' + row.icon + '" x="-13" y="-13" ' +
+      'width="26" height="26"/>' +
+      '<path class="ds-check" d="M-6 0l4 5 8-10"/>' +
+      '</g>'
   }
-  if (!result || !is_new_record(result.depth, result.best_depth_before)) {
-    banner.style.display = 'none'
-    return
+
+  el.innerHTML =
+    '<div class="ds-bg" style="background-image:url(' + hero_url + ')"></div>' +
+    '<div class="ds-scrim"></div>' +
+    '<div class="ds-well"></div>' +
+    '<div class="ds-dim"></div>' +
+    '<h1 class="ds-title"></h1>' +
+    '<p class="ds-sub"></p>' +
+    '<div class="ds-yani">' +
+    '<img class="ds-yani-icon" src="' + cig_url + '" alt="">' +
+    '<span class="ds-yani-label">ヤニ</span>' +
+    '<b class="ds-yani-value">0</b>' +
+    '<div class="ds-yani-warn">警告: ストレージ利用不可。' +
+    '強化はこのセッション限りで消える</div>' +
+    '</div>' +
+    '<div class="ds-menu">' +
+    '<button class="ds-item" data-item="0">記録確認</button>' +
+    '<button class="ds-item" data-item="1">装備確認</button>' +
+    '</div>' +
+    '<div class="ds-figure">' +
+    '<svg class="ds-svg" viewBox="' + figure_view_box + '">' +
+    '<g class="ds-wires">' + wires + '</g>' +
+    '<image class="ds-body" href="' + body_url + '" x="0" y="0" ' +
+    'width="' + body_width + '" height="' + body_height + '"/>' +
+    '<g class="ds-organs">' + organs + '</g>' +
+    '<g class="ds-icons">' + icons + '</g>' +
+    '</svg>' +
+    '</div>' +
+    '<div class="ds-hint">' +
+    '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
+    '<span>[Esc] 地下へ戻る</span></div>'
+
+  document.body.appendChild(el)
+
+  el.querySelectorAll<HTMLButtonElement>('.ds-item').forEach((button) => {
+    button.onclick = () => {
+      state = { ...state, mode: 'idle', focus: Number(button.dataset.item) }
+      dispatch('Enter')
+    }
+  })
+  el.querySelectorAll<SVGGElement>('.ds-part').forEach((g, index) => {
+    g.onclick = () => {
+      state = { ...state, mode: 'upgrade', focus: index }
+      dispatch('Enter')
+    }
+  })
+  return el
+}
+
+// 表示のたびに 1 度だけ書き込む、その回のあいだ変わらない値
+function fill_static(): void {
+  const dead = current !== null
+  root!.classList.toggle('boot', !dead)
+  text('.ds-title', dead ? death_message(current!.death_cause) : '自席の端末。')
+  text('.ds-sub', dead
+    ? '救護ドローンが君を回収して、自席へ戻した。'
+    : '闇サイトに接続した。')
+  root!.querySelector<HTMLElement>('.ds-yani-warn')!.style.display =
+    meta.persistent ? 'none' : 'block'
+}
+
+function text(selector: string, value: string): void {
+  root!.querySelector<HTMLElement>(selector)!.textContent = value
+}
+
+// 状態を DOM へ写す。ノードは作らず、class とテキストだけを触る
+function apply(): void {
+  const el = root!
+  el.classList.toggle('mode-upgrade', state.mode === 'upgrade')
+  el.classList.toggle('mode-idle', state.mode === 'idle')
+  el.classList.toggle('panel-record', state.panel === 'record')
+  el.classList.toggle('panel-gear', state.panel === 'gear')
+  el.classList.toggle('panel-none', state.panel === 'none')
+  el.classList.toggle('busy', state.busy)
+
+  text('.ds-yani-value', String(meta.yani))
+
+  el.querySelectorAll<SVGGElement>('.ds-part').forEach((g, index) => {
+    const part = body_parts[index]
+    const level = meta.levels[part.id]
+    const max = meta_max_level[part.id]
+    const maxed = level >= max
+    set_layer(g, ds_part_layer(state, index))
+    g.classList.toggle('maxed', maxed)
+    // 買えない項目は円弧とアイコンがわずかに赤みを帯びるだけにする。
+    // 赤く巨大な警告は出さない
+    g.classList.toggle('poor', !maxed && meta.yani < meta_upgrade_price(part.id, level))
+    // 円弧は level / max。周長 2πr（r = 21）を段数で割って dasharray に載せる
+    const arc = g.querySelector<SVGCircleElement>('.ds-arc')!
+    const circumference = 2 * Math.PI * 21
+    arc.style.strokeDasharray = String(circumference)
+    arc.style.strokeDashoffset = String(circumference * (1 - level / max))
+  })
+
+  el.querySelectorAll<HTMLElement>('.ds-item').forEach((item, index) => {
+    set_layer(item, ds_item_layer(state, index))
+  })
+}
+
+function set_layer(el: Element, layer: string): void {
+  el.classList.remove('active', 'dim', 'inactive')
+  el.classList.add(layer)
+}
+
+function dispatch(key: string): void {
+  const result = ds_reduce(state, key)
+  const changed = result.state !== state
+  state = result.state
+  if (result.action === 'descend') { descend(); return }
+  if (result.action === 'buy') { buy(); return }
+  if (changed) {
+    audio_play(audio_sfx_beep)
+    apply()
   }
-  banner.innerHTML =
-    '<div class="ds-nr-title">NEW RECORD</div>' +
-    '<div class="ds-nr-sub">自己ベスト更新！ 深度 ' + result.depth + 'F</div>'
-  banner.style.display = 'block'
-  audio_play(audio_sfx_pickup)
+}
+
+function on_key(event: KeyboardEvent): void {
+  // preventDefault() を外すとブラウザ既定のフォーカス移動が走る
+  if (event.key === 'Tab') { event.preventDefault() }
+  dispatch(event.key)
+}
+
+function buy(): void {
+  if (meta_buy(body_parts[state.focus].id)) {
+    audio_play(audio_sfx_pickup)
+    apply()
+  }
 }
 
 function descend(): void {
   audio_play(audio_sfx_beep)
   document.removeEventListener('keydown', on_key)
+  clearTimeout(entry_timer)
   root!.style.display = 'none'
-  // banner は show_record_banner() が death_screen_show() で必ず作るので、
-  // descend() まで来た時点で null ではない（root! と同じ扱い）
-  banner!.style.display = 'none'
   canvas.style.opacity = '1'
-  on_descend()
-}
-
-function buy(id: meta_upgrade_id_t): void {
-  if (meta_buy(id)) {
-    audio_play(audio_sfx_pickup)
-    render()
-  }
-}
-
-function on_key(event: KeyboardEvent): void {
-  const k = event.key
-  const descend_index = upgrade_rows.length
-  if (k === 'Tab') {
-    event.preventDefault()
-    selected = selected === descend_index ? 0 : descend_index
-  } else if (k === 'ArrowUp' || k === 'ArrowLeft') {
-    selected = selected === descend_index
-      ? descend_index - 1 : (selected + descend_index - 1) % descend_index
-  } else if (k === 'ArrowDown' || k === 'ArrowRight') {
-    selected = selected === descend_index ? 0 : (selected + 1) % descend_index
-  } else if (k === 'Enter') {
-    if (selected === descend_index) { descend() } else { buy(upgrade_rows[selected].id) }
-    return // buy() が再描画済み。下の再描画と二重にしない
-  } else if (k === 'Escape') {
-    descend()
-    return
-  } else {
-    return
-  }
-  render()
-}
-
-function record_row(
-  icon: string, label: string, value: string, cls = '',
-): string {
-  return '<div class="ds-record-row' + (cls ? ' ' + cls : '') +
-    '"><img src="' + icon + '" alt="">' +
-    label + '<b>' + value + '</b></div>'
-}
-
-function gear_row(slot: gear_slot_t): string {
-  const tier = meta.gear[slot]
-  if (tier === 0) {
-    return '<div class="ds-record-row">' + gear_slot_labels[slot] +
-      '<b class="ds-gear-none">未所持</b></div>'
-  }
-  return '<div class="ds-record-row">' + gear_slot_labels[slot] +
-    '<b style="color:' + gear_grades[gear_grade(tier)].color + '">' +
-    gear_name(slot, tier) + '</b></div>'
-}
-
-function render(): void {
-  const r = current
-  const dead = r !== null
-
-  let left = '<h1 class="ds-title">' +
-    (dead ? death_message(r.death_cause) : '自席の端末。') + '</h1>' +
-    '<p class="ds-sub">' +
-    (dead ? '救護ドローンが君を回収して、自席へ戻した。' : '闇サイトに接続した。') +
-    '</p>'
-
-  // 見本ではイラストが左半分の背景で、記録と状態パネルがその上に浮く。
-  // ds-hero を絶対配置の背景にするため、この 3 つを 1 つの入れ物にまとめる
-  left += '<div class="ds-left-body">' +
-    '<div class="ds-hero" style="background-image:url(' + hero_url + ')"></div>'
-
-  if (dead) {
-    // 到達深度と同じ量なので、アイコンは stat_depth_url を流用する
-    const record = is_new_record(r.depth, r.best_depth_before)
-    const best_value = meta.best_depth + ' F' + (record
-      ? '<span class="ds-record-prev">← ' + r.best_depth_before + ' F</span>' +
-        '<span class="ds-record-new">NEW</span>'
-      : '')
-    left += '<div class="ds-panel ds-record">' +
-      '<div class="ds-panel-title">今回の記録</div>' +
-      record_row(stat_depth_url, '到達深度', r.depth + ' F') +
-      record_row(stat_depth_url, '最高深度', best_value, record ? 'record' : '') +
-      record_row(stat_time_url, '生存時間', format_run_time(r.run_time)) +
-      record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
-      record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
-      record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所') +
-      '</div>'
-  }
-
-  // 装備は死んでも持ち越すので、購入動線（右列）ではなく振り返り側に出す。
-  // 1 つも持っていないときは出さない（初回起動で「未所持 ×3」を並べても
-  // 読むものが無い）
-  if (gear_slots.some((slot) => meta.gear[slot] > 0)) {
-    left += '<div class="ds-panel ds-gear">' +
-      '<div class="ds-panel-title">装備</div>' +
-      gear_slots.map(gear_row).join('') +
-      '</div>'
-  }
-
-  left += '</div>'
-
-  let rows = ''
-  for (let i = 0; i < upgrade_rows.length; i++) {
-    const row = upgrade_rows[i]
-    const level = meta.levels[row.id]
-    const max = meta_max_level[row.id]
-    const maxed = level >= max
-    const cost = meta_upgrade_price(row.id, level)
-    let pips = ''
-    for (let p = 0; p < max; p++) {
-      pips += '<i class="' + (p < level ? 'on' : '') + '"></i>'
-    }
-    // 効果行は「現在値 → 次の段の値」。次の値だけ行の色で光らせて、
-    // 買うと何が変わるかをこの 1 行で読めるようにする。最大段は現在値のみ
-    const stat = '<div class="ds-row-stat">' + row.stat +
-      ' <b>' + row.value(level) + '</b>' +
-      (maxed
-        ? ''
-        : '<span class="ds-arrow">→</span><b class="ds-next" style="color:' +
-          row.color + '">' + row.value(level + 1) + '</b>') +
-      '</div>'
-    rows += '<div class="ds-row' + (selected === i ? ' selected' : '') + '">' +
-      '<img src="' + row.icon + '" alt="">' +
-      '<div><div class="ds-row-name" style="color:' + row.color + '">' +
-      row.name + '<small>' + row.flavor + '</small></div>' +
-      stat + '</div>' +
-      '<div class="ds-row-right">' +
-      '<div class="ds-row-level">Lv. ' + level + ' / ' + max +
-      '<div class="ds-pips" style="color:' + row.color + '">' + pips + '</div></div>' +
-      // ヤニと金額の改行は ds-cost の中で起こす。ds-buy は flex なので、
-      // 直下に置いた <br> は要素として独立した flex 項目になり改行にならない
-      (maxed
-        ? '<button class="ds-buy" disabled>MAX</button>'
-        : '<button class="ds-buy" data-buy="' + row.id + '"' +
-          (meta.yani < cost ? ' disabled' : '') +
-          '><span class="ds-cost">ヤニ<br>' + cost + '</span>' +
-          '<span class="ds-plus">＋</span></button>') +
-      '</div></div>'
-  }
-
-  // meta.best_depth は未プレイ時 0 のため、1 で底上げして「推奨深度: 0F+」を避ける
-  const recommended = Math.max(meta.best_depth, 1)
-  const descend_label = dead ? '地下へ戻る' : '地下へ潜る'
-  const right = '<div class="ds-shop">' +
-    '<div><div class="ds-shop-title">闇サイト</div>' +
-    '<div class="ds-shop-sub">ヤニを送ると訓練と物資が届く。</div>' +
-    (meta.persistent
-      ? ''
-      : '<div class="ds-warning">警告: ストレージ利用不可。強化はこのセッション限りで消える</div>') +
-    '</div>' +
-    '<div class="ds-shop-balance">ヤニ残高<b>' + meta.yani + '</b></div>' +
-    '</div>' +
-    rows +
-    '<button class="ds-descend' + (selected === upgrade_rows.length ? ' selected' : '') + '">' +
-    '<img src="' + door_url + '" alt="">' +
-    '<span>' + descend_label +
-    '<small>推奨深度 ' + recommended + 'F+ ・ また煙草を探しに行く</small></span>' +
-    '</button>'
-
-  root!.innerHTML =
-    '<div class="ds-main"><div class="ds-left">' + left + '</div>' +
-    '<div class="ds-right">' + right + '</div></div>' +
-    '<div class="ds-footer"><span>◀ ▶ 強化選択</span><span>[Enter] 強化する</span>' +
-    '<span>[Tab] 項目切替</span><span>[Esc] ' + descend_label + '</span></div>'
-
-  root!.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach((button) => {
-    button.onclick = () => buy(button.dataset.buy as meta_upgrade_id_t)
-  })
-  root!.querySelector<HTMLButtonElement>('.ds-descend')!.onclick = descend
+  on_descend_cb()
 }
