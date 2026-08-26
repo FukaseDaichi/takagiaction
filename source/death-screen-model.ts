@@ -37,3 +37,106 @@ export function death_message(cause: number): string {
 export function is_new_record(depth: number, best_before: number): boolean {
   return best_before > 0 && depth > best_before
 }
+
+// --- 状態機械 ---
+//
+// 画面の状態はこの 1 オブジェクトに閉じる。death-screen.ts は返ってきた
+// 状態と直前の状態を比べて class を当てるだけで、分岐を持たない。
+
+export type ds_mode_t = 'idle' | 'upgrade'
+export type ds_panel_t = 'none' | 'record' | 'gear'
+export type ds_layer_t = 'active' | 'dim' | 'inactive'
+// 状態の変化では表せない副作用だけを action にする。パネルの開閉は状態が
+// 語るので action を持たない
+export type ds_action_t = 'none' | 'descend' | 'buy'
+
+// idle のフォーカス位置。地下へ戻るを既定にするので末尾に置く
+export const ds_idle_record = 0
+export const ds_idle_gear = 1
+export const ds_idle_descend = 2
+export const ds_idle_count = 3
+
+export const ds_part_count = 6
+
+export interface ds_state_t {
+  mode: ds_mode_t
+  focus: number // idle: 0..2、upgrade: 0..5（body_parts の添字）
+  panel: ds_panel_t
+  busy: boolean // 入場シーケンスと強化演出の再生中
+}
+
+export interface ds_result_t {
+  state: ds_state_t
+  action: ds_action_t
+}
+
+// 既定のフォーカスが「地下へ戻る」なのは、この画面の最終的なメインアクション
+// だから。開いた瞬間に「地下へ戻れる」が読めることを最優先する。
+// busy = true で始めるのは入場シーケンスが終わるまで入力を捨てるため
+export function ds_initial_state(): ds_state_t {
+  return { mode: 'idle', focus: ds_idle_descend, panel: 'none', busy: true }
+}
+
+export function ds_reduce(state: ds_state_t, key: string): ds_result_t {
+  const stay: ds_result_t = { state, action: 'none' }
+  // 演出の途中で状態が動くと、収納と展開が同時に走って読めなくなる
+  if (state.busy) { return stay }
+
+  // パネルは矢印も Tab も奪わない。開いている間の出口は Esc だけ
+  if (state.panel !== 'none') {
+    return key === 'Escape'
+      ? { state: { ...state, panel: 'none' }, action: 'none' }
+      : stay
+  }
+
+  const to_idle: ds_result_t = {
+    state: { ...state, mode: 'idle', focus: ds_idle_descend }, action: 'none',
+  }
+
+  if (key === 'Tab') {
+    return state.mode === 'upgrade'
+      ? to_idle
+      : { state: { ...state, mode: 'upgrade', focus: 0 }, action: 'none' }
+  }
+
+  // Esc は「1 段戻る」。パネル（上で処理済み）→ 強化モード → 降下 の順
+  if (key === 'Escape') {
+    return state.mode === 'upgrade' ? to_idle : { state, action: 'descend' }
+  }
+
+  const count = state.mode === 'upgrade' ? ds_part_count : ds_idle_count
+  if (key === 'ArrowUp' || key === 'ArrowLeft') {
+    return { state: { ...state, focus: (state.focus + count - 1) % count }, action: 'none' }
+  }
+  if (key === 'ArrowDown' || key === 'ArrowRight') {
+    return { state: { ...state, focus: (state.focus + 1) % count }, action: 'none' }
+  }
+
+  if (key === 'Enter') {
+    if (state.mode === 'upgrade') { return { state, action: 'buy' } }
+    if (state.focus === ds_idle_record) {
+      return { state: { ...state, panel: 'record' }, action: 'none' }
+    }
+    if (state.focus === ds_idle_gear) {
+      return { state: { ...state, panel: 'gear' }, action: 'none' }
+    }
+    return { state, action: 'descend' }
+  }
+
+  return stay
+}
+
+// 強化アイコンの強調階層。idle で dim に留めるのは、触れないが「押せそう」に
+// 見えている必要があるため — この 6 個がこの画面の主役で、inactive まで
+// 落とすと Tab を押す動機が画面から消える
+export function ds_part_layer(state: ds_state_t, index: number): ds_layer_t {
+  if (state.panel !== 'none') { return 'inactive' }
+  if (state.mode !== 'upgrade') { return 'dim' }
+  return state.focus === index ? 'active' : 'dim'
+}
+
+// 記録確認 / 装備確認 / 地下へ戻る の強調階層
+export function ds_item_layer(state: ds_state_t, index: number): ds_layer_t {
+  if (state.panel !== 'none' || state.mode === 'upgrade') { return 'inactive' }
+  return state.focus === index ? 'active' : 'dim'
+}
