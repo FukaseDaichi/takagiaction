@@ -3,7 +3,6 @@ import { entity_container_t } from './entity-container'
 import { entity_drone_t } from './entity-drone'
 import { entity_exit_t } from './entity-exit'
 import { entity_smoking_area_t } from './entity-smoking-area'
-import { entity_yani_t } from './entity-yani'
 import {
   meta_sniff_active, meta_sniff_distance, meta_sniff_exit, meta_sniff_loot,
 } from './meta'
@@ -182,9 +181,12 @@ function minimap_draw(): void {
   const sniff_index = sniff_result
     ? sniff_result.x + sniff_result.z * level_width
     : -1
-  // 嗅覚 Lv5: ヤニ・清掃ドローン・押収品コンテナは未探索タイルでも点灯する。
+  // 嗅覚 Lv5: 清掃ドローンと押収品コンテナは未探索タイルでも点灯する。
   // しきい値は持たない（meta.ts）が、リザルト表示中に前のランの分を映さない
-  // ため game_running のガードは生存系と同じく通す
+  // ため game_running のガードは生存系と同じく通す。
+  // 落ちている吸い殻そのものは出さない。ドローン 1 体の撃破で 30 個以上が
+  // 同じ場所へ散るため、1 タイル 1 ピクセルのミニマップでは点が面になり、
+  // 生存系の明滅を覆い隠す（docs/meta-progression.md「収入系が指すのは機会の在り処」）
   const loot = state.game_running && meta_sniff_loot()
   for (let i = 0; i < state.entities.length; i++) {
     const e = state.entities[i]
@@ -193,16 +195,12 @@ function minimap_draw(): void {
     // 収入系は明滅させない。生存系も収入系もミニマップ上では 1 ピクセルの点
     // なので、行き先（生存系）と機会（収入系）を分ける印は明滅の有無だけが
     // 担う（「明滅は行き先を意味する」の規約をそのまま使う）
-    if (e instanceof entity_yani_t) {
-      if (loot) { minimap_set_pixel(index, 215, 195, 110) }
-      continue
-    }
     if (e instanceof entity_drone_t) {
       if (loot) { minimap_set_pixel(index, 140, 200, 240) }
       continue
     }
     // 押収品コンテナも収入系（機会）。生存系との見分けは明滅の有無が担うので、
-    // ヤニ・ドローンと同じく明滅させない（docs/meta-progression.md
+    // ドローンと同じく明滅させない（docs/meta-progression.md
     // 「生存系と収入系は別の感覚である」）
     if (e instanceof entity_container_t) {
       if (loot) { minimap_set_pixel(index, 150, 230, 200) }
