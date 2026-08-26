@@ -89,42 +89,6 @@
   image-rendering: auto;
 }
 
-/* 状態パネル（赤）。死亡モードのみ表示。死因の説明に徹し、
-   体の絵＋体調 3 行だけの帯にする（残量の数値表示は持たない） */
-#ds .ds-status {
-  /* position: relative は .ds-record と同じ理由（.ds-hero の下に隠れないため） */
-  position: relative;
-  margin-top: auto; /* イラストの下端に貼り付ける */
-  border: 1px solid #b3271e;
-  border-radius: 0.4vw;
-  background: rgba(30, 5, 3, 0.88);
-  box-shadow: 0 0 16px rgba(255, 60, 40, 0.25), inset 0 0 20px rgba(255, 60, 40, 0.15);
-  color: #ff6b5e;
-  padding: 0.7vw 1vw;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.4vw 1vw;
-  align-items: center;
-}
-#ds .ds-death-message { font-size: 1.25vw; font-weight: bold; line-height: 1.5; grid-column: 1 / -1; }
-#ds .ds-status img { height: 6vw; }
-#ds .ds-gauge-row {
-  display: flex; align-items: center;
-  gap: 0.6vw; font-size: 1vw; margin: 0.3vw 0;
-  white-space: nowrap;
-}
-#ds .ds-gauge-row b { margin-left: 0.2vw; }
-/* 体調 2 項目は 1 行に並べ、値はラベルの直後に置く（右端まで飛ばさない） */
-#ds .ds-cond-line { font-size: 1vw; margin: 0.3vw 0; white-space: nowrap; }
-#ds .ds-cond-line b { color: #ffb3ab; margin: 0 1.6vw 0 0.6vw; }
-#ds .ds-cond-line b:last-child { margin-right: 0; }
-#ds .ds-blocks { display: flex; flex-shrink: 0; gap: 0.15vw; }
-#ds .ds-blocks i {
-  width: 0.8vw; height: 0.9vw;
-  background: #ff3b30; box-shadow: 0 0 5px #f33;
-}
-#ds .ds-blocks i.off { background: #4a1310; box-shadow: none; }
-
 /* 右列は「残高 → 強化 6 行 → 地下へ戻る」の一本道 */
 #ds .ds-right { display: flex; flex-direction: column; gap: 0.6vw; min-height: 0; }
 #ds .ds-shop {

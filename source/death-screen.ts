@@ -1,7 +1,7 @@
 import { audio_play, audio_sfx_beep, audio_sfx_pickup } from './audio'
 import { canvas } from './dom'
 import {
-  condition_texts, death_message, format_run_time, is_new_record,
+  death_message, format_run_time, is_new_record,
 } from './death-screen-model'
 import type { run_result_t } from './death-screen-model'
 import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
@@ -13,7 +13,6 @@ import { upgrade_rows } from './upgrade-rows'
 import './death-screen.css'
 
 import hero_url from '../m/ui/hero.webp'
-import body_url from '../m/ui/body.webp'
 import door_url from '../m/ui/door.webp'
 import stat_depth_url from '../m/ui/icon-stat-depth.webp'
 import stat_time_url from '../m/ui/icon-stat-time.webp'
@@ -136,20 +135,12 @@ function gear_row(slot: gear_slot_t): string {
     gear_name(slot, tier) + '</b></div>'
 }
 
-function blocks(on: number, total: number): string {
-  let html = '<span class="ds-blocks">'
-  for (let i = 0; i < total; i++) {
-    html += '<i class="' + (i < on ? '' : 'off') + '"></i>'
-  }
-  return html + '</span>'
-}
-
 function render(): void {
   const r = current
   const dead = r !== null
 
   let left = '<h1 class="ds-title">' +
-    (dead ? '死亡したよ、高木。' : '自席の端末。') + '</h1>' +
+    (dead ? death_message(r.death_cause) : '自席の端末。') + '</h1>' +
     '<p class="ds-sub">' +
     (dead ? '救護ドローンが君を回収して、自席へ戻した。' : '闇サイトに接続した。') +
     '</p>'
@@ -174,23 +165,6 @@ function render(): void {
       record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
       record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
       record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所') +
-      '</div>'
-
-    // 体調は死因の説明であって購入判断には効かない。HP やニコチン残量の数値は
-    // 吸いたい気持ち（残量比の逆数）と同じ事実の言い換えなので出さない
-    const message = death_message(r.death_cause)
-    const condition = condition_texts(r.nicotine_ratio)
-    const craving_percent = Math.round(condition.craving_ratio * 100)
-    left += '<div class="ds-status">' +
-      '<div class="ds-death-message">' + message[0] + '<br>' + message[1] + '</div>' +
-      '<img src="' + body_url + '" alt="">' +
-      '<div>' +
-      '<div class="ds-cond-line">手の震え<b>' + condition.tremor + '</b>' +
-      '集中力<b>' + condition.focus + '</b></div>' +
-      '<div class="ds-gauge-row">吸いたい気持ち' +
-      blocks(Math.round(condition.craving_ratio * 10), 10) +
-      '<b>' + (craving_percent >= 100 ? 'MAX' : craving_percent + '%') + '</b></div>' +
-      '</div>' +
       '</div>'
   }
 

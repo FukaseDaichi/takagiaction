@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  condition_texts, death_cause_nicotine, death_message, format_run_time,
-  is_new_record,
+  death_cause_nicotine, death_message, format_run_time, is_new_record,
 } from './death-screen-model'
 
 describe('生存時間の表示', () => {
@@ -17,35 +16,17 @@ describe('生存時間の表示', () => {
 })
 
 describe('死因メッセージ', () => {
-  it('ニコチン切れと敵で文言が変わる', () => {
-    expect(death_message(death_cause_nicotine)[0]).toContain('ニコチン')
-    expect(death_message(0)[0]).toContain('やられた')
-  })
-})
-
-describe('死亡時の状態表示', () => {
-  it('ゲージ 0% は 手の震え MAX・集中力 崩壊', () => {
-    const c = condition_texts(0)
-    expect(c.tremor).toBe('MAX')
-    expect(c.focus).toBe('崩壊')
-    expect(c.craving_ratio).toBe(1)
+  // 赤い状態パネルを消したので、死因の区別が残るのは見出しだけになる
+  it('敵に殺されたときは既定の見出しを返す', () => {
+    expect(death_message(0)).toBe('死亡したよ、高木。')
   })
 
-  it('離脱症状帯（30% 以下）は 大・低下', () => {
-    const c = condition_texts(0.2)
-    expect(c.tremor).toBe('大')
-    expect(c.focus).toBe('低下')
-    expect(c.craving_ratio).toBeCloseTo(0.8, 6)
+  it('ニコチン切れは別の見出しで死因が分かる', () => {
+    expect(death_message(death_cause_nicotine)).toBe('ニコチン、限界です。')
   })
 
-  it('そわそわ帯（60% 以下）は 小・散漫', () => {
-    expect(condition_texts(0.5).tremor).toBe('小')
-    expect(condition_texts(0.5).focus).toBe('散漫')
-  })
-
-  it('通常帯は なし・正常', () => {
-    expect(condition_texts(0.9).tremor).toBe('なし')
-    expect(condition_texts(0.9).focus).toBe('正常')
+  it('見出しは 1 行の文字列で、配列ではない', () => {
+    expect(typeof death_message(0)).toBe('string')
   })
 })
 
