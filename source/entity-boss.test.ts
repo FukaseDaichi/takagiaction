@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // renderer は dom.ts 経由で document と canvas に触るため Node 環境では評価できない
 vi.mock('./renderer', () => ({
@@ -38,7 +38,7 @@ import { audio_music_boss_rage, audio_music_normal } from './audio'
 import {
   boss_bullet_speed, boss_centre, boss_hitbox, boss_homing_life,
   boss_homing_spread, boss_orbit_radius_max, boss_orbit_radius_min,
-  boss_orbit_speed, boss_phase_rage, boss_spawn_offset,
+  boss_orbit_speed, boss_phase_rage, boss_spawn_offset, boss_flip_chance,
 } from './boss-model'
 import { entity_boss_homing_t, entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_player_t } from './entity-player'
@@ -366,8 +366,22 @@ describe('追尾弾', () => {
     )
   }
 
+  // 激昂へ入れる。HP をちょうど半分にすると boss_phase() が激昂を返す
+  function rage(boss: entity_boss_t): void {
+    boss._receive_damage(boss, boss._hp_max / 2)
+  }
+
+  it('前半（HP が半分より上）では 1 発も撃たない', () => {
+    const boss = spawn_boss(20, 20)
+    // 60 秒ぶん。前半の砲塔（0.5 rad/s）が掃く 30 rad は boss_homing_step
+    // （1.4）の 21 倍で、フェーズの門がなければ 21 回は撃っている長さ
+    for (let i = 0; i < 60 * 60; i++) { boss._update() }
+    expect(homing().length).toBe(0)
+  })
+
   it('掃引が刻みをまたぐと 2 発出る', () => {
     const boss = spawn_boss(20, 20)
+    rage(boss)
     // 掃引が boss_homing_step を越えるまで回す
     let guard = 0
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
@@ -383,6 +397,7 @@ describe('追尾弾', () => {
 
   it('掃射よりずっと少ない頻度で出る', () => {
     const boss = spawn_boss(20, 20)
+    rage(boss)
     for (let i = 0; i < 60 * 6; i++) { boss._update() }
     const sweep = state.entities.filter(
       (e) => e instanceof entity_boss_plasma_t && !(e instanceof entity_boss_homing_t),
@@ -395,6 +410,7 @@ describe('追尾弾', () => {
 
   it('自機のほうへ曲がる', () => {
     const boss = spawn_boss(20, 20)
+    rage(boss)
     // 自機を +z の遠方に置く。弾は生成時に自機方向を向くので、
     // ここでは自機を動かして「曲がる」ことを見る
     state.entity_player!.x = 20 * 8
@@ -421,6 +437,7 @@ describe('追尾弾', () => {
 
   it('寿命で消える', () => {
     const boss = spawn_boss(20, 20)
+    rage(boss)
     let guard = 0
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
     const bullet = homing()[0]
@@ -431,11 +448,97 @@ describe('追尾弾', () => {
 
   it('撃破で掃射と一緒に消える', () => {
     const boss = spawn_boss(20, 20)
+    rage(boss)
     let guard = 0
     while (homing().length === 0 && guard++ < 60 * 60) { boss._update() }
     expect(homing().length).toBeGreaterThan(0)
     boss._receive_damage(boss, boss._hp_max)
     expect(homing().length).toBe(0)
+  })
+})
+
+describe('周回の向きの反転', () => {
+  beforeEach(() => {
+    level_data.fill(1)
+    state.entities = []
+    state.entities_to_kill = []
+    state.time_elapsed = 1 / 60
+    state.game_running = 1
+    state.dying = 0
+    state.depth = 5
+    state.kills = 0
+    state.boss_alive = 1
+    state.boss_levels = []
+    vi.clearAllMocks()
+    state.entity_player = new entity_player_t(8, 0, 8, 5, 18)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // 座席まわりの角度（rad）。周回の進行方向はこの差の符号で読む
+  function orbit_angle(boss: entity_boss_t): number {
+    return Math.atan2(
+      boss.z + boss_centre - boss._home_z, boss.x + boss_centre - boss._home_x,
+    )
+  }
+
+  // n フレーム進め、その間に座席まわりの角度が進んだ向き（符号つきの差）を返す。
+  // 窓は 20 フレーム（約 0.33 秒）までにする — それ以上回すと π を越えて
+  // 正規化が向きを取り違える
+  function advance(boss: entity_boss_t, frames: number): number {
+    const from = orbit_angle(boss)
+    for (let i = 0; i < frames; i++) { boss._update() }
+    let delta = orbit_angle(boss) - from
+    while (delta > Math.PI) { delta -= Math.PI * 2 }
+    while (delta < -Math.PI) { delta += Math.PI * 2 }
+    return delta
+  }
+
+  it('引き直しの抽選に当たると周回の進行方向が逆になる', () => {
+    // Math.random() は [0, 1)。boss_flip_chance を下回る値を返させれば必ず当たる
+    vi.spyOn(Math, 'random').mockReturnValue(boss_flip_chance / 2)
+    const boss = spawn_boss(20, 20)
+    advance(boss, 120) // 半径が目標へ寄るまで（測らない）
+    const before = advance(boss, 20)
+    advance(boss, 20) // 引き直し（2.5 秒 = 150 フレーム）をまたぐ窓。測らない
+    const after = advance(boss, 20)
+    // 符号だけを見ると、両方 NaN や両方 0 の壊れ方が Object.is で通ってしまう。
+    // 実際に回っていることを先に固定する
+    expect(Math.abs(before)).toBeGreaterThan(0.1)
+    expect(Math.abs(after)).toBeGreaterThan(0.1)
+    expect(Math.sign(after)).toBe(-Math.sign(before))
+  })
+
+  it('柱に塞がれ続けても、反転はタイマーが満了したときだけ起きる', () => {
+    // 座席（20, 20）以外をすべて壁にする。判定 14px は必ず 2 タイル以上に
+    // またがるので、どの向きへも動けず _move() は毎フレーム引き直しの枝へ入る
+    level_data.fill(8)
+    vi.spyOn(Math, 'random').mockReturnValue(boss_flip_chance / 2)
+    const boss = spawn_boss(20, 20)
+    let flips = 0
+    let prev = boss._spin
+    for (let i = 0; i < 60; i++) {
+      boss._update()
+      if (boss._spin !== prev) { flips++; prev = boss._spin }
+    }
+    // 詰まっている間はブロックの枝が毎フレーム _wander_timer を
+    // boss_wander_retry_min へ戻すので、満了そのものが来ない = 一度も
+    // 反転しない。抽選を _repick() に載せた実装だと 60 回反転する
+    expect(flips).toBe(0)
+  })
+
+  it('抽選が外れた回は進行方向が変わらない', () => {
+    vi.spyOn(Math, 'random').mockReturnValue((1 + boss_flip_chance) / 2)
+    const boss = spawn_boss(20, 20)
+    advance(boss, 120)
+    const before = advance(boss, 20)
+    advance(boss, 20)
+    const after = advance(boss, 20)
+    expect(Math.abs(before)).toBeGreaterThan(0.1)
+    expect(Math.abs(after)).toBeGreaterThan(0.1)
+    expect(Math.sign(after)).toBe(Math.sign(before))
   })
 })
 

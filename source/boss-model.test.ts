@@ -5,7 +5,7 @@ import {
   boss_orbit_omega, boss_orbit_radius_max, boss_orbit_radius_min, boss_orbit_speed,
   boss_pick_radius, boss_pick_speed_factor, boss_radius_step,
   boss_homing_life, boss_homing_speed, boss_homing_step, boss_homing_turn,
-  boss_homing_turn_rate,
+  boss_homing_turn_rate, boss_flip_chance,
 } from './boss-model'
 
 describe('boss_arms', () => {
@@ -188,10 +188,8 @@ describe('boss_homing_turn', () => {
 })
 
 describe('追尾弾の摘み', () => {
-  it('掃射より遅く、激昂で速くなる', () => {
-    expect(boss_homing_speed(1)).toBeLessThan(boss_bullet_speed(1))
-    expect(boss_homing_speed(boss_phase_rage))
-      .toBeGreaterThan(boss_homing_speed(1))
+  it('激昂の掃射より遅い（追ってくる弾を掃射と同じ速さにしない）', () => {
+    expect(boss_homing_speed).toBeLessThan(boss_bullet_speed(boss_phase_rage))
   })
 
   it('刻みは掃射と桁が離れている（別の攻撃として読める）', () => {
@@ -201,5 +199,11 @@ describe('追尾弾の摘み', () => {
   it('寿命と旋回速度は深度で動かさない定数である', () => {
     expect(typeof boss_homing_life).toBe('number')
     expect(typeof boss_homing_turn_rate).toBe('number')
+  })
+})
+
+describe('周回の向きの反転', () => {
+  it('引き直し 4 回に 1 回の割合で反転する', () => {
+    expect(boss_flip_chance).toBe(0.25)
   })
 })
