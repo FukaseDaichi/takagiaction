@@ -34,7 +34,9 @@ npm test
 
 ## Agent Skill の管理
 
-スキルを作成・外部からインストール・更新・削除する前に、必ず [`.agents/rules/skill-management.md`](.agents/rules/skill-management.md) を読む。スキルの正本と Claude Code 向け公開方法、セットアップ、検証手順はこの共通ルールだけで管理する。
+スキルの正本は `.agents/skills/<name>/SKILL.md` の 1 箇所だけである。`.claude/skills/<name>/SKILL.md` は正本を読ませるための参照スタブ（生成物）で、直接編集しない。
+
+スキルを作成・外部からインストール・更新・削除する前に、必ず [`.agents/rules/skill-management.md`](.agents/rules/skill-management.md) を読む。公開方式、セットアップ、検証手順はこの共通ルールだけで管理する。
 
 ## ドキュメント
 
