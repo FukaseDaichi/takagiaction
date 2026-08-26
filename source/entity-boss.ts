@@ -2,7 +2,8 @@ import {
   audio_music_boss_rage, audio_music_normal, audio_play, audio_sfx_explode,
 } from './audio'
 import {
-  boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step, boss_hitbox,
+  boss_arm_angles, boss_bullet_speed, boss_centre, boss_fire_step,
+  boss_flip_chance, boss_hitbox,
   boss_homing_count, boss_homing_life, boss_homing_speed, boss_homing_spread,
   boss_homing_step, boss_homing_turn, boss_homing_turn_rate,
   boss_hp, boss_orbit_omega, boss_orbit_speed,
@@ -113,8 +114,14 @@ export class entity_boss_t extends entity_t {
       }
     }
 
-    const homing = boss_volleys(swept_before, t._swept, boss_homing_step)
-    for (let v = 0; v < homing; v++) { t._spawn_homing() }
+    // 追尾弾は激昂だけの手。前半は掃射しか飛ばず、半分削って初めて弾の
+    // 種類が増える。掃引（_swept）はフェーズに関わらず回り続けるので、
+    // 移行の瞬間に溜まっていたぶんが一度に出ることはない — 次に刻みを
+    // またいだところから始まる
+    if (t._phase === boss_phase_rage) {
+      const homing = boss_volleys(swept_before, t._swept, boss_homing_step)
+      for (let v = 0; v < homing; v++) { t._spawn_homing() }
+    }
 
     // 基底の _update() は呼ばない。加速度で動かさないので積分が要らず、
     // 壁は _move() が専用の _collides() で自分で見る
@@ -127,7 +134,16 @@ export class entity_boss_t extends entity_t {
     const speed = boss_orbit_speed(t._phase) * t._speed_factor
 
     t._wander_timer -= dt
-    if (t._wander_timer <= 0) { t._repick(boss_wander_interval) }
+    if (t._wander_timer <= 0) {
+      // 周回の向きの抽選はここだけで引く。_repick() の中に置くと、下の
+      // 「どちらの軸でも通れない」枝からも呼ばれるので、柱に詰まっている
+      // 間は毎フレーム抽選が走り、向きが震える。ここに置けば、詰まって
+      // 間隔が boss_wander_retry_min へ戻され続ける間は満了自体が来ない。
+      // 反転するのは _spin 1 本なので、本体の周回と砲塔の回転は同じ向きの
+      // まま一緒に切り返す（docs/enemies.md「周回」）
+      if (Math.random() < boss_flip_chance) { t._spin = -t._spin }
+      t._repick(boss_wander_interval)
+    }
 
     // 半径は生の値のまま渡す。ここで下限に丸めると、丸めた値が
     // boss_radius_step() の「現在地」になり、生成直後（半径 0）に
@@ -199,7 +215,6 @@ export class entity_boss_t extends entity_t {
     const base = Math.atan2(
       player.z - (t.z + boss_centre), player.x - (t.x + boss_centre),
     )
-    const speed = boss_homing_speed(t._phase)
     for (let i = 0; i < boss_homing_count; i++) {
       // 本数の中央を 0 にずらして左右対称に開く
       const angle = base +
@@ -207,8 +222,8 @@ export class entity_boss_t extends entity_t {
       const mx = t.x + boss_centre + Math.cos(angle) * boss_muzzle
       const mz = t.z + boss_centre + Math.sin(angle) * boss_muzzle
       const bullet = new entity_boss_homing_t(mx - 3, 0, mz - 2, 0, boss_homing_tile)
-      bullet.vx = Math.cos(angle) * speed
-      bullet.vz = Math.sin(angle) * speed
+      bullet.vx = Math.cos(angle) * boss_homing_speed
+      bullet.vz = Math.sin(angle) * boss_homing_speed
     }
   }
 
