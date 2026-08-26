@@ -216,23 +216,29 @@
      アイコンを模型ごしに吹き飛ばしてしまう。fill-box にして要素自身の
      bounding box を基準にする */
   transform-box: fill-box;
-  /* 収納位置と定位置の切り替え。座標は JS が CSS 変数で渡す */
-  transform: translate(calc(var(--sx) * 1px), calc(var(--sy) * 1px));
-  transition: transform .4s var(--ease-in), opacity .3s var(--ease-in);
+  /* 収納位置↔定位置は translate、フォーカスの拡大は scale。個別プロパティに
+     分けるのは、この 2 つが別のタイミングで動くから（下の transition-delay
+     を参照）。translate は圧縮 transform を使うと scale と delay を共有して
+     しまい、フォーカス切替のたびに再分離できない */
+  translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px);
+  scale: 1;
+  transition: translate .4s var(--ease-in), opacity .3s var(--ease-in), scale .4s var(--ease-in);
   cursor: pointer;
 }
 #ds.mode-upgrade .ds-part {
-  transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px));
-  transition-delay: calc(var(--i) * var(--step));
+  translate: calc(var(--ix) * 1px) calc(var(--iy) * 1px);
+  /* --i の段差（0/80/160/240/320/400ms）は「収納位置→定位置」という強化
+     モード突入時 1 度きりの translate 移動にだけ掛ける。scale と opacity は
+     フォーカスが移るたびに変わる値なので常に 0 に固定する。1 つの
+     transition-delay を全プロパティ共有のままにしておくと、フォーカスを
+     外れた側のアイコンは --i 分だけ縮小開始が遅れ、320〜400ms のあいだ
+     拡大したまま居座って見える（Task 5 レビューで実測）。新しくフォーカスを
+     得る側は translate が既に定位置なので元々このバグの影響を受けない ―
+     不具合があるのは退く側だけだった */
+  transition-delay: calc(var(--i) * var(--step)), 0s, 0s;
 }
 #ds .ds-part.active {
-  transform: translate(calc(var(--ix) * 1px), calc(var(--iy) * 1px)) scale(1.15);
-  /* mode-upgrade 側の transition-delay（calc(var(--i) * var(--step))）を
-     引き継いだままだと、フォーカスが移るたびに新しい部位の拡大が段階開示と
-     同じだけ遅延してしまう。フォーカス移動はその都度即応させたいので、
-     新しくフォーカスを得た部位だけ 0 に戻す（前の部位が退く側の遅延は
-     Task 6 のフォーカス切替演出に委ねる） */
-  transition-delay: 0s;
+  scale: 1.15;
 }
 
 /* 入場シーケンス 0.70s: 6 アイコンが収納位置で 80ms 間隔に点灯する（設計書）。
@@ -288,6 +294,66 @@
 /* 強化可能な部位だけが呼吸する。買えない・MAX は静止したまま */
 #ds.mode-upgrade .ds-part:not(.poor):not(.maxed):not(.active) .ds-arc-bg {
   animation: ds-breathe 2.4s ease-in-out infinite;
+}
+
+/* --- Level 2 詳細パネル --- */
+
+#ds .ds-detail {
+  /* fill_detail() が走る前は --c が未設定で border-color が無効になる。
+     既定色を持たせておく */
+  --c: #7fe0a8;
+  position: absolute;
+  right: 3%;
+  top: 34%;
+  width: 20vw;
+  padding: 1vh 1vw;
+  border-left: 2px solid var(--c);
+  background: linear-gradient(90deg, rgba(6, 14, 10, .9), rgba(6, 14, 10, .35));
+  opacity: 0;
+  transform: translateX(1.5vw);
+  pointer-events: none;
+  transition: opacity .22s var(--ease-out), transform .22s var(--ease-out);
+}
+/* 展開は収納より 0.1s 遅れて始まる。完全に直列だと待ちが長く、
+   完全に並列だと 2 枚が同時に見える */
+#ds.mode-upgrade .ds-detail {
+  opacity: 1;
+  transform: none;
+  transition: opacity .3s var(--ease-in) .32s, transform .3s var(--ease-in) .32s;
+}
+#ds.panel-record .ds-detail, #ds.panel-gear .ds-detail { opacity: 0; }
+
+#ds .ds-detail-name {
+  font-size: 1.3vw;
+  font-weight: bold;
+  color: var(--c);
+  text-shadow: 0 0 10px var(--c);
+}
+#ds .ds-detail-flavor { font-size: .8vw; color: #9cc4aa; margin-bottom: .8vh; }
+#ds .ds-detail-stat { font-size: .9vw; color: #9cc4aa; }
+#ds .ds-detail-cur { font-size: 1.1vw; color: #eaf5ee; margin: 0 .4vw; }
+#ds .ds-detail-arw { color: #6b8f78; font-style: normal; margin: 0 .3vw; }
+#ds .ds-detail-nxt { font-size: 1.1vw; color: var(--c); text-shadow: 0 0 8px var(--c); }
+#ds .ds-detail-level { font-size: .9vw; color: #eaf5ee; margin-top: .6vh; }
+#ds .ds-detail-pips { display: inline-flex; gap: .22vw; margin-left: .6vw; }
+#ds .ds-detail-pips i {
+  width: .5vw; height: .5vw; border-radius: 50%;
+  background: #1c3a2a;
+}
+#ds .ds-detail-pips i.on { background: var(--c); box-shadow: 0 0 5px var(--c); }
+#ds .ds-detail-cost { font-size: .85vw; color: #9cc4aa; margin-top: .8vh; }
+#ds .ds-detail-cost b { color: #e8c9a8; margin: 0 .8vw 0 .3vw; }
+/* ヤニ不足は静かに赤みを帯びる */
+#ds .ds-detail.poor .ds-detail-need { color: #ff6b5e; }
+/* MAX では「→ 次の値」と必要ヤニを出さない */
+#ds .ds-detail.maxed .ds-detail-arw,
+#ds .ds-detail.maxed .ds-detail-nxt,
+#ds .ds-detail.maxed .ds-detail-need-wrap { display: none; }
+#ds .ds-detail.maxed .ds-detail-level::after {
+  content: 'MAX';
+  margin-left: .8vw;
+  color: var(--c);
+  text-shadow: 0 0 8px var(--c);
 }
 
 /* --- キーヒント --- */

@@ -119,6 +119,20 @@ function build(): HTMLDivElement {
     '<g class="ds-icons">' + icons + '</g>' +
     '</svg>' +
     '</div>' +
+    '<div class="ds-detail">' +
+    '<div class="ds-detail-name"></div>' +
+    '<div class="ds-detail-flavor"></div>' +
+    '<div class="ds-detail-stat">' +
+    '<span class="ds-detail-lbl"></span>' +
+    '<b class="ds-detail-cur"></b>' +
+    '<i class="ds-detail-arw">→</i>' +
+    '<b class="ds-detail-nxt"></b>' +
+    '</div>' +
+    '<div class="ds-detail-level">Lv. <b class="ds-detail-lv"></b>' +
+    ' / <b class="ds-detail-mx"></b><span class="ds-detail-pips"></span></div>' +
+    '<div class="ds-detail-cost">所持 <b class="ds-detail-own"></b>' +
+    '<span class="ds-detail-need-wrap">必要 <b class="ds-detail-need"></b></span></div>' +
+    '</div>' +
     '<div class="ds-hint">' +
     '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
     '<span>[Esc] 地下へ戻る</span></div>'
@@ -196,6 +210,40 @@ function apply(): void {
   el.querySelectorAll<HTMLElement>('.ds-item').forEach((item, index) => {
     set_layer(item, ds_item_layer(state, index))
   })
+
+  fill_detail()
+}
+
+// Level 2。強化モードで部位を選んでいるあいだだけ出る。効果の数値は
+// upgrade_rows[].value(level) 経由で meta.ts の getter から引き、式を
+// 画面側に書き写さない
+function fill_detail(): void {
+  if (state.mode !== 'upgrade') { return }
+  const part = body_parts[state.focus]
+  const row = row_of.get(part.id)!
+  const level = meta.levels[part.id]
+  const max = meta_max_level[part.id]
+  const maxed = level >= max
+  const detail = root!.querySelector<HTMLElement>('.ds-detail')!
+
+  detail.style.setProperty('--c', row.color)
+  detail.classList.toggle('maxed', maxed)
+  text('.ds-detail-name', row.name)
+  text('.ds-detail-flavor', row.flavor)
+  text('.ds-detail-lbl', row.stat)
+  text('.ds-detail-cur', row.value(level))
+  text('.ds-detail-nxt', maxed ? '' : row.value(level + 1))
+  text('.ds-detail-lv', String(level))
+  text('.ds-detail-mx', String(max))
+  text('.ds-detail-own', String(meta.yani))
+
+  const cost = maxed ? 0 : meta_upgrade_price(part.id, level)
+  text('.ds-detail-need', String(cost))
+  detail.classList.toggle('poor', !maxed && meta.yani < cost)
+
+  let pips = ''
+  for (let p = 0; p < max; p++) { pips += '<i class="' + (p < level ? 'on' : '') + '"></i>' }
+  root!.querySelector<HTMLElement>('.ds-detail-pips')!.innerHTML = pips
 }
 
 function set_layer(el: Element, layer: string): void {
