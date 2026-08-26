@@ -4,7 +4,7 @@ import {
   blade_oneshot_level, blade_oneshot_spider, blade_reach, drain_floor, gear_grade,
   gear_grades, gear_lights, gear_max_tier, gear_name, gear_roll_center,
   gear_recommend_keep, gear_roll_slot, gear_roll_tier, gear_scrap_value, gear_slots,
-  gear_stats, gear_verdict, gear_verdict_labels, patch_drain_bonus, sole_speed_bonus,
+  gear_stats, gear_verdict, patch_drain_bonus, sole_speed_bonus,
 } from './equipment'
 
 describe('品目表', () => {
@@ -198,36 +198,34 @@ describe('開封の判定', () => {
 })
 
 describe('推奨', () => {
-  it('良いほうを残す — 強化と新規は手元に、格下は転売', () => {
+  // 同格は装備も転売額も一致して損得が無いので、手が止まらない転売を勧める
+  it('良いほうを残す — 強化と新規は手元に、格下と同格は転売', () => {
     expect(gear_recommend_keep('new')).toBe(true)
     expect(gear_recommend_keep('up')).toBe(true)
     expect(gear_recommend_keep('down')).toBe(false)
+    expect(gear_recommend_keep('same')).toBe(false)
   })
 
-  // 同格は装備も転売額も一致するので、どちらかを勧めると嘘になる
-  it('同格は推奨を持たない', () => {
-    expect(gear_recommend_keep('same')).toBe(null)
-  })
-
-  // 推奨を持たない根拠そのもの。決めたあとの結末は（残る装備の段, 増えるヤニ）で、
-  // 入れ替えれば (この品, 旧品のヤニ)、転売すれば (旧品, この品のヤニ) になる。
-  // 2 つが完全に一致する組はちょうど同格だけ、を両向きで押さえる — 一致する組が
-  // ほかにもあれば、そこで出している推奨が嘘になる
-  it('結末が完全に一致する組は、推奨を持たない組とちょうど一致する', () => {
+  // 同格で転売を勧めても損させない、の根拠。決めたあとの結末は
+  // （残る装備の段, 増えるヤニ）で、入れ替えれば (この品, 旧品のヤニ)、
+  // 転売すれば (旧品, この品のヤニ) になる。2 つが完全に一致する組が
+  // ちょうど同格だけであることを両向きで押さえる
+  it('結末が完全に一致する組は、同格とちょうど一致する', () => {
     for (let owned = 0; owned <= gear_max_tier; owned++) {
       for (let tier = 1; tier <= gear_max_tier; tier++) {
         const identical = tier === owned &&
           gear_scrap_value(owned) === gear_scrap_value(tier)
-        expect(gear_recommend_keep(gear_verdict(owned, tier)) === null).toBe(identical)
+        expect(gear_verdict(owned, tier) === 'same').toBe(identical)
       }
     }
   })
-})
 
-describe('判定語', () => {
-  it('4 つの判定すべてに語がある', () => {
-    for (const verdict of ['new', 'up', 'same', 'down'] as const) {
-      expect(gear_verdict_labels[verdict].length).toBeGreaterThan(0)
+  // 推奨が入れ替えに付くのは段が上がるときだけ。同格は転売側に付く
+  it('入れ替えを勧めるのは、この品の段が現在より上のときだけ', () => {
+    for (let owned = 0; owned <= gear_max_tier; owned++) {
+      for (let tier = 1; tier <= gear_max_tier; tier++) {
+        expect(gear_recommend_keep(gear_verdict(owned, tier))).toBe(tier > owned)
+      }
     }
   })
 })

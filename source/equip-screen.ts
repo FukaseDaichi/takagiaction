@@ -1,7 +1,7 @@
 import { audio_play, audio_sfx_beep, audio_sfx_door, audio_sfx_pickup } from './audio'
 import {
-  gear_grade, gear_grades, gear_max_tier, gear_name, gear_recommend_keep,
-  gear_scrap_value, gear_slot_labels, gear_stats, gear_verdict, gear_verdict_labels,
+  gear_grade, gear_grades, gear_name, gear_recommend_keep, gear_scrap_value,
+  gear_slot_labels, gear_stats, gear_verdict,
 } from './equipment'
 import type { gear_slot_t, gear_verdict_t } from './equipment'
 import { key_spare, key_swap, keys } from './input'
@@ -85,9 +85,7 @@ export function equip_screen_show(next_slot: gear_slot_t, next_tier: number): vo
   just_revealed = false
   // 既定のカーソルは推奨に置く。上位互換の全順序なので推奨は常に正解になるが、
   // 下位を敢えて選ぶ余地は残す（同じ段への入れ替えなら転売額は変わらないが、
-  // 違う段では損得が生じる。それでも選べないことを説明するほうが複雑になる）。
-  // 推奨のない同格（gear_recommend_keep が null）は転売に置く — どちらを選んでも
-  // 装備も転売額も一致するので、置き場所そのものに損得がない
+  // 違う段では損得が生じる。それでも選べないことを説明するほうが複雑になる）
   selected = gear_recommend_keep(gear_verdict(meta.gear[next_slot], tier)) ? 0 : 1
   state.paused = 1
 
@@ -165,56 +163,55 @@ function on_key(event: KeyboardEvent): void {
   }
 }
 
-// 段メーター。両方が持つ段（min）までを地の色で塗り、そこから上の差分だけを
-// 判定色で塗る。塗り分けの境目が現在の装備の位置そのものになるので、目盛りを
-// 別に描かなくても「どこから先が増えるのか／足りないのか」が 1 目盛りで読める。
-// 差分セルは currentColor で、色は .eq-verdict が判定ごとに 1 回だけ置く
-function ladder_html(owned: number): string {
-  const base = Math.min(owned, tier)
-  const top = Math.max(owned, tier)
+// 等級ごとの光の強さ。並品はほぼ光らず、銘品は派手に光る。枠の外光・品名の
+// 燐光・★の輝きをこの 1 本の尺度（--gb）から作るので、等級が上がったときに
+// 強くなるのは光り方だけで、色の意味は増えない
+const grade_glow = [
+  { blur: 1.0, alpha: '22' },
+  { blur: 1.6, alpha: '33' },
+  { blur: 2.2, alpha: '44' },
+  { blur: 2.8, alpha: '55' },
+  { blur: 3.6, alpha: '77' },
+]
+
+// 等級の★。10 段を 2 段ずつ丸めた 5 等級（gear_grade）をそのまま 5 つの星に
+// 写す。等級名（並品〜銘品）は覚えないと大小が分からないが、星は数で分かる。
+// 開封の二拍目として左から順に点灯するので、遅延だけを要素ごとに置く
+function stars_html(grade: number, flash: string): string {
   let cells = ''
-  for (let i = 1; i <= gear_max_tier; i++) {
-    cells += '<span class="' + (i <= base ? 'b' : i <= top ? 'd' : '') + '"></span>'
+  for (let i = 0; i < gear_grades.length; i++) {
+    cells += '<span class="' + (i <= grade ? 'on' : '') +
+      '" style="animation-delay:' + (0.2 + i * 0.08).toFixed(2) + 's">★</span>'
   }
-  return '<div class="eq-ladder">' + cells + '</div>'
+  return '<div class="eq-stars' + flash + '">' + cells + '</div>'
 }
 
-// 判定。等級（レア度＝転売額）とは別の軸なので、等級色ではなく差分行と同じ
-// 固定の緑と赤で出す。段が全順序なので、この 1 行が差分行の結論そのものになる
-function verdict_html(verdict: gear_verdict_t, owned: number, flash: string): string {
-  return '<div class="eq-verdict ' + verdict + flash + '">' +
-    '<b>' + gear_verdict_labels[verdict] + '</b>' +
-    ladder_html(owned) +
-    '<i>段 ' + (owned > 0 ? owned + ' → ' : '') + tier + '</i>' +
-    '</div>'
-}
-
-// 選択肢の添え書き。決めたあとの結末を 2 つ並べる — 何を装備していて、ヤニが
-// いくら増えるか。両方のカードを同じ形にすることで、見比べる先が揃う。
-//
-// 装備の段を額より先に置く。格下では「入れ替える」のほうがヤニは多くなる
-// （高い旧品のほうが化けるため。段 8 → 3 なら 320 対 45）ので、額だけを出すと
-// 推奨が逆に見える。gear_scrap_value(0) は 0 なので、未所持も同じ式で通る
-function choice_note(equipped: number, yani: number): string {
-  return '装備 ' + (equipped > 0 ? '段' + equipped : 'なし') + '　ヤニ +' + yani
+// 入れ替える側の添え書き。額ではなく、決めたあとに能力がどう動くかを言う。
+// 以前は両カードに「装備 段X　ヤニ +N」を並べていたが、同じ「ヤニ +N」が
+// 入れ替え側では旧品・転売側では新品の額を指していて、同じ札が別のものを
+// 数えていた。額は転売する側の 1 枚に寄せ、こちらは向きだけを持つ。
+// クラスは判定語をそのまま流し、色（緑・赤・同格の本文色）は CSS が判定行と
+// 同じ規則で置く
+const ability_notes: Record<gear_verdict_t, string> = {
+  new: '能力UP', up: '能力UP', same: '能力そのまま', down: '能力DOWN',
 }
 
 // カードの上辺に貼る札。既定のカーソル位置（.on の橙）と重なることが多いので、
 // 「どちらが得か」と「いまどちらを指しているか」が混ざらないよう見せ方を分ける
 // — カーソルは枠と地、札は上辺
 const tag_rec = '<span class="eq-rec">推奨</span>'
-// 同格はどちらのカードにも同じ札を出す。推奨が無いことは、札が無いことでは
-// 伝わらない。緑にしないのは、どちらでも同じことが良くも悪くもないから
-const tag_even = '<span class="eq-rec even">どちらでも</span>'
 
 function choice_html(index: number, verb: string, note: string, tag: string): string {
   return '<div class="eq-choice' + (selected === index ? ' on' : '') + '">' +
-    tag + '<b>' + verb + '</b><i>' + note + '</i></div>'
+    tag + '<b>' + verb + '</b>' + note + '</div>'
 }
 
 function render(): void {
   const grade = gear_grade(tier)
   const color = revealed ? gear_grades[grade].color : '#8a8a8a'
+  // 光の強さは等級色と一緒に --gc / --gb で流す。CSS 側（★・品名・開封の
+  // フラッシュ）が同じ 2 つを読むので、等級ごとの分岐が CSS に散らない
+  const glow = grade_glow[revealed ? grade : 0]
   const owned = meta.gear[slot]
   // 三幕目の最初の描画だけ演出クラスを付ける。新しく作られた要素でも
   // アニメーションは走る（トランジションと違って開始値を必要としない）ので、
@@ -222,8 +219,9 @@ function render(): void {
   const flash = just_revealed ? ' just-revealed' : ''
   just_revealed = false
 
-  let html = '<div class="eq-box' + flash + '" style="border-color:' + color +
-    ';box-shadow:0 0 2vw ' + color + '44">' +
+  let html = '<div class="eq-box' + flash + '" style="--gc:' + color +
+    ';--gb:' + glow.blur + 'vw;border-color:' + color +
+    ';box-shadow:0 0 ' + glow.blur + 'vw ' + color + glow.alpha + '">' +
     '<div class="eq-head">押収品コンテナ</div>'
 
   if (!revealed) {
@@ -234,16 +232,18 @@ function render(): void {
   const verdict = gear_verdict(owned, tier)
   const keep_recommended = gear_recommend_keep(verdict)
 
-  html += '<div class="eq-grade" style="color:' + color + '">' +
-      gear_grades[grade].name + '</div>' +
+  html += '<div class="eq-grade">' + gear_grades[grade].name + '</div>' +
+    stars_html(grade, flash) +
     '<div class="eq-item' + flash + '">' +
+      // 放射光は芯（細く濃く）と暈（太く薄く）の 2 枚重ね。1 枚だと等級を
+      // 上げてもぼやけるだけで、強くなった感じにならない
       '<img src="' + gear_icons[slot][tier - 1] +
-        '" alt="" style="filter:drop-shadow(0 0 0.8vw ' + color + ')">' +
-      '<div class="eq-name" style="color:' + color + '">' +
-        gear_name(slot, tier) + '</div>' +
+        '" alt="" style="filter:drop-shadow(0 0 ' + (glow.blur * 0.25).toFixed(2) +
+        'vw ' + color + ') drop-shadow(0 0 ' + (glow.blur * 0.55).toFixed(2) +
+        'vw ' + color + glow.alpha + ')">' +
+      '<div class="eq-name">' + gear_name(slot, tier) + '</div>' +
       '<div class="eq-slot">' + gear_slot_labels[slot] + '</div>' +
     '</div>' +
-    verdict_html(verdict, owned, flash) +
     '<div class="eq-stats">' +
       // 見出し行。2 つの値の列がどちらの装備のものか、以前は矢印の向きから
       // 推し量るしかなかった
@@ -262,13 +262,12 @@ function render(): void {
       '<b class="' + cls + '">' + n.text + '</b></div>'
   }
 
-  const even = keep_recommended === null // 同格。どちらを選んでも結末が一致する
   html += '</div><div class="eq-choices">' +
       choice_html(0, owned > 0 ? '入れ替える' : '装備する',
-        choice_note(tier, gear_scrap_value(owned)),
-        even ? tag_even : keep_recommended ? tag_rec : '') +
-      choice_html(1, '転売する', choice_note(owned, gear_scrap_value(tier)),
-        even ? tag_even : keep_recommended ? '' : tag_rec) +
+        '<i class="' + verdict + '">' + ability_notes[verdict] + '</i>',
+        keep_recommended ? tag_rec : '') +
+      choice_html(1, '転売する', '<i>ヤニ +' + gear_scrap_value(tier) + '</i>',
+        keep_recommended ? '' : tag_rec) +
     '</div>' +
     '<div class="eq-keys">[←→] 選ぶ　[Enter] 決定</div>' +
     '</div>'
