@@ -229,6 +229,11 @@ function apply(): void {
 function fill_detail(): void {
   if (state.mode !== 'upgrade') {
     detail_last_open = false
+    // #ds を display:none で隠すと、次の display:block で子要素の animation が
+    // 0% から再生し直される（entering と同じ仕組み）。.swap が残っていると
+    // idle のはずの画面で前回のフォーカス内容がフェードして見えてしまうため、
+    // ここで確実に剥がしておく
+    root!.querySelector<HTMLElement>('.ds-detail')!.classList.remove('swap')
     return
   }
   const part = body_parts[state.focus]
