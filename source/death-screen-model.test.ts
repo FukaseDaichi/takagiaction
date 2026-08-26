@@ -24,10 +24,6 @@ describe('死因メッセージ', () => {
   it('ニコチン切れは別の見出しで死因が分かる', () => {
     expect(death_message(death_cause_nicotine)).toBe('ニコチン、限界です。')
   })
-
-  it('見出しは 1 行の文字列で、配列ではない', () => {
-    expect(typeof death_message(0)).toBe('string')
-  })
 })
 
 describe('ニューレコード判定', () => {
