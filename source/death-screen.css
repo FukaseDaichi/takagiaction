@@ -203,8 +203,11 @@
   stroke: var(--c);
   stroke-width: 1;
   opacity: 0;
-  stroke-dasharray: 400;
-  stroke-dashoffset: 400;
+  /* --l は線の実長（build() が 1 本ずつ計算して載せる）。共通の固定値を
+     当てると、実長を超えるぶんの dashoffset は「もう描き切っている」区間に
+     消え、線が伸びる演出がその手前のわずかな時間へ圧縮される */
+  stroke-dasharray: var(--l);
+  stroke-dashoffset: var(--l);
   /* 描画は animation でなく transition で行う。animation + forwards だと
      保持している .55 は「アニメーションが乗せている見た目の値」でしかなく、
      transition が比較する非アニメーションのカスケード値は opacity: 0 の
@@ -504,8 +507,9 @@
 #ds .ds-gear-wire {
   stroke: #7fe0a8;
   stroke-width: 1;
-  stroke-dasharray: 200;
-  stroke-dashoffset: 200;
+  /* --l は線の実長。理由は #ds .ds-wire を参照 */
+  stroke-dasharray: var(--l);
+  stroke-dashoffset: var(--l);
   opacity: 0;
   /* #ds .ds-wire（上記）と同じ理由で animation ではなく transition にする。
      計画書が指す ds-wire-draw という keyframe は Task 6 の修正で既に削除
@@ -521,17 +525,21 @@
   transition: opacity .3s var(--ease-in) .1s, stroke-dashoffset .3s var(--ease-in) .1s;
 }
 
+/* カードは縦に積まず、1 枚ずつ接続線の終端の高さに置く（top は fill_gear が
+   書き、body-figure.ts の gear_cards が唯一の出どころ）。帯の幅と右余白は
+   body-figure.ts の gear_panel_left_vw と対で、線の終端 x をここから導いている */
 #ds .ds-gearpanel {
   position: absolute;
   right: 4%;
-  top: 26%;
+  top: 0;
+  bottom: 0;
   width: 24vw;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2vh;
   pointer-events: none;
 }
 #ds .ds-card {
+  position: absolute;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1vw;
@@ -539,13 +547,15 @@
   border-left: 2px solid var(--c, #5d7a68);
   background: linear-gradient(90deg, rgba(6, 14, 10, .92), rgba(6, 14, 10, .5));
   opacity: 0;
-  /* 閉じると模型側（左）へ吸い込まれる */
-  transform: translateX(6vw) scale(.9);
+  /* translateY(-50%) が top を「カードの中心」にする ― 線はカードの左端の
+     中心へ着く。閉じると模型側（左）へ吸い込まれる（模型は 45.5〜74.5vw、
+     カード帯は 72〜96vw なので、模型はカードの左にある） */
+  transform: translate(-6vw, -50%) scale(.9);
   transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
 }
 #ds.panel-gear .ds-card {
   opacity: 1;
-  transform: none;
+  transform: translateY(-50%);
   transition: opacity .3s var(--ease-in) calc(.2s + var(--i) * 90ms),
     transform .3s var(--ease-in) calc(.2s + var(--i) * 90ms);
 }

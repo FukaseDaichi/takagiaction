@@ -3,8 +3,8 @@ import {
   audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
 } from './audio'
 import {
-  body_height, body_parts, body_stow_position, body_width, figure_view_box, gear_anchors,
-  organ_svg,
+  body_height, body_parts, body_stow_position, body_width, figure_view_box, figure_y_vh,
+  gear_anchors, gear_card_x, gear_cards, organ_svg,
 } from './body-figure'
 import { canvas } from './dom'
 import {
@@ -91,6 +91,15 @@ export function death_screen_show(
   document.addEventListener('keydown', on_key)
 }
 
+// stroke-dasharray / stroke-dashoffset に載せる線の実長。共通の固定値にすると、
+// 実長を超えるぶんの travel は「もう描き切っている」区間に消える。400 を
+// 当てていた 6 本（実長 92〜162）では、340ms の transition のうち線が伸びて
+// 見えるのは頭の 35ms だけで、仕様 ② が名指しした stroke-dashoffset の演出が
+// 知覚できなかった
+function wire_length(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.round(Math.hypot(x2 - x1, y2 - y1) * 10) / 10
+}
+
 function build(): HTMLDivElement {
   const el = document.createElement('div')
   el.id = 'ds'
@@ -103,18 +112,22 @@ function build(): HTMLDivElement {
   let wires = ''
   let organs = ''
   let gear_wires = ''
-  for (const slot of gear_slots) {
-    const a = gear_anchors[slot]
-    // カードは右へ展開するので、線はアンカーから右外へ抜ける
-    gear_wires += '<line class="ds-gear-wire" data-slot="' + slot +
-      '" x1="' + a.x + '" y1="' + a.y + '" x2="330" y2="' + a.y + '"/>'
+  for (const card of gear_cards) {
+    const a = gear_anchors[card.slot]
+    // カードは右へ展開するので、線はアンカーから右外へ抜けてカード帯の左端で
+    // 止まる。終端の y はカードの縦位置そのもの（body-figure.ts の gear_cards）
+    gear_wires += '<line class="ds-gear-wire" data-slot="' + card.slot +
+      '" style="--l:' + wire_length(a.x, a.y, gear_card_x, card.y) +
+      '" x1="' + a.x + '" y1="' + a.y +
+      '" x2="' + gear_card_x + '" y2="' + card.y + '"/>'
   }
   for (let i = 0; i < body_parts.length; i++) {
     const part = body_parts[i]
     const row = row_of.get(part.id)!
     const stow = body_stow_position(part)
     wires += '<line class="ds-wire" data-part="' + part.id + '" style="--i:' + i +
-      ';--c:' + row.color + '" x1="' + part.ax + '" y1="' + part.ay +
+      ';--c:' + row.color + ';--l:' + wire_length(part.ax, part.ay, part.ix, part.iy) +
+      '" x1="' + part.ax + '" y1="' + part.ay +
       '" x2="' + part.ix + '" y2="' + part.iy + '"/>'
     organs += '<g class="ds-organ" data-part="' + part.id +
       '" style="--c:' + row.color + '">' + organ_svg[part.id] + '</g>'
@@ -157,11 +170,14 @@ function build(): HTMLDivElement {
     '</div>' +
     '<div class="ds-figure">' +
     '<svg class="ds-svg" viewBox="' + figure_view_box + '">' +
+    // 重ね順は文書順で 接続線 → 下地 → 器官 → アイコン（設計書「人体模型の
+    // SVG」）。装備の接続線も強化の接続線と同じく下地より先に置く ―
+    // 後に置くと胸や脚を横切る線が模型の表面へ乗り、奥行きが消える
     '<g class="ds-wires">' + wires + '</g>' +
+    '<g class="ds-gear-wires">' + gear_wires + '</g>' +
     '<image class="ds-body" href="' + body_url + '" x="0" y="0" ' +
     'width="' + body_width + '" height="' + body_height + '"/>' +
     '<g class="ds-organs">' + organs + '</g>' +
-    '<g class="ds-gear-wires">' + gear_wires + '</g>' +
     '<g class="ds-icons">' + icons + '</g>' +
     '</svg>' +
     '</div>' +
@@ -424,12 +440,16 @@ function fill_gear(): void {
   const panel = root!.querySelector<HTMLElement>('.ds-gearpanel')!
   let html = ''
   let index = 0
-  for (const slot of gear_slots) {
+  for (const card of gear_cards) {
+    const slot = card.slot
     const tier = meta.gear[slot]
     const owned = tier > 0
     const grade = owned ? gear_grades[gear_grade(tier)] : null
+    // top は接続線の終端そのもの。CSS の translateY(-50%) がこの高さを
+    // カードの中心にする（線はカードの左端の中心に着く）
     html += '<div class="ds-card' + (owned ? '' : ' none') +
-      '" style="--i:' + index++ + (grade ? ';--c:' + grade.color : '') + '">' +
+      '" style="--i:' + index++ + ';top:' + figure_y_vh(card.y).toFixed(2) + 'vh' +
+      (grade ? ';--c:' + grade.color : '') + '">' +
       (owned
         ? '<img src="' + gear_icons[slot][tier - 1] + '" alt="">'
         : '<div class="ds-card-empty"></div>') +

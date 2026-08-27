@@ -16,7 +16,33 @@ export const body_height = 512
 
 // アイコンを身体の外へ置くため、viewBox は下地より広い。左は -80、右は
 // 336 まで取り、アイコン（半径 22）の発光がはみ出さない余白を含む
-export const figure_view_box = '-80 -10 416 532'
+const view_x = -80
+const view_y = -10
+const view_w = 416
+const view_h = 532
+export const figure_view_box = view_x + ' ' + view_y + ' ' + view_w + ' ' + view_h
+
+// --- SVG 座標と画面座標の写像 ---
+//
+// .ds-figure は height 66vh・aspect-ratio 416:532 で中心 (60%, 50%) に置かれ、
+// viewBox がその箱と厳密に一致するので、写像は 1 次式で閉じる（death-screen.css）。
+// SVG の外に置く要素（装備カード）の位置をこの座標系から導くために持つ ―
+// 線の終端とカードを別々の数で置くと、両者は必ず食い違う。
+// 横は vw なので画面のアスペクト比が要る。この CSS 全体と同じく 16:9 を前提に
+// する（1vh = 9/16 vw）
+const figure_height_vh = 66
+const figure_unit_vh = figure_height_vh / view_h
+const figure_unit_vw = figure_unit_vh * 9 / 16
+const figure_top_vh = 50 - figure_height_vh / 2
+const figure_left_vw = 60 - view_w * figure_unit_vw / 2
+
+export function figure_y_vh(y: number): number {
+  return figure_top_vh + (y - view_y) * figure_unit_vh
+}
+
+function figure_svg_x(x_vw: number): number {
+  return (x_vw - figure_left_vw) / figure_unit_vw + view_x
+}
 
 export interface body_part_t {
   id: meta_upgrade_id_t
@@ -57,6 +83,22 @@ export const gear_anchors: Record<gear_slot_t, { x: number, y: number }> = {
   sole: { x: 155, y: 478 },
   patch: { x: 128, y: 150 },
 }
+
+// カード帯（.ds-gearpanel）の左端。CSS の right: 4% と width: 24vw に対応する
+const gear_panel_left_vw = 100 - 4 - 24
+// 接続線の終端 x。3 系統ともここでカード帯の左端に着く
+export const gear_card_x = Math.round(figure_svg_x(gear_panel_left_vw))
+
+// カードの引き出し先。線の終端であり、カードの縦位置でもある（カードの top は
+// figure_y_vh() でこの y から導く）― 2 つを別々に置くと線がカードに届かない。
+// 並びはアンカーの上下（胸 → 右手 → 右足）と同じにして線を交差させない。
+// 間隔 122 単位（約 15.1vh）はカード 1 枚の高さ（約 7.3vh）の 2 倍あり、
+// いちばん下でも右下の「地下へ戻る」（74vh から）に届かない
+export const gear_cards: Array<{ slot: gear_slot_t, y: number }> = [
+  { slot: 'patch', y: 140 },
+  { slot: 'blade', y: 262 },
+  { slot: 'sole', y: 384 },
+]
 
 // 器官の中身。既定は不可視で、フォーカスと強化演出のときだけ光る。
 // class は death-screen.css が受ける（ds-o-* は演出で個別に動かす部品）
