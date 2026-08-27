@@ -40,7 +40,8 @@ import stat_dummy_url from '../m/ui/icon-stat-dummy.webp'
 // CSS アニメーションが破棄されて位相が 0 に戻り、段階開示の演出が成立しない
 // （docs/superpowers/specs/2026-08-26-death-screen-redesign-design.md）。
 
-let state: ds_state_t = ds_initial_state()
+// 表示していないあいだの値。death_screen_show() が毎回組み直す
+let state: ds_state_t = ds_initial_state(false, false)
 let current: run_result_t | null = null
 let on_descend_cb = (): void => {}
 let root: HTMLDivElement | null = null
@@ -60,7 +61,13 @@ export function death_screen_show(
 ): void {
   current = result
   on_descend_cb = on_start
-  state = ds_initial_state()
+  // 記録確認・装備確認は読むものが無ければ項目ごと出さない（設計書 ⑤ ⑥）。
+  // 出さない項目には矢印でフォーカスを乗せてもいけないので、表示の有無と
+  // 巡回の可否を 1 か所で決めて状態へ載せる。ds_reduce は実行時 import を
+  // 持たない葉なので、meta も current も自分では読めない
+  const has_record = result !== null || meta.best_depth > 0
+  const has_gear = gear_slots.some((slot) => meta.gear[slot] > 0)
+  state = ds_initial_state(has_record, has_gear)
   if (!root) { root = build() }
   canvas.style.opacity = '0.3'
   // 死亡画面はターミナルを使わない。表示中の通知チェーンや起動時の文字が
@@ -215,16 +222,14 @@ function build(): HTMLDivElement {
       dispatch('Enter')
     }
   })
-  // busy 中の押下だけを弾く。.ds-item/.ds-part と違い panel を条件に含めないのは、
-  // このボタンが「パネルを開いたまま地下へ戻る」の入口も兼ねるため（次の行で
-  // panel を無条件に 'none' へ倒すので、パネル表示中でも押せて構わない）。
-  // busy を弾かないと、#ds.busy の pointer-events:none が及ばない経路
-  // （フォーカスの残ったボタンへのキーボードでの再活性化など）で state だけが
-  // 書き換わり、ds_reduce の busy ガードに却下されて apply() が走らないまま
-  // DOM と state が食い違う（.ds-item 側と同じ理由。上のコメント参照）
+  // .ds-item / .ds-part と同じガードを持つ。パネル表示中に押せてしまうと、
+  // 「Esc は 1 段戻る」の階段（パネル → 強化モード → 降下）を迂回して
+  // 一足飛びに降下する、状態機械の外の経路になる（R37）。
+  // クリックが state を直接書くのは「キーでは表せない対象の名指し」までで、
+  // そこから先の遷移は dispatch('Enter') が ds_reduce に渡す
   el.querySelector<HTMLButtonElement>('.ds-descend')!.onclick = () => {
-    if (state.busy) { return }
-    state = { ...state, mode: 'idle', panel: 'none', focus: ds_idle_descend }
+    if (state.busy || state.panel !== 'none') { return }
+    state = { ...state, mode: 'idle', focus: ds_idle_descend }
     apply()
     dispatch('Enter')
   }
@@ -242,19 +247,16 @@ function fill_static(): void {
   root!.querySelector<HTMLElement>('.ds-yani-warn')!.style.display =
     meta.persistent ? 'none' : 'block'
 
-  // 初回起動でベスト深度も 0 なら、記録確認は読むものが無いので項目ごと出さない。
+  // 表示の有無は state が持つ（death_screen_show が計算する）。項目を出すか
+  // どうかと、矢印がそこへ止まれるかどうかを 2 か所で判断させない。
   // data-item はレイアウト順で決め打ちにせず、状態機械が定義する idle の
-  // フォーカス添字（ds_idle_record）から選択子を組む（R4）
-  const has_record = current !== null || meta.best_depth > 0
+  // フォーカス添字（ds_idle_record / ds_idle_gear）から選択子を組む（R4）
   root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_record + '"]')!.style.display =
-    has_record ? '' : 'none'
+    state.has_record ? '' : 'none'
   fill_record()
 
-  // 3 系統とも未所持なら、装備確認も読むものが無いので項目ごと出さない
-  // （has_record と同じ判断）。data-item はここも ds_idle_gear から組む（R4）
-  const has_gear = gear_slots.some((slot) => meta.gear[slot] > 0)
   root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_gear + '"]')!.style.display =
-    has_gear ? '' : 'none'
+    state.has_gear ? '' : 'none'
   fill_gear()
 
   // meta.best_depth は未プレイ時 0 のため、1 で底上げして「0F+」を避ける
@@ -497,6 +499,11 @@ let upgrade_timer: ReturnType<typeof setTimeout> = 0
 
 function buy(): void {
   const id = body_parts[state.focus].id
+  // MAX の合図は静止（円弧が閉じてリングになり、中央にチェック）。ここで
+  // 拒否演出まで出すと「ヤニが足りない」という誤った合図になる。
+  // meta_buy() は MAX でもヤニ不足でも false を返すので返り値では区別できず、
+  // 上限は呼ぶ前に見るしかない
+  if (meta.levels[id] >= meta_max_level[id]) { return }
   if (!meta_buy(id)) {
     // ヤニ不足では音を鳴らさない。残高と必要ヤニが 1 回だけ赤く震える
     const detail = root!.querySelector<HTMLElement>('.ds-detail')!

@@ -63,6 +63,13 @@ export interface ds_state_t {
   focus: number // idle: 0..2、upgrade: 0..5（body_parts の添字）
   panel: ds_panel_t
   busy: boolean // 入場シーケンスと強化演出の再生中
+  // 記録確認 / 装備確認は読むデータが無ければ項目ごと出さない。出していない
+  // 項目へ矢印でフォーカスが乗ると Enter で空のパネルが開いてしまうので、
+  // 巡回の対象かどうかを状態として持つ。このモジュールは実行時 import を
+  // 持たない葉なので、meta や今回のリザルトを自分では読めない ―
+  // 表示側（death_screen_show）が計算した結果をここへ載せてもらう
+  has_record: boolean
+  has_gear: boolean
 }
 
 export interface ds_result_t {
@@ -73,8 +80,31 @@ export interface ds_result_t {
 // 既定のフォーカスが「地下へ戻る」なのは、この画面の最終的なメインアクション
 // だから。開いた瞬間に「地下へ戻れる」が読めることを最優先する。
 // busy = true で始めるのは入場シーケンスが終わるまで入力を捨てるため
-export function ds_initial_state(): ds_state_t {
-  return { mode: 'idle', focus: ds_idle_descend, panel: 'none', busy: true }
+export function ds_initial_state(has_record: boolean, has_gear: boolean): ds_state_t {
+  return {
+    mode: 'idle', focus: ds_idle_descend, panel: 'none', busy: true, has_record, has_gear,
+  }
+}
+
+// idle のその項目が、この回に出ているか。地下へ戻るは常に出ている
+function ds_idle_shown(state: ds_state_t, index: number): boolean {
+  if (index === ds_idle_record) { return state.has_record }
+  if (index === ds_idle_gear) { return state.has_gear }
+  return true
+}
+
+// 矢印 1 回ぶんの移動先。idle では出ていない項目を飛ばす。地下へ戻るが必ず
+// 出ている以上、1 周ぶん回せば必ず止まれる
+function ds_step(state: ds_state_t, delta: number): number {
+  if (state.mode === 'upgrade') {
+    return (state.focus + ds_part_count + delta) % ds_part_count
+  }
+  let next = state.focus
+  for (let i = 0; i < ds_idle_count; i++) {
+    next = (next + ds_idle_count + delta) % ds_idle_count
+    if (ds_idle_shown(state, next)) { break }
+  }
+  return next
 }
 
 export function ds_reduce(state: ds_state_t, key: string): ds_result_t {
@@ -104,12 +134,15 @@ export function ds_reduce(state: ds_state_t, key: string): ds_result_t {
     return state.mode === 'upgrade' ? to_idle : { state, action: 'descend' }
   }
 
-  const count = state.mode === 'upgrade' ? ds_part_count : ds_idle_count
+  // 出ている項目が地下へ戻る 1 つだけなら移動先が自分自身になる。状態を
+  // 変えずに返して、意味のない決定音と再描画を出さない
   if (key === 'ArrowUp' || key === 'ArrowLeft') {
-    return { state: { ...state, focus: (state.focus + count - 1) % count }, action: 'none' }
+    const next = ds_step(state, -1)
+    return next === state.focus ? stay : { state: { ...state, focus: next }, action: 'none' }
   }
   if (key === 'ArrowDown' || key === 'ArrowRight') {
-    return { state: { ...state, focus: (state.focus + 1) % count }, action: 'none' }
+    const next = ds_step(state, 1)
+    return next === state.focus ? stay : { state: { ...state, focus: next }, action: 'none' }
   }
 
   if (key === 'Enter') {

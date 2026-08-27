@@ -50,18 +50,26 @@ describe('ニューレコード判定', () => {
 })
 
 // テストごとに開始状態を組み立てる。入場シーケンスが終わった直後（busy = false）
-// を既定にする
+// で、記録確認・装備確認はどちらも出ている状態を既定にする
 function idle(over: Partial<ds_state_t> = {}): ds_state_t {
-  return { ...ds_initial_state(), busy: false, ...over }
+  return { ...ds_initial_state(true, true), busy: false, ...over }
 }
 
 describe('死亡画面の状態機械', () => {
   it('初期状態は idle・地下へ戻るにフォーカス・入場中は busy', () => {
-    const s = ds_initial_state()
+    const s = ds_initial_state(true, true)
     expect(s.mode).toBe('idle')
     expect(s.focus).toBe(ds_idle_descend)
     expect(s.panel).toBe('none')
     expect(s.busy).toBe(true)
+  })
+
+  // 表示側が計算した「その回に出ている項目」をそのまま持つ
+  it('初期状態は記録確認・装備確認の有無を引数から受け取る', () => {
+    expect(ds_initial_state(false, true).has_record).toBe(false)
+    expect(ds_initial_state(false, true).has_gear).toBe(true)
+    expect(ds_initial_state(true, false).has_record).toBe(true)
+    expect(ds_initial_state(true, false).has_gear).toBe(false)
   })
 
   it('busy 中はどのキーも状態を変えない', () => {
@@ -91,6 +99,31 @@ describe('死亡画面の状態機械', () => {
     // 末尾から前へ回り込む
     expect(ds_reduce(idle({ focus: ds_idle_record }), 'ArrowUp').state.focus)
       .toBe(ds_idle_descend)
+  })
+
+  // 記録確認・装備確認は読むものが無ければ項目ごと出さない。出していない項目に
+  // フォーカスが乗ると、Enter で空のパネルが開けてしまう
+  it('出していない項目は矢印が飛ばす', () => {
+    const no_record = idle({ has_record: false })
+    expect(ds_reduce(no_record, 'ArrowDown').state.focus).toBe(ds_idle_gear)
+    expect(ds_reduce(no_record, 'ArrowUp').state.focus).toBe(ds_idle_gear)
+
+    const no_gear = idle({ has_gear: false })
+    expect(ds_reduce(no_gear, 'ArrowDown').state.focus).toBe(ds_idle_record)
+    expect(ds_reduce(no_gear, 'ArrowUp').state.focus).toBe(ds_idle_record)
+  })
+
+  it('どちらも出ていなければ矢印は何もしない', () => {
+    const s = idle({ has_record: false, has_gear: false })
+    expect(ds_reduce(s, 'ArrowDown').state).toBe(s)
+    expect(ds_reduce(s, 'ArrowUp').state).toBe(s)
+  })
+
+  // 6 部位は常に全部出ているので、強化モードの巡回は表示の有無に左右されない
+  it('強化モードの巡回は項目の表示に左右されない', () => {
+    const s = idle({ mode: 'upgrade', focus: 0, has_record: false, has_gear: false })
+    expect(ds_reduce(s, 'ArrowDown').state.focus).toBe(1)
+    expect(ds_reduce(s, 'ArrowUp').state.focus).toBe(ds_part_count - 1)
   })
 
   it('強化モードの矢印は 6 部位を解剖順に巡回する', () => {

@@ -34,7 +34,9 @@ const harness = vi.hoisted(() => {
     body: { appendChild: () => {} },
     createElement: () => make_el(),
     addEventListener: (type: string, fn: listener_t) => {
-      if (type === 'keydown') { keydown_listeners.push(fn) }
+      // 同じ (type, listener) の二重登録は本物の DOM が弾く。ここで弾かないと
+      // 表示のたびに on_key が積み上がり、1 回のキーで dispatch が何度も走る
+      if (type === 'keydown' && !keydown_listeners.includes(fn)) { keydown_listeners.push(fn) }
     },
     removeEventListener: (type: string, fn: listener_t) => {
       if (type !== 'keydown') { return }
@@ -74,11 +76,14 @@ import {
 } from './input'
 
 // 実機と同じ順序で配る。input.ts の document.onkeydown はゲーム起動時に
-// 代入されるので、あとから addEventListener した死亡画面より先に走る
-function keydown(key: string, code: number): void {
-  const ev = { key, keyCode: code, repeat: false, preventDefault: () => {} }
+// 代入されるので、あとから addEventListener した死亡画面より先に走る。
+// 返り値は preventDefault() が呼ばれた回数（2 系統の合計）
+function keydown(key: string, code: number): number {
+  let prevented = 0
+  const ev = { key, keyCode: code, repeat: false, preventDefault: () => { prevented++ } }
   harness.doc.onkeydown!(ev)
   for (const fn of [...harness.keydown_listeners]) { fn(ev) }
+  return prevented
 }
 
 // input.ts の keys に載る 7 つ。KeyboardEvent.key は死亡画面の on_key が読む
@@ -183,5 +188,35 @@ describe('死亡画面のキー後始末', () => {
 
     expect(started).toBe(1)
     for (const [, code] of all_keys) { expect(keys[code]).toBe(0) }
+  })
+})
+
+// preventDefault() は「機能を成立させている最も外側の 1 行」で、外すと Tab で
+// ブラウザ既定のフォーカス移動が走り、クリックでネイティブフォーカスが残った
+// ボタンが Enter / Space に二重反応する（設計書「状態機械」「テスト方針」）
+describe('死亡画面のキー既定動作', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    input_init()
+    death_screen_show(result, () => {})
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // 入場シーケンス中（busy）でも preventDefault は on_key の先頭、dispatch より
+  // 前で走るので、状態を動かさずに数えられる。input.ts の onkeydown も keys に
+  // 載るキーでは preventDefault を呼ぶため、死亡画面ぶんだけを単独で見られるのは
+  // keys に載らない Enter で、Tab と Space は 2 系統の合計になる
+  it('Tab / Enter / Space はブラウザ既定の動作を止める', () => {
+    expect(keydown('Enter', 13)).toBe(1)
+    expect(keydown('Tab', key_swap)).toBe(2)
+    expect(keydown(' ', key_shoot)).toBe(2)
+  })
+
+  it('矢印と Esc では死亡画面は既定動作を止めない', () => {
+    expect(keydown('ArrowUp', key_up)).toBe(1) // input.ts のぶんだけ
+    expect(keydown('Escape', 27)).toBe(0)
   })
 })
