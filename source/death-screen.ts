@@ -38,7 +38,7 @@ import stat_dummy_url from '../m/ui/icon-stat-dummy.webp'
 //
 // この画面は DOM を 1 度だけ組み、以降はノードを作り直さない。作り直すと
 // CSS アニメーションが破棄されて位相が 0 に戻り、段階開示の演出が成立しない
-// （docs/superpowers/specs/2026-08-26-death-screen-redesign-design.md）。
+// （docs/architecture.md「全画面 DOM UI の作り方」）。
 
 // 表示していないあいだの値。death_screen_show() が毎回組み直す
 let state: ds_state_t = ds_initial_state(false, false)
