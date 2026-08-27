@@ -445,13 +445,16 @@
 #ds.up-leg .ds-organ[data-part="leg"] { opacity: 1; }
 
 /* 肺活量: 膨らむ → 気管へ光が流れる → 戻る → 口元から煙が 3 粒昇って消える。
-   煙は肺が戻り切る 1.05s から粒ごとに --step（80ms）ずつ遅れて立つ。
-   3 粒目が消えるのが 1.56s なので、upgrade_duration をそれに合わせて
-   延ばしてある（死亡画面レビュー Finding 1: この煙が仕様に対して欠けていた） */
+   膨張の頂点（scale 1.28）は .65s の 54% ≒ 0.35s で、design.md §④が
+   挙げる「scale 1→1.28（0.35s）」に合わせてある。煙は肺が戻り切る .65s
+   から粒ごとに --step（80ms）ずつ遅れて立ち、3 粒目が消えるのが 1.16s。
+   upgrade_duration（§④の busy ロック窓 0.9〜1.2s の上限）はここに 40ms の
+   余白を足した値（死亡画面レビュー Finding 3: 煙を足して 1.6s まで伸びた
+   尺が仕様のロック窓を超えていたため、膨張・戻りの尺を圧縮して収めた） */
 #ds.up-lung .ds-o-lung {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ds-lung-swell 1.05s var(--ease-in);
+  animation: ds-lung-swell .65s var(--ease-in);
 }
 #ds.up-lung .ds-o-trachea {
   stroke-dasharray: 60;
@@ -464,10 +467,10 @@
 #ds.up-lung .ds-o-puff {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ds-puff .35s var(--ease-in) 1.05s;
+  animation: ds-puff .35s var(--ease-in) .65s;
 }
-#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(1.05s + var(--step)); }
-#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(1.05s + var(--step) * 2); }
+#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(.65s + var(--step)); }
+#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(.65s + var(--step) * 2); }
 
 /* ニコチン耐性: 脳が点灯し、神経ラインへパルスが降りる */
 #ds.up-tolerance .ds-o-brain { animation: ds-pulse .5s ease-out 2; }
@@ -565,7 +568,7 @@
 }
 @keyframes ds-lung-swell {
   0% { transform: scale(1); }
-  33% { transform: scale(1.28); }
+  54% { transform: scale(1.28); }
   100% { transform: scale(1); }
 }
 @keyframes ds-flow { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
