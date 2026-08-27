@@ -28,6 +28,9 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('./entity-smoking-area', () => ({ entity_smoking_area_t: mocks.smoking_area_t }))
 vi.mock('./entity-exit', () => ({ entity_exit_t: mocks.exit_t }))
+// minimap.ts は ./entity-yani を import しない（吸い殻は描かない）。それでも
+// モックを残すのは、import と分岐を戻した瞬間に「落ちている吸い殻は Lv5 でも
+// ミニマップに出ない」が赤くなるようにするため
 vi.mock('./entity-yani', () => ({ entity_yani_t: mocks.yani_t }))
 vi.mock('./entity-drone', () => ({ entity_drone_t: mocks.drone_t }))
 vi.mock('./entity-container', () => ({ entity_container_t: mocks.container_t }))
@@ -53,9 +56,13 @@ const orange_dim = [238, 153, 0, 255]
 const orange_bright = [255, 228, 150, 255]
 const green_dim = [0, 220, 120, 255]
 const green_bright = [190, 255, 220, 255]
+const drone_blue = [140, 200, 240, 255]
+const container_green = [150, 230, 200, 255]
+const floor_color = [28, 58, 74, 255]
 
 const player_tile = 10
-const far_tile = 30 // 自機から 20 タイル。ゲージ 25% の描き込み半径 5 の外
+const far_tile = 30 // 自機から 20 タイル。ゲージ満タンの描き込み半径 10 の外
+const near_tile = 13 // 自機から 3 タイル。どの段階でも描き込み半径の中
 const corridor_z = 32
 
 function pixel(x: number, z: number): number[] {
@@ -122,14 +129,14 @@ describe('ミニマップの明滅', () => {
   it('嗅覚が指していない未訪問の喫煙所は通常の速さで明滅する', () => {
     // 嗅覚なし。自機のすぐ隣なので探索済みになる
     state.entities.push(
-      new mocks.smoking_area_t(player_tile + 3, corridor_z) as never,
+      new mocks.smoking_area_t(near_tile, corridor_z) as never,
     )
 
     advance_to(slow_on)
-    expect(pixel(player_tile + 3, corridor_z)).toEqual(orange_bright)
+    expect(pixel(near_tile, corridor_z)).toEqual(orange_bright)
 
     advance_to(slow_off, slow_on)
-    expect(pixel(player_tile + 3, corridor_z)).toEqual(orange_dim)
+    expect(pixel(near_tile, corridor_z)).toEqual(orange_dim)
   })
 
   it('ゲージがしきい値を超えると点は消える（痕跡を残さない）', () => {
@@ -172,5 +179,54 @@ describe('ミニマップの明滅', () => {
     advance_to(0.1)
 
     expect(pixel(far_tile, corridor_z)[3]).toBe(0)
+  })
+})
+
+// 霧の中の床タイル。どちらも自機から描き込み半径 10 の外
+const drone_tile = far_tile - 1
+const container_tile = far_tile - 3
+
+describe('ミニマップの収入系（嗅覚 Lv5）', () => {
+  it('清掃ドローンと押収品コンテナは霧の中でも点灯する（しきい値を見ない）', () => {
+    meta.levels.sniff = 5
+    state.nicotine = 100 // 生存系のしきい値の外。収入系はここを通さない
+    state.entities.push(
+      new mocks.drone_t(drone_tile, corridor_z) as never,
+      new mocks.container_t(container_tile, corridor_z) as never,
+    )
+
+    advance_to(0.1)
+
+    expect(pixel(drone_tile, corridor_z)).toEqual(drone_blue)
+    expect(pixel(container_tile, corridor_z)).toEqual(container_green)
+  })
+
+  it('嗅覚 Lv4 では収入系は点灯しない', () => {
+    meta.levels.sniff = 4
+    state.entities.push(
+      new mocks.drone_t(drone_tile, corridor_z) as never,
+      new mocks.container_t(container_tile, corridor_z) as never,
+    )
+
+    advance_to(0.1)
+
+    expect(pixel(drone_tile, corridor_z)[3]).toBe(0)
+    expect(pixel(container_tile, corridor_z)[3]).toBe(0)
+  })
+
+  it('落ちている吸い殻は Lv5 でもミニマップに出ない', () => {
+    // ドローン 1 体の撃破で 30 個以上が同じ場所へ散るため、点が面になって
+    // 生存系の明滅を覆い隠す（docs/meta-progression.md「ミニマップの 1 点は 1 つの機会を指す」）。
+    // 探索済みのタイルでも床の色のままで、点は増えない
+    meta.levels.sniff = 5
+    state.entities.push(
+      new mocks.yani_t(drone_tile, corridor_z) as never,
+      new mocks.yani_t(near_tile, corridor_z) as never,
+    )
+
+    advance_to(0.1)
+
+    expect(pixel(drone_tile, corridor_z)[3]).toBe(0)
+    expect(pixel(near_tile, corridor_z)).toEqual(floor_color)
   })
 })
