@@ -1,13 +1,14 @@
 import {
   audio_play, audio_sfx_beep, audio_sfx_exhale, audio_sfx_hit, audio_sfx_lighter,
-  audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
+  audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
 } from './audio'
 import {
   body_height, body_parts, body_stow_position, body_width, figure_view_box, organ_svg,
 } from './body-figure'
 import { canvas } from './dom'
 import {
-  death_message, ds_initial_state, ds_item_layer, ds_part_layer, ds_reduce,
+  death_message, ds_idle_record, ds_initial_state, ds_item_layer, ds_part_layer, ds_reduce,
+  format_run_time, is_new_record,
 } from './death-screen-model'
 import type { ds_state_t, run_result_t } from './death-screen-model'
 import { meta, meta_buy, meta_max_level, meta_upgrade_price } from './meta'
@@ -19,6 +20,11 @@ import './death-screen.css'
 import hero_url from '../m/ui/hero.webp'
 import body_url from '../m/ui/body.webp'
 import cig_url from '../m/ui/icon-cig.webp'
+import stat_depth_url from '../m/ui/icon-stat-depth.webp'
+import stat_time_url from '../m/ui/icon-stat-time.webp'
+import stat_kills_url from '../m/ui/icon-stat-kills.webp'
+import stat_smoke_url from '../m/ui/icon-stat-smoke.webp'
+import stat_dummy_url from '../m/ui/icon-stat-dummy.webp'
 
 // 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。
 // result = null は初回起動モード。
@@ -150,7 +156,17 @@ function build(): HTMLDivElement {
     '</div>' +
     '<div class="ds-hint">' +
     '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
-    '<span>[Esc] 地下へ戻る</span></div>'
+    '<span>[Esc] 地下へ戻る</span></div>' +
+    '<div class="ds-record">' +
+    '<div class="ds-record-scan"></div>' +
+    '<div class="ds-record-title">今回の記録</div>' +
+    '<div class="ds-record-rows"></div>' +
+    '<div class="ds-record-close">[Esc] 閉じる</div>' +
+    '</div>' +
+    '<div class="ds-nr">' +
+    '<div class="ds-nr-title">NEW RECORD</div>' +
+    '<div class="ds-nr-sub"></div>' +
+    '</div>'
 
   document.body.appendChild(el)
 
@@ -187,6 +203,22 @@ function fill_static(): void {
     : '闇サイトに接続した。')
   root!.querySelector<HTMLElement>('.ds-yani-warn')!.style.display =
     meta.persistent ? 'none' : 'block'
+
+  // 初回起動でベスト深度も 0 なら、記録確認は読むものが無いので項目ごと出さない。
+  // data-item はレイアウト順で決め打ちにせず、状態機械が定義する idle の
+  // フォーカス添字（ds_idle_record）から選択子を組む（R4）
+  const has_record = current !== null || meta.best_depth > 0
+  root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_record + '"]')!.style.display =
+    has_record ? '' : 'none'
+  fill_record()
+
+  const banner = root!.querySelector<HTMLElement>('.ds-nr')!
+  const record = current !== null && is_new_record(current.depth, current.best_depth_before)
+  banner.style.display = record ? 'block' : 'none'
+  if (record) {
+    text('.ds-nr-sub', '自己ベスト更新！ 深度 ' + current!.depth + 'F')
+    audio_play(audio_sfx_pickup)
+  }
 }
 
 function text(selector: string, value: string): void {
@@ -294,6 +326,42 @@ function fill_detail(): void {
     pip.classList.toggle('on', p < level)
     pip.style.display = p < max ? '' : 'none'
   })
+}
+
+// Level 3。記録確認パネル。行の出現を 70ms ずつずらすための連番。
+// fill_record() が 0 に戻す
+let record_index = 0
+
+function record_row(icon: string, label: string, value: string, cls = ''): string {
+  return '<div class="ds-record-row' + (cls ? ' ' + cls : '') +
+    '" style="--i:' + record_index++ + '">' +
+    '<img src="' + icon + '" alt="">' + label + '<b>' + value + '</b></div>'
+}
+
+// パネルの中身は表示のたびに 1 度だけ組む。アニメーションは行が持つが、
+// 開くのは Enter のときだけなので、ここで作り直しても位相は壊れない
+function fill_record(): void {
+  const rows = root!.querySelector<HTMLElement>('.ds-record-rows')!
+  record_index = 0
+  const r = current
+  if (!r) {
+    // 初回起動モード。今回の記録が無いので最高深度の 1 行だけに縮める
+    rows.innerHTML = record_row(stat_depth_url, '最高深度', meta.best_depth + ' F')
+    return
+  }
+  const record = is_new_record(r.depth, r.best_depth_before)
+  const best = meta.best_depth + ' F' + (record
+    ? '<span class="ds-record-prev">← ' + r.best_depth_before + ' F</span>' +
+      '<span class="ds-record-new">NEW</span>'
+    : '')
+  rows.innerHTML =
+    // 到達深度と同じ量なので、アイコンは stat_depth_url を流用する
+    record_row(stat_depth_url, '到達深度', r.depth + ' F') +
+    record_row(stat_depth_url, '最高深度', best, record ? 'record' : '') +
+    record_row(stat_time_url, '生存時間', format_run_time(r.run_time)) +
+    record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
+    record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
+    record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所')
 }
 
 function set_layer(el: Element, layer: string): void {
