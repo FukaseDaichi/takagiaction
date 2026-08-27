@@ -82,6 +82,7 @@ vi.mock('./boss-reward', () => ({ boss_reward_show: () => { harness.boss_rewards
 import { run_start } from './game'
 import { audio_music_boss, audio_music_normal } from './audio'
 import { boss_centre } from './boss-model'
+import { death_body_y, death_duration } from './death-sequence-model'
 import { entity_t } from './entity'
 import { entity_boss_plasma_t, entity_boss_t } from './entity-boss'
 import { entity_container_t } from './entity-container'
@@ -92,7 +93,7 @@ import { entity_plasma_t } from './entity-plasma'
 import { entity_smoking_area_t } from './entity-smoking-area'
 import { entity_yani_t } from './entity-yani'
 import * as equipment from './equipment'
-import { key_shoot, keys } from './input'
+import { key_left, key_shoot, keys } from './input'
 import { meta, meta_max_level, meta_upgrade_ids } from './meta'
 import {
   monologue_arrival, monologue_boss_arrival, monologue_boss_kill,
@@ -237,12 +238,18 @@ describe('死亡シーケンス中の死体は何にも触れない', () => {
 })
 
 // 死体は load_level が entities を作り直すまで消えないので、リザルト表示中も
-// 敵と一緒に画面に残り続ける（canvas は不透明度 0.3 で見えている）
+// 敵と一緒にエンティティとして残り続ける（#ds が canvas を覆うので見えはしない）
 describe('リザルト表示中の死体', () => {
   beforeEach(() => {
     start_run()
     kill_player()
     advance(3)
+  })
+
+  // 装備の入れ替えの describe と同じ理由（assert が投げても次へ漏らさない）
+  afterEach(() => {
+    keys[key_shoot] = 0
+    keys[key_left] = 0
   })
 
   it('敵に触れても死亡シーケンスが再開しない', () => {
@@ -263,6 +270,42 @@ describe('リザルト表示中の死体', () => {
 
     advance(0.5)
     expect(player.h).toBe(0)
+  })
+
+  // 死んだときにスペースを離していなければ、そのまま押しっぱなしでリザルトを
+  // 眺めることになる。#ds が canvas を覆うので弾そのものは見えないが、発射音
+  // （刃物なら風切り音と、決めが出れば #ds より上に重なる #sl のフラッシュ）は
+  // リザルトの上に出てしまう
+  it('スペースを押しても撃たない', () => {
+    const live_plasma = (): number =>
+      state.entities.filter((e) => e instanceof entity_plasma_t && !e._dead).length
+    const before = live_plasma()
+
+    keys[key_shoot] = 1
+    advance(1)
+
+    expect(live_plasma()).toBe(before)
+  })
+
+  it('矢印キーを押しても動かない', () => {
+    const player = state.entity_player!
+    const x = player.x
+
+    keys[key_left] = 1
+    advance(1)
+
+    expect(player.x).toBe(x)
+  })
+
+  // 位置・姿勢・高さは死亡シーケンスが置いた最後の値で止まる。1 つでも
+  // _update() が書き戻すと、死体は立ち上がって bobbing を再開する
+  it('死亡シーケンスが置いた高さのまま止まる', () => {
+    const player = state.entity_player!
+    expect(player.y).toBe(death_body_y(death_duration))
+
+    advance(1)
+
+    expect(player.y).toBe(death_body_y(death_duration))
   })
 })
 

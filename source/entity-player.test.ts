@@ -68,6 +68,7 @@ describe('自機とニコチン段階', () => {
     state.nicotine = 100
     state.nicotine_max = 100
     state.smoking = 0
+    state.game_running = 1 // 死体は入力を受け付けない。ラン中であることが前提
     meta.levels.power = 0
     mocks.light_calls.length = 0
     for (const code of Object.keys(keys)) { keys[Number(code)] = 0 }
