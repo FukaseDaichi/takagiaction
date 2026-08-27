@@ -134,13 +134,16 @@ function build(): HTMLDivElement {
     '<div class="ds-dim"></div>' +
     '<h1 class="ds-title"></h1>' +
     '<p class="ds-sub"></p>' +
-    '<div class="ds-yani">' +
+    // .ds-yani-inner は拒否演出の震え専用のラッパ。震えを .ds-yani 自身へ
+    // 掛けると入場の ds-in-up と animation プロパティを取り合う
+    // （death-screen.css の #ds .ds-yani.reject .ds-yani-inner を参照）
+    '<div class="ds-yani"><div class="ds-yani-inner">' +
     '<img class="ds-yani-icon" src="' + cig_url + '" alt="">' +
     '<span class="ds-yani-label">ヤニ</span>' +
     '<b class="ds-yani-value">0</b>' +
     '<div class="ds-yani-warn">警告: ストレージ利用不可。' +
     '強化はこのセッション限りで消える</div>' +
-    '</div>' +
+    '</div></div>' +
     '<div class="ds-menu">' +
     '<button class="ds-item" data-item="0">記録確認</button>' +
     '<button class="ds-item" data-item="1">装備確認</button>' +

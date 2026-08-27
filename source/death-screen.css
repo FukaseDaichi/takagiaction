@@ -33,8 +33,11 @@
   background-position: center 16%;
   background-size: cover;
   opacity: 0;
-  animation: ds-bg-in 1.2s var(--ease-in) forwards;
 }
+/* 入場シーケンス 0.00s。entering の内側に置く ― 外に置くと build() 直後の
+   1 度しか再生されず、その 1 度は main.ts が起動時に出す自席の端末なので、
+   実際の死亡では背景のフェードインが一度も走らない */
+#ds.entering .ds-bg { animation: ds-bg-in 1.2s var(--ease-in) forwards; }
 #ds .ds-scrim {
   position: absolute;
   inset: 0;
@@ -432,7 +435,15 @@
   color: #7fe0a8;
   opacity: .7;
 }
-#ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s both; }
+/* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
+   Animation 発生源の値として永久に残り、上の #ds .ds-hint { opacity: .7 } に
+   勝ち続けてヒントが全開のまま描かれる。ds-icon-in・ds-figure-in・
+   ds-in-up on .ds-descend と同じ理由・同じ修正で、この機構の 4 件目。
+   backwards なら delay 中の from 側だけを保持し、終了後は基底の .7 に委ねる
+   （基底に opacity 宣言があることを確認済み ― 無い要素で backwards にすると
+   初期値 1 まで戻る。.ds-title / .ds-sub がそれで、あちらは opacity を明示して
+   both にしてある） */
+#ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s backwards; }
 
 /* --- Level 3 記録確認パネル --- */
 
@@ -641,9 +652,16 @@
 /* 火力: 腕へラインが接続 → 手先で閃光 → 模型が反動で後退 */
 #ds.up-power .ds-o-arm { stroke-dasharray: 140; animation: ds-flow .3s linear; }
 #ds.up-power .ds-o-hand { animation: ds-flash .18s ease-out .3s 2; }
-/* 反動は .ds-figure だけに掛ける。ds-recoil は translate(-50%,-50%) を土台に
-   しており、それを持たない .ds-body（SVG の <image>）に当てると模型が飛ぶ */
-#ds.up-power .ds-figure { animation: ds-recoil .18s ease-out .3s 2; }
+/* 反動と揺れ（脚力）は .ds-figure ではなく .ds-svg へ掛ける。.ds-figure に
+   置くと #ds.entering .ds-figure（ds-figure-in、delay 0.45s）と animation
+   プロパティを取り合い、詳細度が同じで後方のこちらが勝つため ds-figure-in が
+   キャンセルされる。upgrade_duration（1.2s）後に up-power / up-leg を外すと
+   ds-figure-in が新しい animation として delay からやり直し、模型が 0.45 秒
+   消えてから入場演出を再生し直してしまう。
+   .ds-svg は模型の中身（下地・器官・接続線・アイコン）を全部持つので、
+   見た目は .ds-figure に掛けたときと変わらない。土台の translate(-50%,-50%)
+   は .ds-figure 側に残るため、キーフレームは素の transform で書く */
+#ds.up-power .ds-svg { animation: ds-recoil .18s ease-out .3s 2; }
 
 /* 予備の一本: 煙草が弧を描いてポケットへ落ちる */
 #ds.up-spare .ds-o-cig { animation: ds-drop .5s var(--ease-in); }
@@ -652,7 +670,8 @@
 /* 脚力: 骨盤から足へエネルギーが降り、足元へ衝撃 */
 #ds.up-leg .ds-o-leg { stroke-dasharray: 260; animation: ds-flow .45s linear; }
 #ds.up-leg .ds-o-ground { animation: ds-shock .4s var(--ease-out) .4s; }
-#ds.up-leg .ds-figure { animation: ds-shake .12s linear .4s 2; }
+/* .ds-svg へ掛ける理由は上の #ds.up-power .ds-svg を参照 */
+#ds.up-leg .ds-svg { animation: ds-shake .12s linear .4s 2; }
 
 /* 数値の差し替えを目立たせる。ロールアップではなく 1 度の点滅にする —
    桁が動くだけの演出は、重い機械という狙いから外れる */
@@ -685,8 +704,17 @@
 #ds.yani-spend .ds-yani-beam { animation: ds-beam .5s var(--ease-in) .1s; }
 #ds.yani-spend .ds-yani-value { animation: ds-pulse .4s ease-out .4s; }
 
-/* ヤニ不足の拒否。赤く巨大に警告せず、1 回だけ震える */
-#ds .ds-detail.reject, #ds .ds-yani.reject { animation: ds-reject .3s linear; }
+/* ヤニ不足の拒否。赤く巨大に警告せず、1 回だけ震える。
+   残高側の震えは .ds-yani ではなく内側のラッパへ掛ける ― .ds-yani へ
+   animation を置くと #ds.entering .ds-yani（ds-in-up、delay 1.1s）と
+   animation プロパティを取り合い、詳細度が同じで後方のこちらが勝つため
+   ds-in-up がキャンセルされる。次のキー入力で apply() が .reject を外すと
+   ds-in-up が新しい animation として delay からやり直し、ヤニ残高が 1.1 秒
+   まるごと消える（買えない部位に Enter → 別の部位を見に行く、という最も
+   起きやすい流れで必ず踏む）。要素を分ければ両方が自分の animation を持てる。
+   .ds-detail 側は .swap と取り合うが、どちらも delay を持たない 0.3s の
+   一撃なので、再起動しても同じ演出が 1 度余分に走るだけで欠落にならない */
+#ds .ds-detail.reject, #ds .ds-yani.reject .ds-yani-inner { animation: ds-reject .3s linear; }
 #ds .ds-detail.reject .ds-detail-need, #ds .ds-yani.reject .ds-yani-value { color: #ff6b5e; }
 
 /* --- 地下へ戻る --- */
@@ -836,14 +864,14 @@
 @keyframes ds-suck { from { stroke-dashoffset: -90; opacity: 0; } 40% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 0; } }
 @keyframes ds-pulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px var(--c)) brightness(1.6); } }
 @keyframes ds-flash { 0%, 100% { opacity: .6; } 50% { opacity: 1; filter: drop-shadow(0 0 12px var(--c)); } }
-@keyframes ds-recoil { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(calc(-50% + 3px), -50%); } }
+@keyframes ds-recoil { 0%, 100% { transform: none; } 50% { transform: translateX(3px); } }
 @keyframes ds-drop {
   from { transform: translate(120px, -180px); opacity: 0; }
   60% { opacity: 1; }
   to { transform: none; opacity: 1; }
 }
 @keyframes ds-shock { from { transform: scale(.2); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
-@keyframes ds-shake { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, calc(-50% + 2px)); } }
+@keyframes ds-shake { 0%, 100% { transform: none; } 50% { transform: translateY(2px); } }
 @keyframes ds-value-in { from { opacity: 0; transform: translateY(-.4vh); } to { opacity: 1; transform: none; } }
 @keyframes ds-terminal-blink { 0%, 100% { opacity: 0; } 20%, 60% { opacity: 1; } }
 @keyframes ds-beam { 0% { transform: scaleY(0); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
