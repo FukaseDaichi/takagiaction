@@ -773,8 +773,23 @@
   animation: ds-suck-in .3s var(--ease-out) .24s forwards;
 }
 #ds.exiting .ds-yani { animation: ds-suck-in .3s var(--ease-out) .32s forwards; }
-#ds.exiting .ds-sub { animation: ds-suck-in .3s var(--ease-out) .4s forwards; }
-#ds.exiting .ds-title { animation: ds-suck-in .3s var(--ease-out) .48s forwards; }
+/* .ds-title/.ds-sub だけ opacity と fill が他と違う。#ds.entering .ds-title の
+   ds-fade-back（3s 以降 .4 を forwards で保持）と #ds.exiting .ds-title は
+   同じ animation プロパティ・同じ詳細度 (1,2,0) で後者が後方なので、後者は
+   前者の値をマージせず丸ごと置き換える。つまり .exiting が付いた瞬間
+   ds-fade-back の保持が失われ、ds-suck-in は to だけの keyframe で forwards
+   （backwards を持たない）だから delay 中は何も効かず、他に opacity の
+   基底宣言も無いので初期値 1 まで戻ってしまう ―― 4.2 秒（入場 1.4s +
+   ds-fade-back の 3s）を過ぎてから降下すると、暗くなっていた文字が一瞬
+   全開まで明るく戻ってから消える「ポップ」になる。
+   ここで opacity: .4 を明示すると、ds-suck-in の合成される 0% の基準値
+   （このアニメーションが無かったとしたときの値 = このルールの opacity: .4）が
+   .4 になる。fill を both にして delay 中も backwards 側を効かせることで、
+   delay の間は常に .4 を保持し、そこから .3s かけて 0 へ落ちる。
+   4.2 秒より前に降下した場合も 1 → .4 → 0 と単調に暗くなるだけで、
+   明るくなる瞬間は無い */
+#ds.exiting .ds-sub { opacity: .4; animation: ds-suck-in .3s var(--ease-out) .4s both; }
+#ds.exiting .ds-title { opacity: .4; animation: ds-suck-in .3s var(--ease-out) .48s both; }
 /* .ds-part はもう transform ショートハンドを持たない（上の #ds .ds-part の
    コメント参照）。ここで transform: translate(...) と書くと個別プロパティの
    translate と合成され、収納オフセットが二重に掛かって本来の倍の距離まで
