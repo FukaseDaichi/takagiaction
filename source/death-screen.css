@@ -149,9 +149,9 @@
 
 /* --- 強調階層。枠線で囲わず明度・発光・拡大で示す --- */
 
-.ds-item.active, .ds-part.active { opacity: 1; }
-.ds-item.dim, .ds-part.dim { opacity: .65; }
-.ds-item.inactive, .ds-part.inactive { opacity: .35; }
+.ds-item.active, .ds-part.active, .ds-descend.active { opacity: 1; }
+.ds-item.dim, .ds-part.dim, .ds-descend.dim { opacity: .65; }
+.ds-item.inactive, .ds-part.inactive, .ds-descend.inactive { opacity: .35; }
 #ds .ds-item.active {
   color: #7fe0a8;
   text-shadow: 0 0 12px rgba(127, 224, 168, .9);
@@ -719,7 +719,12 @@
 }
 /* フォーカス中は扉の光の筋がゆっくり明滅する */
 #ds .ds-descend.active img { animation: ds-door-glow 2.2s ease-in-out infinite; }
-#ds.entering .ds-descend { animation: ds-in-up .5s var(--ease-in) 1.25s both; }
+/* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
+   Animation 発生源の値として永久に残り、下の .ds-descend.active/.dim/.inactive
+   （強調階層）を上書きし続けてしまう。ds-figure-in（#ds .ds-figure 付近）・
+   ds-icon-in（#ds .ds-part 付近）と同じ理由・同じ修正。backwards なら delay 中の
+   from 側だけを保持し、終了後は cascade（active/dim/inactive）に委ねられる */
+#ds.entering .ds-descend { animation: ds-in-up .5s var(--ease-in) 1.25s backwards; }
 
 /* --- 降下演出。画面そのものが開く扉になる --- */
 
@@ -750,14 +755,26 @@
 #ds.exiting .ds-split { animation: ds-split-show .01s linear .35s forwards; }
 #ds.exiting .ds-split i:first-child { animation: ds-split-l .5s var(--ease-in) .5s forwards; }
 #ds.exiting .ds-split i:last-child { animation: ds-split-r .5s var(--ease-in) .5s forwards; }
-/* 照明が落ちる */
-#ds.exiting .ds-dim { opacity: .92; transition-duration: .3s; }
-/* 全 UI が模型へ吸い込まれる */
-#ds.exiting .ds-title, #ds.exiting .ds-sub, #ds.exiting .ds-yani,
-#ds.exiting .ds-menu, #ds.exiting .ds-descend, #ds.exiting .ds-hint,
-#ds.exiting .ds-detail, #ds.exiting .ds-nr {
-  animation: ds-suck-in .3s var(--ease-out) forwards;
+/* 照明が落ちる。.35s まで待つのは隣の .ds-split と同じ理由 ―
+   先に落とすと UI が吸い込まれる様子をこの暗幕が覆い隠してしまう */
+#ds.exiting .ds-dim { opacity: .92; transition-duration: .3s; transition-delay: .35s; }
+/* 全 UI が模型へ吸い込まれる。入場の開示順（title .15→sub .3→yani 1.1→
+   menu/descend 1.25→hint 1.4→NEW RECORD 1.6/1.8）の逆順の階梯で消える
+   （spec ⑦「逆順の階梯」、spec §14）。--i/--n を使わないのは、それが
+   .ds-part・.ds-wire のような繰り返し要素の書式だからで、ここは単発要素
+   8 個なので入場側と同じ流儀（要素ごとに実値の delay を書く）に揃える。
+   NEW RECORD バナーは表示されていれば入場で最後に出る演出なので最初に消し、
+   .ds-detail は強化モードでしか出ない（降下は idle でしか起きないため
+   このタイミングでは常に非表示）が、順序上は同じく早めに置く */
+#ds.exiting .ds-nr { animation: ds-suck-in .3s var(--ease-out) forwards; }
+#ds.exiting .ds-detail { animation: ds-suck-in .3s var(--ease-out) .08s forwards; }
+#ds.exiting .ds-hint { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
+#ds.exiting .ds-menu, #ds.exiting .ds-descend {
+  animation: ds-suck-in .3s var(--ease-out) .24s forwards;
 }
+#ds.exiting .ds-yani { animation: ds-suck-in .3s var(--ease-out) .32s forwards; }
+#ds.exiting .ds-sub { animation: ds-suck-in .3s var(--ease-out) .4s forwards; }
+#ds.exiting .ds-title { animation: ds-suck-in .3s var(--ease-out) .48s forwards; }
 /* .ds-part はもう transform ショートハンドを持たない（上の #ds .ds-part の
    コメント参照）。ここで transform: translate(...) と書くと個別プロパティの
    translate と合成され、収納オフセットが二重に掛かって本来の倍の距離まで

@@ -209,8 +209,17 @@ function build(): HTMLDivElement {
       dispatch('Enter')
     }
   })
+  // busy 中の押下だけを弾く。.ds-item/.ds-part と違い panel を条件に含めないのは、
+  // このボタンが「パネルを開いたまま地下へ戻る」の入口も兼ねるため（次の行で
+  // panel を無条件に 'none' へ倒すので、パネル表示中でも押せて構わない）。
+  // busy を弾かないと、#ds.busy の pointer-events:none が及ばない経路
+  // （フォーカスの残ったボタンへのキーボードでの再活性化など）で state だけが
+  // 書き換わり、ds_reduce の busy ガードに却下されて apply() が走らないまま
+  // DOM と state が食い違う（.ds-item 側と同じ理由。上のコメント参照）
   el.querySelector<HTMLButtonElement>('.ds-descend')!.onclick = () => {
+    if (state.busy) { return }
     state = { ...state, mode: 'idle', panel: 'none', focus: ds_idle_descend }
+    apply()
     dispatch('Enter')
   }
   return el
