@@ -1,5 +1,5 @@
 import {
-  audio_play, audio_sfx_beep, audio_sfx_exhale, audio_sfx_hit, audio_sfx_lighter,
+  audio_play, audio_sfx_beep, audio_sfx_door, audio_sfx_exhale, audio_sfx_hit, audio_sfx_lighter,
   audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
 } from './audio'
 import {
@@ -8,8 +8,8 @@ import {
 } from './body-figure'
 import { canvas } from './dom'
 import {
-  death_message, ds_idle_gear, ds_idle_record, ds_initial_state, ds_item_layer, ds_part_layer,
-  ds_reduce, format_run_time, is_new_record,
+  death_message, ds_idle_descend, ds_idle_gear, ds_idle_record, ds_initial_state, ds_item_layer,
+  ds_part_layer, ds_reduce, format_run_time, is_new_record,
 } from './death-screen-model'
 import type { ds_state_t, run_result_t } from './death-screen-model'
 import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
@@ -23,6 +23,7 @@ import './death-screen.css'
 import hero_url from '../m/ui/hero.webp'
 import body_url from '../m/ui/body.webp'
 import cig_url from '../m/ui/icon-cig.webp'
+import door_url from '../m/ui/door.webp'
 import stat_depth_url from '../m/ui/icon-stat-depth.webp'
 import stat_time_url from '../m/ui/icon-stat-time.webp'
 import stat_kills_url from '../m/ui/icon-stat-kills.webp'
@@ -165,9 +166,14 @@ function build(): HTMLDivElement {
     '<div class="ds-detail-cost">所持 <b class="ds-detail-own"></b>' +
     '<span class="ds-detail-need-wrap">必要 <b class="ds-detail-need"></b></span></div>' +
     '</div>' +
+    '<button class="ds-descend" data-item="' + ds_idle_descend + '">' +
+    '<img src="' + door_url + '" alt="">' +
+    '<span class="ds-descend-label">地下へ戻る</span>' +
+    '<small class="ds-descend-depth"></small>' +
+    '</button>' +
     '<div class="ds-hint">' +
     '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
-    '<span>[Esc] 地下へ戻る</span></div>' +
+    '<span class="ds-hint-descend">[Esc] 地下へ戻る</span></div>' +
     '<div class="ds-record">' +
     '<div class="ds-record-scan"></div>' +
     '<div class="ds-record-title">今回の記録</div>' +
@@ -178,7 +184,8 @@ function build(): HTMLDivElement {
     '<div class="ds-nr-title">NEW RECORD</div>' +
     '<div class="ds-nr-sub"></div>' +
     '</div>' +
-    '<div class="ds-gearpanel"></div>'
+    '<div class="ds-gearpanel"></div>' +
+    '<div class="ds-split"><i></i><i></i></div>'
 
   document.body.appendChild(el)
 
@@ -202,6 +209,10 @@ function build(): HTMLDivElement {
       dispatch('Enter')
     }
   })
+  el.querySelector<HTMLButtonElement>('.ds-descend')!.onclick = () => {
+    state = { ...state, mode: 'idle', panel: 'none', focus: ds_idle_descend }
+    dispatch('Enter')
+  }
   return el
 }
 
@@ -230,6 +241,12 @@ function fill_static(): void {
   root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_gear + '"]')!.style.display =
     has_gear ? '' : 'none'
   fill_gear()
+
+  // meta.best_depth は未プレイ時 0 のため、1 で底上げして「0F+」を避ける
+  text('.ds-descend-depth', Math.max(meta.best_depth, 1) + 'F-')
+  text('.ds-descend-label', current !== null ? '地下へ戻る' : '地下へ潜る')
+  // キーヒントの 3 つ目の <span> も、初回起動では「地下へ潜る」に揃える（R5）
+  text('.ds-hint-descend', '[Esc] ' + (current !== null ? '地下へ戻る' : '地下へ潜る'))
 
   const banner = root!.querySelector<HTMLElement>('.ds-nr')!
   const record = current !== null && is_new_record(current.depth, current.best_depth_before)
@@ -284,8 +301,8 @@ function apply(): void {
     arc.style.strokeDashoffset = String(circumference * (1 - level / max))
   })
 
-  el.querySelectorAll<HTMLElement>('.ds-item').forEach((item, index) => {
-    set_layer(item, ds_item_layer(state, index))
+  el.querySelectorAll<HTMLElement>('[data-item]').forEach((item) => {
+    set_layer(item, ds_item_layer(state, Number(item.dataset.item)))
   })
 
   fill_detail()
@@ -492,11 +509,18 @@ function buy(): void {
 }
 
 function descend(): void {
-  audio_play(audio_sfx_beep)
+  audio_play(audio_sfx_door)
   document.removeEventListener('keydown', on_key)
   clearTimeout(entry_timer)
   clearTimeout(upgrade_timer)
-  root!.style.display = 'none'
-  canvas.style.opacity = '1'
-  on_descend_cb()
+  state = { ...state, busy: true }
+  apply()
+  // UI が模型へ収納 → 照明が落ちる → 光の裂け目が開く → 画面遷移
+  root!.classList.add('exiting')
+  setTimeout(() => {
+    root!.classList.remove('exiting', 'entering')
+    root!.style.display = 'none'
+    canvas.style.opacity = '1'
+    on_descend_cb()
+  }, 1000)
 }

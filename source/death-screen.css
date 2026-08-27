@@ -689,6 +689,82 @@
 #ds .ds-detail.reject, #ds .ds-yani.reject { animation: ds-reject .3s linear; }
 #ds .ds-detail.reject .ds-detail-need, #ds .ds-yani.reject .ds-yani-value { color: #ff6b5e; }
 
+/* --- 地下へ戻る --- */
+
+#ds .ds-descend {
+  position: absolute;
+  right: 3%;
+  top: 74%;
+  display: flex;
+  align-items: center;
+  gap: .8vw;
+  border: 1px solid rgba(255, 170, 43, .5);
+  background: linear-gradient(180deg, rgba(60, 34, 4, .5), rgba(24, 13, 2, .7));
+  color: #ffaa2b;
+  font: inherit;
+  font-size: 1.3vw;
+  font-weight: bold;
+  padding: 1vh 1.2vw;
+  cursor: pointer;
+  transition: opacity .25s var(--ease-in), box-shadow .25s var(--ease-in),
+    border-color .25s var(--ease-in);
+}
+#ds .ds-descend img { height: 3vw; opacity: .85; }
+#ds .ds-descend-depth {
+  display: block; font-size: .8vw; font-weight: normal; color: #e8c9a8;
+}
+#ds .ds-descend.active {
+  border-color: #ffaa2b;
+  box-shadow: 0 0 22px rgba(255, 170, 43, .45);
+}
+/* フォーカス中は扉の光の筋がゆっくり明滅する */
+#ds .ds-descend.active img { animation: ds-door-glow 2.2s ease-in-out infinite; }
+#ds.entering .ds-descend { animation: ds-in-up .5s var(--ease-in) 1.25s both; }
+
+/* --- 降下演出。画面そのものが開く扉になる --- */
+
+/* 裂け目の向こう側の光。2 枚の <i> が閉じた扉で、開くとこれが現れる */
+#ds .ds-split {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(60% 100% at 50% 50%, #3af08a 0%, #0a2a18 55%, #050805 100%);
+}
+#ds .ds-split i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: #050805;
+}
+#ds .ds-split i:first-child {
+  left: 0;
+  box-shadow: 6px 0 40px rgba(58, 240, 138, .8);
+}
+#ds .ds-split i:last-child {
+  right: 0;
+  box-shadow: -6px 0 40px rgba(58, 240, 138, .8);
+}
+/* 0.35s まで出さない。先に出すと UI が吸い込まれる様子を覆い隠してしまう */
+#ds.exiting .ds-split { animation: ds-split-show .01s linear .35s forwards; }
+#ds.exiting .ds-split i:first-child { animation: ds-split-l .5s var(--ease-in) .5s forwards; }
+#ds.exiting .ds-split i:last-child { animation: ds-split-r .5s var(--ease-in) .5s forwards; }
+/* 照明が落ちる */
+#ds.exiting .ds-dim { opacity: .92; transition-duration: .3s; }
+/* 全 UI が模型へ吸い込まれる */
+#ds.exiting .ds-title, #ds.exiting .ds-sub, #ds.exiting .ds-yani,
+#ds.exiting .ds-menu, #ds.exiting .ds-descend, #ds.exiting .ds-hint,
+#ds.exiting .ds-detail, #ds.exiting .ds-nr {
+  animation: ds-suck-in .3s var(--ease-out) forwards;
+}
+/* .ds-part はもう transform ショートハンドを持たない（上の #ds .ds-part の
+   コメント参照）。ここで transform: translate(...) と書くと個別プロパティの
+   translate と合成され、収納オフセットが二重に掛かって本来の倍の距離まで
+   飛んでしまう。個別プロパティの translate で上書きする */
+#ds.exiting .ds-part { translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px); }
+#ds.exiting .ds-figure { animation: ds-figure-out .45s var(--ease-out) .35s forwards; }
+
 /* --- キーフレーム --- */
 
 @keyframes ds-bg-in { to { opacity: 1; } }
@@ -747,6 +823,12 @@
   0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, .7); }
   50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, .95); }
 }
+@keyframes ds-door-glow { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px #3af08a) brightness(1.25); } }
+@keyframes ds-suck-in { to { opacity: 0; transform: translate(2vw, 1vh) scale(.94); } }
+@keyframes ds-figure-out { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+@keyframes ds-split-show { to { opacity: 1; } }
+@keyframes ds-split-l { to { transform: translateX(-100%); } }
+@keyframes ds-split-r { to { transform: translateX(100%); } }
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない
    （index.html の #wf / #sl / #bf と同じ流儀） */
