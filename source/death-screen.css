@@ -490,7 +490,13 @@
   display: none;
   pointer-events: none;
   text-align: center;
+  transition: opacity .35s var(--ease-in);
 }
+/* 記録パネル・歯車パネルが開いている間はバナーを隠す。バナーは入場時だけの
+   一過性の演出で役目を終えており、隠さないと記録パネルの「最高深度」の行の
+   ← NEW 表示と同じ場所で 2 つの祝福演出が重なって互いを読めなくする
+   （Task 8 レビュー Finding 1）。.ds-figure（:173）と同じ形にする */
+#ds.panel-record .ds-nr, #ds.panel-gear .ds-nr { opacity: 0; }
 #ds.entering .ds-nr .ds-nr-title {
   animation: ds-nr-in .35s cubic-bezier(.2, 1.6, .35, 1) 1.6s both,
     ds-nr-glow 2s ease-in-out 2.3s infinite;
