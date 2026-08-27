@@ -25,14 +25,16 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `screen-flash.ts` — ボスのフェーズ移行の赤い全画面フラッシュ（`#bf` のクラス付け替え）。`screen-slash.ts` と同じ形だが別の層で、CSS も `index.html` が持つ。斜めの閃光帯（`#sl`）は「斬った」という意味を持つ絵なので流用しない
 - `nicotine.ts` — ニコチンの数値ロジック（段階判定・減少速度・移動速度・射撃と薙ぎの間隔）
 - `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。画像も DOM も知らない
-- `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコン 30 枚の静的 import はここが持つ。スタイルは `equip-screen.css`
+- `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコンは `gear-icons.ts` から読む。スタイルは `equip-screen.css`
+- `gear-icons.ts` — 装備アイコン 30 枚の静的 import テーブル。`equip-screen.ts` と死亡画面の装備確認パネル（`death-screen.ts`）の両方が読む唯一の出どころ
 - `boss-reward.ts` — ボス撃破の報酬ダイアログ（恒久強化 1 段の選択）。スタイルは `boss-reward.css`
 - `boss-reward-model.ts` — ボス報酬の実効段（`meta.levels` ＋ このランで選んだ回数）と上限の判定
 - `upgrade-rows.ts` — 恒久強化 6 行の表示定義（名前・アイコン・色・フレーバー・効果の書式）。死亡画面とボス報酬の両方が読む唯一の出どころ
 - `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・武器スロット・ミニマップの枠・非常口の通過カウントダウン）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコもカウントダウンのリングも画像を使わず CSS だけで描く
 - `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）
-- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
-- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）
+- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。DOM は 1 度だけ組み、以降はキー入力のたびに class とテキストだけを書き換える。スタイルは `death-screen.css` が持つ
+- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、生存時間の書式、状態機械、強調階層）
+- `body-figure.ts` — 死亡画面が使う人体模型のジオメトリ（部位のアンカーとアイコン定位置、収納比率、装備アンカー、器官の SVG）
 - `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）
 - `smoking-sequence-model.ts` — 一服演出の時間割（吸引中の煙、完了後の感知器と防災扉）
 - `monologue.ts` — 高木の内心の吹き出しの DOM とセリフプール。位置は `projection.ts` で自機頭上に追従させる
@@ -46,8 +48,8 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 
 似ているが別の 2 つの性質があり、モジュールを足すときはどちらに入れるかを先に決める。
 
-- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat` `music-boss`。後述の循環参照の起点になりえない
-- **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`boss-reward-model`（→ `meta`）・`hud-model` と `death-screen-model`（→ `nicotine`）を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
+- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `body-figure` `death-screen-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat` `music-boss`。後述の循環参照の起点になりえない
+- **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`boss-reward-model`（→ `meta`）・`hud-model` を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
 
 `dom` が 1 つ目だけを満たすとおり、この 2 つは一致しない。数値・時間割・状態機械を DOM から切り離して `*-model.ts` に置いているのは、2 つ目を満たすためである。
 
@@ -143,7 +145,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚、開封ダイアログ（`equip-screen.ts`）が使う装備アイコン 30 枚を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚、装備アイコン 30 枚（`gear-icons.ts` が静的 import を持ち、開封ダイアログと死亡画面の装備確認パネルへ配る）を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
 
 これに加えて、イントロの hero 画像（`m/hero.webp`）だけは静的 import ではなく、`index.html` の `<style>` 内の `url(m/hero.webp)` から参照する。Vite はインライン `<style>` も CSS として処理するため、この参照も静的 import と同様にビルドで解決される（ハッシュ付きで `dist/assets/` に出力され、`dist/index.html` がその URL を指す）。禁止されているのは Vite が静的に検出できない JS 側の文字列連結であって、`index.html` 内の静的な CSS 参照は使ってよい。ただし効くのは CSS として解釈される位置に限る。`m/` へのパスを `<style>` の外（属性値の文字列など）へ動かすと `dist` に出なくなる。
 
