@@ -4,13 +4,13 @@ import {
   gear_slot_labels, gear_stats, gear_verdict,
 } from './equipment'
 import type { gear_slot_t, gear_verdict_t } from './equipment'
+import { gear_icons } from './gear-icons'
 import { key_spare, key_swap, keys } from './input'
 import { meta, meta_save } from './meta'
 import { camera } from './renderer'
 import { state } from './state'
 import { terminal_show_notice } from './terminal'
 import './equip-screen.css'
-import { gear_icons } from './gear-icons'
 
 // 等級ごとの解錠のため（秒）。ためている間は等級を伏せるので、
 // ための長さそのものが等級のヒントになり、待たされている間に期待が育つ

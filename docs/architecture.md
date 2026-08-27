@@ -34,7 +34,7 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）
 - `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。DOM は 1 度だけ組み、以降はキー入力のたびに class とテキストだけを書き換える。スタイルは `death-screen.css` が持つ
 - `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、生存時間の書式、状態機械、強調階層）
-- `body-figure.ts` — 死亡画面が使う人体模型のジオメトリ（部位のアンカーとアイコン定位置、収納比率、装備アンカー、器官の SVG）
+- `body-figure.ts` — 死亡画面が使う人体模型のジオメトリ（部位のアンカーとアイコン定位置、収納比率、装備アンカーと装備カードの引き出し先、器官の SVG）。SVG 座標から画面座標（vh）への写像もここが持つ ― 装備カードは SVG の外にある HTML だが、接続線の終端とカードの縦位置を別々の数で置くと必ず食い違うため
 - `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）
 - `smoking-sequence-model.ts` — 一服演出の時間割（吸引中の煙、完了後の感知器と防災扉）
 - `monologue.ts` — 高木の内心の吹き出しの DOM とセリフプール。位置は `projection.ts` で自機頭上に追従させる

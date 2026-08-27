@@ -256,7 +256,6 @@ function build(): HTMLDivElement {
 // 表示のたびに 1 度だけ書き込む、その回のあいだ変わらない値
 function fill_static(): void {
   const dead = current !== null
-  root!.classList.toggle('boot', !dead)
   text('.ds-title', dead ? death_message(current!.death_cause) : '自席の端末。')
   text('.ds-sub', dead
     ? '救護ドローンが君を回収して、自席へ戻した。'
@@ -325,10 +324,8 @@ function count_yani(step = 0): void {
 function apply(): void {
   const el = root!
   el.classList.toggle('mode-upgrade', state.mode === 'upgrade')
-  el.classList.toggle('mode-idle', state.mode === 'idle')
   el.classList.toggle('panel-record', state.panel === 'record')
   el.classList.toggle('panel-gear', state.panel === 'gear')
-  el.classList.toggle('panel-none', state.panel === 'none')
   el.classList.toggle('busy', state.busy)
 
   // .reject は「直前の操作が却下された」ことだけを示す一撃の演出フラグで、
