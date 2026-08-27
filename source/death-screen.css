@@ -200,7 +200,10 @@
      基底の delay は収納にしか効かない */
   transition: filter .4s var(--ease-in) .24s;
 }
-#ds.mode-upgrade .ds-body { filter: saturate(.3) brightness(.8); }
+/* 展開の側は段階開示 ② の 0.00s「模型の輪郭が発光」なので待たせない。
+   基底の delay（収納の 4 段目）を 0 に戻す ― 展開と収納で別の delay を
+   持たせる必要があるのは、この 2 つが同じ 1 つのプロパティだから */
+#ds.mode-upgrade .ds-body { filter: saturate(.3) brightness(.8); transition-delay: 0s; }
 
 #ds .ds-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 
