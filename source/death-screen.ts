@@ -3,14 +3,17 @@ import {
   audio_sfx_pickup, audio_sfx_shoot, audio_sfx_swing, audio_sfx_terminal,
 } from './audio'
 import {
-  body_height, body_parts, body_stow_position, body_width, figure_view_box, organ_svg,
+  body_height, body_parts, body_stow_position, body_width, figure_view_box, gear_anchors,
+  organ_svg,
 } from './body-figure'
 import { canvas } from './dom'
 import {
-  death_message, ds_idle_record, ds_initial_state, ds_item_layer, ds_part_layer, ds_reduce,
-  format_run_time, is_new_record,
+  death_message, ds_idle_gear, ds_idle_record, ds_initial_state, ds_item_layer, ds_part_layer,
+  ds_reduce, format_run_time, is_new_record,
 } from './death-screen-model'
 import type { ds_state_t, run_result_t } from './death-screen-model'
+import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
+import { gear_icons } from './gear-icons'
 import { meta, meta_buy, meta_max_level, meta_upgrade_price } from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
@@ -88,6 +91,13 @@ function build(): HTMLDivElement {
   let icons = ''
   let wires = ''
   let organs = ''
+  let gear_wires = ''
+  for (const slot of gear_slots) {
+    const a = gear_anchors[slot]
+    // カードは右へ展開するので、線はアンカーから右外へ抜ける
+    gear_wires += '<line class="ds-gear-wire" data-slot="' + slot +
+      '" x1="' + a.x + '" y1="' + a.y + '" x2="330" y2="' + a.y + '"/>'
+  }
   for (let i = 0; i < body_parts.length; i++) {
     const part = body_parts[i]
     const row = row_of.get(part.id)!
@@ -137,6 +147,7 @@ function build(): HTMLDivElement {
     '<image class="ds-body" href="' + body_url + '" x="0" y="0" ' +
     'width="' + body_width + '" height="' + body_height + '"/>' +
     '<g class="ds-organs">' + organs + '</g>' +
+    '<g class="ds-gear-wires">' + gear_wires + '</g>' +
     '<g class="ds-icons">' + icons + '</g>' +
     '</svg>' +
     '</div>' +
@@ -166,7 +177,8 @@ function build(): HTMLDivElement {
     '<div class="ds-nr">' +
     '<div class="ds-nr-title">NEW RECORD</div>' +
     '<div class="ds-nr-sub"></div>' +
-    '</div>'
+    '</div>' +
+    '<div class="ds-gearpanel"></div>'
 
   document.body.appendChild(el)
 
@@ -211,6 +223,13 @@ function fill_static(): void {
   root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_record + '"]')!.style.display =
     has_record ? '' : 'none'
   fill_record()
+
+  // 3 系統とも未所持なら、装備確認も読むものが無いので項目ごと出さない
+  // （has_record と同じ判断）。data-item はここも ds_idle_gear から組む（R4）
+  const has_gear = gear_slots.some((slot) => meta.gear[slot] > 0)
+  root!.querySelector<HTMLElement>('.ds-item[data-item="' + ds_idle_gear + '"]')!.style.display =
+    has_gear ? '' : 'none'
+  fill_gear()
 
   const banner = root!.querySelector<HTMLElement>('.ds-nr')!
   const record = current !== null && is_new_record(current.depth, current.best_depth_before)
@@ -362,6 +381,29 @@ function fill_record(): void {
     record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
     record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
     record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所')
+}
+
+// Level 3。装備確認パネル。装備は買うものではないので、強化の動線とは別の
+// 面に置く。カードは模型の装備部位から線で繋がっていて、閉じると模型側へ
+// 吸い込まれる
+function fill_gear(): void {
+  const panel = root!.querySelector<HTMLElement>('.ds-gearpanel')!
+  let html = ''
+  let index = 0
+  for (const slot of gear_slots) {
+    const tier = meta.gear[slot]
+    const owned = tier > 0
+    const grade = owned ? gear_grades[gear_grade(tier)] : null
+    html += '<div class="ds-card' + (owned ? '' : ' none') +
+      '" style="--i:' + index++ + (grade ? ';--c:' + grade.color : '') + '">' +
+      (owned
+        ? '<img src="' + gear_icons[slot][tier - 1] + '" alt="">'
+        : '<div class="ds-card-empty"></div>') +
+      '<div><div class="ds-card-slot">' + gear_slot_labels[slot] + '</div>' +
+      '<div class="ds-card-name">' +
+      (owned ? gear_name(slot, tier) : '未所持') + '</div></div></div>'
+  }
+  panel.innerHTML = html
 }
 
 function set_layer(el: Element, layer: string): void {

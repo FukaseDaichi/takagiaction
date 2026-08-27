@@ -480,6 +480,62 @@
 }
 #ds .ds-record-close { margin-top: 1.5vh; font-size: .8vw; color: #7fe0a8; opacity: .7; }
 
+/* --- Level 3 装備確認パネル --- */
+
+#ds .ds-gear-wire {
+  stroke: #7fe0a8;
+  stroke-width: 1;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  opacity: 0;
+  /* #ds .ds-wire（上記）と同じ理由で animation ではなく transition にする。
+     計画書が指す ds-wire-draw という keyframe は Task 6 の修正で既に削除
+     済みで、animation + forwards のまま実装すると閉じる方向の transition が
+     発火せず線が瞬時に消える（R21）。opacity/stroke-dashoffset を基底側にも
+     実値として持たせ、両方の class にそれぞれ transition を張ることで
+     開閉どちらも滑らかにする */
+  transition: opacity .3s var(--ease-out), stroke-dashoffset .3s var(--ease-out);
+}
+#ds.panel-gear .ds-gear-wire {
+  opacity: .55;
+  stroke-dashoffset: 0;
+  transition: opacity .3s var(--ease-in) .1s, stroke-dashoffset .3s var(--ease-in) .1s;
+}
+
+#ds .ds-gearpanel {
+  position: absolute;
+  right: 4%;
+  top: 26%;
+  width: 24vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2vh;
+  pointer-events: none;
+}
+#ds .ds-card {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  padding: 1vh 1vw;
+  border-left: 2px solid var(--c, #5d7a68);
+  background: linear-gradient(90deg, rgba(6, 14, 10, .92), rgba(6, 14, 10, .5));
+  opacity: 0;
+  /* 閉じると模型側（左）へ吸い込まれる */
+  transform: translateX(6vw) scale(.9);
+  transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
+}
+#ds.panel-gear .ds-card {
+  opacity: 1;
+  transform: none;
+  transition: opacity .3s var(--ease-in) calc(.2s + var(--i) * 90ms),
+    transform .3s var(--ease-in) calc(.2s + var(--i) * 90ms);
+}
+#ds .ds-card img { width: 3vw; height: 3vw; }
+#ds .ds-card-empty { width: 3vw; height: 3vw; border: 1px dashed #2e6b4f; box-sizing: border-box; }
+#ds .ds-card-slot { font-size: .8vw; color: #9cc4aa; }
+#ds .ds-card-name { font-size: 1.1vw; font-weight: bold; color: var(--c, #5d7a68); }
+#ds .ds-card.none .ds-card-name { color: #5d7a68; font-weight: normal; }
+
 /* --- NEW RECORD バナー。#ds の内側で問題ない（innerHTML を組み直さないため） --- */
 
 #ds .ds-nr {
