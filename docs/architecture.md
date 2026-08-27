@@ -84,6 +84,8 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_clear()`（表示内容と `terminal_text_buffer` を対で戻す）を呼んでから隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
 
+その代わり、**画面を抜けるときに `input.ts` の `keys` を自分で 0 へ戻す**義務を負う。`death-screen.ts` が `document` に張る `keydown` は、`input.ts` がモジュール初期化時に張る `document.onkeydown` と並んで走る別のハンドラで、`preventDefault()` を呼んでも `keys` の更新は止まらない。画面を抜ける時点で押されているキーは押下状態のまま次のランへ持ち越され、スペースなら復活と同時の発砲になる。`descend()` は `keys` に載る全キーを 0 に戻してから `on_descend_cb()` を呼ぶ。ゲームを止める 2 つのダイアログ（`boss-reward.ts` / `equip-screen.ts`）が閉じるときにエッジ検出の 2 キーを戻すのも同じ理由である。
+
 ## ターミナルのテキストに `_` を書かない
 
 `terminal_prepare_text()` は `_` を改行 10 個に置き換える（`text.replace(/_/g, '\n'.repeat(10))`）。表示は 1 行ごとに待ちを挟むため、`_` 1 個が約 1 秒の間になる。**間を置きたい位置に `_` を書く**のが記法であり、文中の記号として `_` を使うと意図しない長い空白が入る。効くのはターミナルに流すテキストすべて（`terminal.ts` のイントロ・ストーリーと、`terminal_show_notice()` に渡す通知）で、通知の出どころは複数モジュールに散っているため、文言を足す側が守る規則になる。
@@ -145,7 +147,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、死亡画面（`death-screen.ts`）が使う `m/ui/` 配下のイラスト・アイコン 14 枚、装備アイコン 30 枚（`gear-icons.ts` が静的 import を持ち、開封ダイアログと死亡画面の装備確認パネルへ配る）を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、`m/ui/` 配下のイラスト・アイコン 14 枚（死亡画面のイラストと記録アイコン 8 枚は `death-screen.ts`、恒久強化 6 行のアイコンは `upgrade-rows.ts` が持ち、死亡画面と報酬ダイアログの両方が読む）、装備アイコン 30 枚（`gear-icons.ts` が静的 import を持ち、開封ダイアログと死亡画面の装備確認パネルへ配る）を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
 
 これに加えて、イントロの hero 画像（`m/hero.webp`）だけは静的 import ではなく、`index.html` の `<style>` 内の `url(m/hero.webp)` から参照する。Vite はインライン `<style>` も CSS として処理するため、この参照も静的 import と同様にビルドで解決される（ハッシュ付きで `dist/assets/` に出力され、`dist/index.html` がその URL を指す）。禁止されているのは Vite が静的に検出できない JS 側の文字列連結であって、`index.html` 内の静的な CSS 参照は使ってよい。ただし効くのは CSS として解釈される位置に限る。`m/` へのパスを `<style>` の外（属性値の文字列など）へ動かすと `dist` に出なくなる。
 

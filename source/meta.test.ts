@@ -178,7 +178,7 @@ describe('嗅覚の段ごとの効果', () => {
     expect(meta_sniff_exit(4)).toBe(true)
   })
 
-  it('ヤニと清掃ドローンの点灯は 5 段から', () => {
+  it('清掃ドローンと押収品コンテナの点灯は 5 段から', () => {
     expect(meta_sniff_loot(4)).toBe(false)
     expect(meta_sniff_loot(5)).toBe(true)
   })

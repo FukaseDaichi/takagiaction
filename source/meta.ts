@@ -119,9 +119,10 @@ export function meta_sniff_exit(level = meta.levels.sniff): boolean {
   return level >= 4
 }
 
-// Lv5: ヤニ・清掃ドローン・押収品コンテナがミニマップに点灯する。しきい値を
+// Lv5: 清掃ドローンと押収品コンテナがミニマップに点灯する。しきい値を
 // 持たないのは、追い詰められている最中に拾いに行く余裕がなく狩りの道具に
-// ならないため。中核の問いを握っているのは喫煙所の在り処だけなので、常時でも触れない
+// ならないため。中核の問いを握っているのは喫煙所の在り処だけなので、常時でも触れない。
+// 落ちている吸い殻そのものは対象外（docs/meta-progression.md「ミニマップの 1 点は 1 つの機会を指す」）
 export function meta_sniff_loot(level = meta.levels.sniff): boolean {
   return level >= 5
 }

@@ -53,10 +53,17 @@ export class entity_player_t extends entity_t {
 
   override _update(): void {
     const t = this
-    // 死亡シーケンス中の死体。入力も物理も止めて、game_tick が y（ドローンの
-    // 持ち上げ）を書くのに任せる。基底の _update() を呼ぶと bobbing で書いた
-    // y の残差を積分し続けてしまうので、ここで完全に止める
-    if (state.dying) {
+    // 死体。入力も物理も止めて、game_tick が y（ドローンの持ち上げ）を書くのに
+    // 任せる。基底の _update() を呼ぶと bobbing で書いた y の残差を積分し続けて
+    // しまうので、ここで完全に止める。
+    // dying だけでなく game_running も見るのは、死体が消えるのは次の load_level()
+    // で、リザルト表示中も同じ死体がループに残るため（docs/gameplay.md「死体は
+    // 何にも触れない」と同じゲート）。dying を落として run_end() を呼ぶのは同じ
+    // フレームなので、game_running を見ないと死体はその場で立ち上がり、リザルトの
+    // 裏で歩いて撃てる（発射音と、刃物の決めなら #ds より上に重なる #sl が出る）。
+    // この間はエッジ検出のフラグ（E / Tab）も消費されないので、死亡画面が抜ける
+    // ときに戻す（death-screen.ts の descend()）
+    if (state.dying || !state.game_running) {
       t.ax = t.az = 0
       t.vx = t.vz = 0
       return
@@ -93,10 +100,11 @@ export class entity_player_t extends entity_t {
 
     // 予備の一本: E で 50% 回復。エッジ検出は input.ts と対で、処理したら 0 へ戻す。
     // こっそり浅く吸うだけなので感知器は作動せず（非常口は開かない）、回復も半分止まり。
-    // リザルト表示中の terminal_show_notice は表示チェーンを壊すので game_running を見る
+    // リザルト表示中は上の死体のガードでここまで来ない（terminal_show_notice が
+    // 表示中のリザルトの表示チェーンを壊すため、来てはいけない）
     if (keys[key_spare]) {
       keys[key_spare] = 0
-      if (!smoking && state.game_running && state.spares_left > 0) {
+      if (!smoking && state.spares_left > 0) {
         state.spares_left--
         state.smoke_count++
         state.nicotine = Math.min(
@@ -108,12 +116,11 @@ export class entity_player_t extends entity_t {
     }
 
     // 持ち替え: Tab。刃物を 1 本も持っていないときは持ち替える先が無いので
-    // 無視する。game_running を見るのは、リザルト表示中もエンティティの
-    // ループが回り続けており（docs/gameplay.md）、死亡画面が Tab を
-    // 「地下へ戻る」に使っているため
+    // 無視する。死亡画面も Tab を項目切替に使うが、リザルト表示中は上の死体の
+    // ガードでここまで来ないので、同じキーが 2 つの意味で同時に効くことはない
     if (keys[key_swap]) {
       keys[key_swap] = 0
-      if (state.game_running && meta.gear.blade > 0) {
+      if (meta.gear.blade > 0) {
         state.melee_active = state.melee_active ? 0 : 1
         audio_play(audio_sfx_beep)
       }
