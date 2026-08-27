@@ -147,8 +147,15 @@ export class entity_player_t extends entity_t {
 
   override _render(): void {
     this._frame++
-    // 死体は点滅させない（致命打の直後は被弾点滅の 2 秒が残っている）
-    if (state.dying || this._last_damage < 0 || this._frame % 6 < 4) {
+    // 死体は点滅させない（致命打の直後は被弾点滅の 2 秒が残っている）。
+    // dying だけでなく game_running も見るのは _update() と同じゲートで、死体は
+    // 次の load_level() まで残るため。しかもその _update() が止まることで
+    // _last_damage が減らなくなるので、被弾死の 2 秒は時間で解けずリザルト表示中
+    // ずっと凍結する。dying だけを見ると死体は最後まで点滅し続ける
+    if (
+      state.dying || !state.game_running ||
+      this._last_damage < 0 || this._frame % 6 < 4
+    ) {
       super._render()
     }
     // 視界は falloff で縮める。RGB を下げても暖色が減って青く沈むだけで、
