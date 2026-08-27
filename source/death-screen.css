@@ -193,7 +193,12 @@
 #ds .ds-body {
   mix-blend-mode: screen;
   filter: saturate(.12) brightness(.55);
-  transition: filter .4s var(--ease-in);
+  /* 収納（Tab で idle へ戻る）の階梯の最後の段。数値 0 → パネル .08 →
+     接続線 .16 → アイコン・模型 .24 の 80ms 刻みで、仕様 ② の
+     「数値 → パネル → 接続線 → アイコン → 模型 の逆順」を実時間で作る。
+     展開の側は #ds.mode-upgrade 側の規則が自分の delay を持つので、この
+     基底の delay は収納にしか効かない */
+  transition: filter .4s var(--ease-in) .24s;
 }
 #ds.mode-upgrade .ds-body { filter: saturate(.3) brightness(.8); }
 
@@ -216,8 +221,8 @@
      opacity/stroke-dashoffset を実値として transition させれば両方向とも
      滑らかになる。0.3s はパネル本体の退場（0.22s）より遅く、アイコンの帰還
      （translate 0.4s）より速い ― 「接続線が切れてからアイコンが体へ帰る」の
-     順を守るため */
-  transition: opacity .3s var(--ease-out), stroke-dashoffset .3s var(--ease-out);
+     順を守るため。.16s は収納の階梯の 3 段目（#ds .ds-body を参照） */
+  transition: opacity .3s var(--ease-out) .16s, stroke-dashoffset .3s var(--ease-out) .16s;
 }
 #ds.mode-upgrade .ds-wire {
   opacity: .55;
@@ -261,6 +266,11 @@
   translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px);
   scale: 1;
   transition: translate .4s var(--ease-in), opacity .3s var(--ease-in), scale .4s var(--ease-in);
+  /* 収納の階梯の 4 段目（#ds .ds-body を参照）。掛けるのは体へ帰る translate
+     だけで、scale と opacity は 0s のまま ― フォーカスを外れた側の縮小が
+     遅れると、拡大したまま居座って見える（R12）。パネルを開いたときの
+     inactive への減光もここでは待たせない */
+  transition-delay: .24s, 0s, 0s;
   cursor: pointer;
 }
 #ds.mode-upgrade .ds-part {
@@ -357,7 +367,9 @@
   opacity: 0;
   transform: translateX(1.5vw);
   pointer-events: none;
-  transition: opacity .22s var(--ease-out), transform .22s var(--ease-out);
+  /* .08s は収納の階梯の 2 段目（#ds .ds-body を参照）。数値（下の
+     .ds-detail-stat ほか、遅延なし）が消えてからパネル本体が退く */
+  transition: opacity .22s var(--ease-out) .08s, transform .22s var(--ease-out) .08s;
 }
 /* 展開は収納より 0.1s 遅れて始まる。完全に直列だと待ちが長く、
    完全に並列だと 2 枚が同時に見える */
@@ -485,9 +497,20 @@
   font-size: 1vw; padding: .5vh 0;
   border-bottom: 1px solid rgba(46, 107, 79, .4);
   opacity: 0;
+  transform: translateX(-.8vw);
+  /* 開くときは行ごとの階梯、閉じるときは一斉に。animation + forwards で
+     組むと、閉じる方向の transition が発火せず行だけが瞬時に消えて、
+     見出しと [Esc] だけが入った空の箱が 0.3 秒滑り出る（.ds-wire /
+     .ds-gear-wire と同じ理由・同じ形。両方向に transition を張る）。
+     .2s はパネル本体の退場（transform .3s）より速く、行が消えてから
+     箱が出ていく順になる */
+  transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
 }
 #ds.panel-record .ds-record-row {
-  animation: ds-row-in .3s var(--ease-in) calc(.35s + var(--i) * 70ms) forwards;
+  opacity: 1;
+  transform: none;
+  transition: opacity .3s var(--ease-in) calc(.35s + var(--i) * 70ms),
+    transform .3s var(--ease-in) calc(.35s + var(--i) * 70ms);
 }
 #ds .ds-record-row:last-child { border-bottom: none; }
 #ds .ds-record-row img { width: 1.2vw; height: 1.2vw; }
@@ -582,8 +605,12 @@
    ← NEW 表示と同じ場所で 2 つの祝福演出が重なって互いを読めなくする
    （Task 8 レビュー Finding 1）。.ds-figure（:173）と同じ形にする */
 #ds.panel-record .ds-nr, #ds.panel-gear .ds-nr { opacity: 0; }
+/* イージングは段階開示の 2 種（--ease-in / --ease-out）だけを使う。ここには
+   制御点が 1 を超える cubic-bezier(.2, 1.6, .35, 1) があったが、これは
+   行き過ぎて戻るバウンスで、仕様「バウンスと粒子のキラキラは使わない」に
+   正面から反する（明滅そのものは ds-nr-glow が担う） */
 #ds.entering .ds-nr .ds-nr-title {
-  animation: ds-nr-in .35s cubic-bezier(.2, 1.6, .35, 1) 1.6s both,
+  animation: ds-nr-in .35s var(--ease-in) 1.6s both,
     ds-nr-glow 2s ease-in-out 2.3s infinite;
 }
 #ds .ds-nr-title {
@@ -592,7 +619,7 @@
 }
 #ds .ds-nr-sub { font-size: 1.2vw; font-weight: bold; color: #ffaa2b; text-shadow: 0 0 10px #f70; }
 #ds.entering .ds-nr .ds-nr-sub {
-  animation: ds-nr-in .35s cubic-bezier(.2, 1.6, .35, 1) 1.8s both;
+  animation: ds-nr-in .35s var(--ease-in) 1.8s both;
 }
 
 /* --- 強化演出 --- */
@@ -613,21 +640,25 @@
 #ds.up-spare .ds-organ[data-part="spare"],
 #ds.up-leg .ds-organ[data-part="leg"] { opacity: 1; }
 
-/* 肺活量: 膨らむ → 気管へ光が流れる → 戻る → 口元から煙が 3 粒昇って消える。
-   膨張の頂点（scale 1.28）は .65s の 54% ≒ 0.35s で、design.md §④が
-   挙げる「scale 1→1.28（0.35s）」に合わせてある。煙は肺が戻り切る .65s
-   から粒ごとに --step（80ms）ずつ遅れて立ち、3 粒目が消えるのが 1.16s。
-   upgrade_duration（§④の busy ロック窓 0.9〜1.2s の上限）はここに 40ms の
-   余白を足した値（死亡画面レビュー Finding 3: 煙を足して 1.6s まで伸びた
-   尺が仕様のロック窓を超えていたため、膨張・戻りの尺を圧縮して収めた） */
+/* 肺活量: 膨らむ → 気管へ光が流れる → 数値 → 戻りながら口元から煙が 3 粒
+   昇って消える。仕様 §④の順序（肺の膨張 → 気管の光 → 数値ロール → 肺が戻る
+   → 煙 3 粒）を実時間で重ならないように並べたもので、
+   膨張 0〜.35s（頂点 scale 1.28 は仕様どおり 0.35s）→ 気管 .35〜.62s →
+   数値 .62〜.78s → 戻り .78〜1.0s ／ 煙 .78s から --step（80ms）刻みで 3 粒、
+   3 粒目が消えるのが 1.19s。
+   5 段を完全に直列にすると §④の busy ロック窓（0.9〜1.2s）に収まらないので、
+   最後の 2 段だけを重ねる ― 息を吐くのは肺がしぼむあいだであり、この 2 つは
+   同時に起きる出来事として読める。気管の 0.4s だけは仕様より短い（.27s）:
+   膨張の頂点 0.35s とロック窓 1.2s は他の段の置き場所を決める制約で、
+   どちらかを削るならこちらが最も影響が小さい */
 #ds.up-lung .ds-o-lung {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ds-lung-swell .65s var(--ease-in);
+  animation: ds-lung-swell 1s var(--ease-in);
 }
 #ds.up-lung .ds-o-trachea {
   stroke-dasharray: 60;
-  animation: ds-flow .4s linear .1s;
+  animation: ds-flow .27s linear .35s;
 }
 /* 煙は待機中も opacity: 0 に固定し、フォーカスだけ（.ds-organ が .5 で
    見えている状態）でうっすら輪だけ浮かないようにする。表示はもっぱら
@@ -636,10 +667,10 @@
 #ds.up-lung .ds-o-puff {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ds-puff .35s var(--ease-in) .65s;
+  animation: ds-puff .25s var(--ease-in) .78s;
 }
-#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(.65s + var(--step)); }
-#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(.65s + var(--step) * 2); }
+#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(.78s + var(--step)); }
+#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(.78s + var(--step) * 2); }
 
 /* ニコチン耐性: 脳が点灯し、神経ラインへパルスが降りる */
 #ds.up-tolerance .ds-o-brain { animation: ds-pulse .5s ease-out 2; }
@@ -686,6 +717,11 @@
 /* 数値の差し替えを目立たせる。ロールアップではなく 1 度の点滅にする —
    桁が動くだけの演出は、重い機械という狙いから外れる */
 #ds.upgrading .ds-detail-cur { animation: ds-value-in .45s var(--ease-in) .4s; }
+/* 肺だけは器官の演出が 5 段あり、数値の置き場所が「気管の光が終わってから
+   肺が戻り始めるまで」の 0.16s に限られる（#ds.up-lung .ds-o-lung 参照）。
+   詳細度は上の #ds.upgrading と同じ (1,2,0) なので、勝敗は源順序で決まる ―
+   この規則は必ず上の規則より後に置く */
+#ds.up-lung .ds-detail-cur { animation: ds-value-in .16s var(--ease-in) .62s; }
 
 /* 背景の闇サイト端末が明滅し、右上のヤニ残高へ線が走る */
 #ds .ds-terminal-glow {
@@ -860,9 +896,11 @@
   0%, 100% { opacity: 1; transform: none; }
   33% { opacity: .2; transform: translateX(.4vw); }
 }
+/* 35% = 0.35s で頂点、78% = 0.78s まで保ってから戻る（1s のアニメーション）。
+   頂点を保つあいだに気管の光と数値の段が入る（#ds.up-lung .ds-o-lung 参照） */
 @keyframes ds-lung-swell {
   0% { transform: scale(1); }
-  54% { transform: scale(1.28); }
+  35%, 78% { transform: scale(1.28); }
   100% { transform: scale(1); }
 }
 @keyframes ds-flow { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
@@ -875,10 +913,14 @@
 @keyframes ds-pulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px var(--c)) brightness(1.6); } }
 @keyframes ds-flash { 0%, 100% { opacity: .6; } 50% { opacity: 1; filter: drop-shadow(0 0 12px var(--c)); } }
 @keyframes ds-recoil { 0%, 100% { transform: none; } 50% { transform: translateX(3px); } }
+/* 「弧を描いて」（仕様 §④）。2 点だけだと直線で落ちる。x を等速・y を加速で
+   刻めば、落下距離 120×180 単位（描画で約 8.4vw × 22vh）の放物線になる */
 @keyframes ds-drop {
-  from { transform: translate(120px, -180px); opacity: 0; }
+  0% { transform: translate(120px, -180px); opacity: 0; }
+  50% { transform: translate(60px, -135px); }
   60% { opacity: 1; }
-  to { transform: none; opacity: 1; }
+  75% { transform: translate(30px, -79px); }
+  100% { transform: none; opacity: 1; }
 }
 @keyframes ds-shock { from { transform: scale(.2); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 @keyframes ds-shake { 0%, 100% { transform: none; } 50% { transform: translateY(2px); } }
@@ -887,7 +929,6 @@
 @keyframes ds-beam { 0% { transform: scaleY(0); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
 @keyframes ds-reject { 0%, 100% { transform: none; } 25% { transform: translateX(-.3vw); } 75% { transform: translateX(.3vw); } }
 @keyframes ds-scan { from { opacity: 1; top: 0; } to { opacity: 0; top: 100%; } }
-@keyframes ds-row-in { from { opacity: 0; transform: translateX(-.8vw); } to { opacity: 1; transform: none; } }
 @keyframes ds-nr-in { from { opacity: 0; transform: translateX(-4vw) scale(1.3); } to { opacity: 1; transform: none; } }
 @keyframes ds-nr-glow {
   0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, .7); }
@@ -900,12 +941,16 @@
 @keyframes ds-split-l { to { transform: translateX(-100%); } }
 @keyframes ds-split-r { to { transform: translateX(100%); } }
 
-/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない
-   （index.html の #wf / #sl / #bf と同じ流儀） */
+/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない。
+   反復回数も 1 に落とす ― このファイルには無限ループが 3 本あり
+   （ds-breathe / ds-nr-glow / ds-door-glow）、尺だけを詰めると周期 1ms で
+   回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの
+   指定が、reduce を選んだ環境にだけストロボを作ってしまう */
 @media (prefers-reduced-motion: reduce) {
   #ds *, #ds *::before, #ds *::after {
     animation-duration: .001s !important;
     animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
     transition-duration: .001s !important;
     transition-delay: 0s !important;
   }

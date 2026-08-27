@@ -88,6 +88,7 @@ export function death_screen_show(
     state = { ...state, busy: false }
     apply()
   }, 1400)
+  count_yani()
   document.addEventListener('keydown', on_key)
 }
 
@@ -292,6 +293,32 @@ function fill_static(): void {
 
 function text(selector: string, value: string): void {
   root!.querySelector<HTMLElement>(selector)!.textContent = value
+}
+
+// 入場シーケンス 1.10s の「ヤニ残高がカウントアップ」（設計書）。桁そのものが
+// 変わる演出は CSS では表せないので、ここだけ JS が値を刻む ― 階梯（順序）は
+// CSS が持ったままで、これは 1 本の値の補間である。
+// 残高は 1.10s まで opacity 0 なので、0 から刻み始めても「見えていた数字が
+// 0 に戻る」ようには見えない。刻み終わりは入力が開く 1.40s に揃えてあり、
+// そのとき busy を解く apply() が最終値を書くので、途中で止めても残高が
+// 欠けたまま残ることはない
+const yani_count_delay = 1100
+const yani_count_steps = 10
+const yani_count_step = 30
+let yani_timer: ReturnType<typeof setTimeout> = 0
+
+function count_yani(step = 0): void {
+  clearTimeout(yani_timer)
+  if (step > 0) {
+    text('.ds-yani-value', String(step >= yani_count_steps
+      ? meta.yani
+      : Math.round(meta.yani * step / yani_count_steps)))
+  }
+  if (step >= yani_count_steps) { return }
+  yani_timer = setTimeout(
+    () => { count_yani(step + 1) },
+    step === 0 ? yani_count_delay : yani_count_step,
+  )
 }
 
 // 状態を DOM へ写す。ノードは作らず、class とテキストだけを触る
@@ -505,14 +532,12 @@ const upgrade_sfx: Record<meta_upgrade_id_t, () => AudioBuffer | undefined> = {
   spare: () => audio_sfx_lighter,
 }
 
-// 演出の長さ。いちばん長い肺（膨張 → 気管の光 → 戻る → 口元の煙 3 粒）に
-// 合わせて一律にする。部位ごとに変えると、連続で買ったときのテンポが項目に
-// よってばらつく。この値は design.md §④が定める Enter 後の busy ロック窓
-// （0.9〜1.2s）に収める必要がある。肺は膨張・戻り .65s（頂点は仕様どおり
-// 0.35s）→ 煙 3 粒が --step（80ms）刻みで立ち、最後の 1 粒が 1.16s で
-// 消えるので、そこに 40ms の余白を足した値
-// （死亡画面レビュー Finding 3: 煙を足して 1.6s まで伸びていた尺が
-// ロック窓を超えていたため、肺の膨張・戻りを圧縮して仕様の上限に収めた）
+// 演出の長さ。いちばん長い肺（膨張 → 気管の光 → 数値 → 戻りながら口元の煙
+// 3 粒）に合わせて一律にする。部位ごとに変えると、連続で買ったときのテンポが
+// 項目によってばらつく。この値は design.md §④が定める Enter 後の busy ロック窓
+// （0.9〜1.2s）に収める必要がある。肺の最後の 1 粒が消えるのが 1.19s なので、
+// その上でロック窓の上限を採っている（段ごとの時刻は death-screen.css の
+// #ds.up-lung .ds-o-lung のコメント）
 const upgrade_duration = 1200
 
 let upgrade_timer: ReturnType<typeof setTimeout> = 0
