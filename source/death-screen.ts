@@ -6,6 +6,9 @@ import {
 import type { run_result_t } from './death-screen-model'
 import { gear_grade, gear_grades, gear_name, gear_slot_labels, gear_slots } from './equipment'
 import type { gear_slot_t } from './equipment'
+import {
+  key_down, key_left, key_right, key_shoot, key_spare, key_swap, key_up, keys,
+} from './input'
 import { meta, meta_buy, meta_max_level, meta_upgrade_price } from './meta'
 import type { meta_upgrade_id_t } from './meta'
 import { terminal_cancel, terminal_clear, terminal_hide } from './terminal'
@@ -84,6 +87,18 @@ function descend(): void {
   // descend() まで来た時点で null ではない（root! と同じ扱い）
   banner!.style.display = 'none'
   canvas.style.opacity = '1'
+  // 押しっぱなしのキーの後始末。input.ts のハンドラは死亡画面の裏でも生きて
+  // いるので、押したまま地下へ戻ると keys に 1 が残り、次のランの 1 フレーム
+  // 目から効いてしまう（死んだときのスペースを離していなければ、復活と同時に
+  // 発砲する）。この画面が読まない Space / E も同じ keys に載る以上ここで
+  // 落とす（boss-reward.ts / equip-screen.ts と同じく、画面が出口で戻す）
+  keys[key_shoot] = 0
+  keys[key_spare] = 0
+  keys[key_swap] = 0
+  keys[key_up] = 0
+  keys[key_down] = 0
+  keys[key_left] = 0
+  keys[key_right] = 0
   on_descend()
 }
 
