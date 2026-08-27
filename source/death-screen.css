@@ -171,7 +171,15 @@
   transition: opacity .35s var(--ease-in), transform .35s var(--ease-in);
 }
 #ds.panel-record .ds-figure, #ds.panel-gear .ds-figure { opacity: .3; }
-#ds.entering .ds-figure { animation: ds-figure-in .8s var(--ease-in) .45s both; }
+/* forwards/both は使わない: entering class は入場後も外れないままなので、both
+   だと 100% キーフレームの opacity: 1 が Animation の値として永久に残り、
+   Animation は通常の author 宣言より優先されるため、直前の
+   #ds.panel-record .ds-figure, #ds.panel-gear .ds-figure { opacity: .3 } が
+   ずっと負けて模型が暗転しない（R27 で発覚。Task 8 の記録パネルでも同一条件で
+   再現していた既存の不具合）。backwards なら delay 中の from 側だけを保持し、
+   終了後は cascade（休止時は既定の 1、パネル表示中は .3）に自然に委ねられる。
+   #ds.entering .ds-part（ds-icon-in、上の :281-283）と同じ理由・同じ修正 */
+#ds.entering .ds-figure { animation: ds-figure-in .8s var(--ease-in) .45s backwards; }
 
 /* 下地は SVG の <image>。背景が near-black（rgb(12,15,12)）なので screen で
    黒が抜ける。既定は彩度を落として灰色にし、強化モードで少しだけ色を戻す。
