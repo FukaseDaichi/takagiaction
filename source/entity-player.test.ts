@@ -393,6 +393,24 @@ describe('死亡シーケンス', () => {
     for (let i = 0; i < 12; i++) { player._render() }
     expect(mocks.sprite_calls).toBe(12)
   })
+
+  it('リザルト表示中も死体を点滅させない', () => {
+    player._update()
+    player.h = 1
+    player._receive_damage(player, 1) // _last_damage = 2 の点滅が張られる
+
+    // game_tick が dying を落として run_end() を呼んだ後の状態。_update() は
+    // 死体のゲートで止まるので _last_damage は 2 のまま減らず、点滅の条件が
+    // 消えないまま残る（時間を進めても解けない）
+    state.dying = 0
+    state.game_running = 0
+    state.time_elapsed = 3
+    for (let i = 0; i < 12; i++) { player._update() }
+
+    mocks.sprite_calls = 0
+    for (let i = 0; i < 12; i++) { player._render() }
+    expect(mocks.sprite_calls).toBe(12)
+  })
 })
 
 describe('近接攻撃と持ち替え', () => {
