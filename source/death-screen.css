@@ -353,6 +353,16 @@
   animation: ds-breathe 2.4s ease-in-out infinite;
 }
 
+/* 待機中（idle）も、強化できる部位（ヤニが足りて MAX でない）は淡く明滅し、
+   「買えるものがある」ことを Tab を押す前から知らせる。.ds-part 本体に
+   掛けると #ds.entering .ds-part の ds-icon-in と animation プロパティを
+   取り合うため、上の呼吸と同じく子の円盤へ掛ける。mode-upgrade 中は上の
+   ds-breathe（:not が多く詳細度で勝つ）が引き継ぎ、パネル表示中の
+   .inactive では静止する */
+#ds .ds-part.dim:not(.poor):not(.maxed) .ds-arc-bg {
+  animation: ds-avail 2.8s ease-in-out infinite;
+}
+
 /* --- Level 2 詳細パネル --- */
 
 #ds .ds-detail {
@@ -765,34 +775,112 @@
 
 /* --- 地下へ戻る --- */
 
+/* ボタン自体が「地下へ続く入口」。左＝重い鉄のハッチと奥から漏れるアンバー光
+   （背景画像 m/ui/descend.webp）、右寄り中央＝ラベル。文字を画像に焼き込まない
+   のは、ラベルが初回起動（地下へ潜る）と死亡後（地下へ戻る）で変わるため */
 #ds .ds-descend {
   position: absolute;
   right: 3%;
-  top: 74%;
-  display: flex;
-  align-items: center;
-  gap: .8vw;
-  border: 1px solid rgba(255, 170, 43, .5);
-  background: linear-gradient(180deg, rgba(60, 34, 4, .5), rgba(24, 13, 2, .7));
+  bottom: 5%;
+  width: 26vw;
+  /* 背景画像（1536×520 の帯）と同じ比にして background-size: 100% 100% で
+     ぴったり嵌める。cover で切らないのは、画像側の煙草の座標に CSS の
+     火種・煙を重ねるため ― 切ると % 座標が窓の比で流れる */
+  aspect-ratio: 1536 / 520;
+  padding: 0;
+  border: 1px solid rgba(122, 104, 82, .55);
+  background: #0a0806;
   color: #ffaa2b;
   font: inherit;
-  font-size: 1.3vw;
-  font-weight: bold;
-  padding: 1vh 1.2vw;
   cursor: pointer;
+  overflow: hidden;
   transition: opacity .25s var(--ease-in), box-shadow .25s var(--ease-in),
     border-color .25s var(--ease-in);
 }
-#ds .ds-descend img { height: 3vw; opacity: .85; }
+#ds .ds-descend-plate {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+  filter: brightness(.8) saturate(.85);
+  transition: filter .4s var(--ease-in), transform .4s var(--ease-in);
+}
+/* 文字の座りを作る暗部。左のハッチと奥の光は殺さず、中央〜右だけ沈める */
+#ds .ds-descend-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 5, 4, 0) 32%, rgba(5, 5, 4, .5) 62%, rgba(5, 5, 4, .68) 100%),
+    linear-gradient(180deg, rgba(5, 5, 4, .35), transparent 30%, transparent 72%, rgba(5, 5, 4, .5));
+}
+/* 奥から漏れる光。待機中も弱く灯り、フォーカスでゆっくり脈打つ ―
+   「入りたくない」ではなく「先を見てみたい」の側へ寄せる */
+#ds .ds-descend-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(90% 140% at 10% 62%, rgba(255, 150, 40, .34), transparent 62%);
+  mix-blend-mode: screen;
+  opacity: .5;
+  transition: opacity .4s var(--ease-in);
+}
+#ds .ds-descend.active .ds-descend-glow { animation: ds-hatch-glow 2.6s ease-in-out infinite; }
+/* 誰かが置いていった煙草。火種の明滅と、立ちのぼって消える煙。
+   位置は画像側の煙草の座標に合わせる */
+#ds .ds-descend-ember {
+  position: absolute;
+  /* 画像側の煙草の先端（帯座標 x 93.2% / y 78%）に重ねる */
+  right: 6.6%;
+  bottom: 21%;
+  width: .3vw;
+  height: .3vw;
+  border-radius: 50%;
+  background: #ff6a30;
+  animation: ds-ember 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+#ds .ds-descend-smoke {
+  position: absolute;
+  right: 5.8%;
+  bottom: 20%;
+  width: 2vw;
+  height: 2vw;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(190, 180, 170, .3), transparent 70%);
+  filter: blur(3px);
+  opacity: 0;
+  animation: ds-cig-smoke 6s linear infinite;
+  pointer-events: none;
+}
+#ds .ds-descend-text {
+  position: absolute;
+  inset: 0 0 0 24%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .5vh;
+  pointer-events: none;
+}
+#ds .ds-descend-label {
+  font-size: 1.9vw;
+  font-weight: bold;
+  letter-spacing: .32em;
+  margin-right: -.32em;
+  color: #f5e3c8;
+  text-shadow: 0 0 14px rgba(255, 150, 40, .55), 0 1px 0 rgba(0, 0, 0, .85);
+}
 #ds .ds-descend-depth {
-  display: block; font-size: .8vw; font-weight: normal; color: #e8c9a8;
+  font-size: .85vw;
+  font-weight: normal;
+  letter-spacing: .3em;
+  margin-right: -.3em;
+  color: #c9a377;
 }
 #ds .ds-descend.active {
-  border-color: #ffaa2b;
-  box-shadow: 0 0 22px rgba(255, 170, 43, .45);
+  border-color: rgba(255, 170, 43, .8);
+  box-shadow: 0 0 26px rgba(255, 140, 30, .35);
 }
-/* フォーカス中は扉の光の筋がゆっくり明滅する */
-#ds .ds-descend.active img { animation: ds-door-glow 2.2s ease-in-out infinite; }
+#ds .ds-descend.active .ds-descend-plate { filter: brightness(1) saturate(1); transform: scale(1.03); }
 /* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
    Animation 発生源の値として永久に残り、下の .ds-descend.active/.dim/.inactive
    （強調階層）を上書きし続けてしまう。ds-figure-in（#ds .ds-figure 付近）・
@@ -890,6 +978,15 @@
 @keyframes ds-icon-in { from { opacity: 0; } }
 @keyframes ds-fade-back { to { opacity: .4; } }
 @keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* 待機中の「買える」合図。呼吸（ds-breathe）より淡く、輪郭が部位色で
+   にじむ程度に留める。強い点滅は idle の主役（地下へ潜る）と競合する */
+@keyframes ds-avail {
+  0%, 100% { stroke: rgba(120, 160, 135, .3); filter: none; }
+  50% {
+    stroke: color-mix(in srgb, var(--c) 55%, rgba(120, 160, 135, .3));
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--c) 45%, transparent));
+  }
+}
 /* 33% ≈ 0.10s / 0.3s。トラフの深さは「0.12s で 0 まで沈む速さのまま
    0.10s まで進んだ位置」の近似値（#ds .ds-detail.swap 参照） */
 @keyframes ds-detail-swap {
@@ -934,7 +1031,19 @@
   0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, .7); }
   50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, .95); }
 }
-@keyframes ds-door-glow { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px #3af08a) brightness(1.25); } }
+@keyframes ds-hatch-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* 吸われていない煙草の火種。強く一瞬灯ってから燻る、非対称の明滅にする */
+@keyframes ds-ember {
+  0%, 100% { opacity: .5; box-shadow: 0 0 .3vw rgba(255, 90, 32, .5); }
+  12% { opacity: 1; box-shadow: 0 0 .5vw #ff5a20, 0 0 1.1vw rgba(255, 80, 20, .55); }
+  30% { opacity: .65; box-shadow: 0 0 .35vw rgba(255, 90, 32, .55); }
+}
+@keyframes ds-cig-smoke {
+  0% { transform: translate(0, 0) scale(.5); opacity: 0; }
+  18% { opacity: .4; }
+  70% { opacity: .18; }
+  100% { transform: translate(-.7vw, -7.5vh) scale(1.7); opacity: 0; }
+}
 @keyframes ds-suck-in { to { opacity: 0; transform: translate(2vw, 1vh) scale(.94); } }
 @keyframes ds-figure-out { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
 @keyframes ds-split-show { to { opacity: 1; } }
@@ -943,8 +1052,9 @@
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。death-screen.ts の
    状態タイマーと残高カウントも同じ設定を読み、見た目の完了後に busy を残さない。
-   反復回数も 1 に落とす ― このファイルには無限ループが 3 本あり
-   （ds-breathe / ds-nr-glow / ds-door-glow）、尺だけを詰めると周期 1ms で
+   反復回数も 1 に落とす ― このファイルには無限ループが 6 本あり
+   （ds-breathe / ds-nr-glow / ds-avail / ds-hatch-glow / ds-ember /
+   ds-cig-smoke）、尺だけを詰めると周期 1ms で
    回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの
    指定が、reduce を選んだ環境にだけストロボを作ってしまう */
 @media (prefers-reduced-motion: reduce) {
