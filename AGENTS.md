@@ -80,6 +80,7 @@ docs/ と docs/superpowers/ が矛盾する場合、docs/ とコードが正。
 - スクリプト実行: `uv run python <script>.py`
 - ワンライナー・標準モジュール: `uv run python -m <module>`
 - パッケージが必要な場合: `uv run --with <package> python ...`
+- 日本語を含むファイルを読み書きする場合: `uv run python -X utf8 ...`（Windows の既定エンコーディングは CP932 で、UTF-8 のファイルはデコードエラーになる）
 
 ## LEARNINGS.md ループ
 

@@ -348,19 +348,15 @@
 }
 #ds .ds-part.maxed .ds-check { opacity: .9; }
 
-/* 強化可能な部位だけが呼吸する。買えない・MAX は静止したまま */
-#ds.mode-upgrade .ds-part:not(.poor):not(.maxed):not(.active) .ds-arc-bg {
-  animation: ds-breathe 2.4s ease-in-out infinite;
-}
-
-/* 待機中（idle）も、強化できる部位（ヤニが足りて MAX でない）は淡く明滅し、
-   「買えるものがある」ことを Tab を押す前から知らせる。.ds-part 本体に
-   掛けると #ds.entering .ds-part の ds-icon-in と animation プロパティを
-   取り合うため、上の呼吸と同じく子の円盤へ掛ける。mode-upgrade 中は上の
-   ds-breathe（:not が多く詳細度で勝つ）が引き継ぎ、パネル表示中の
-   .inactive では静止する */
+/* 強化できる部位（ヤニが足りて MAX でない）は 0.5 秒周期で点滅する。待機中も
+   強化モード中も同じ点滅で、「買えるものがある」を Tab を押す前から知らせる。
+   買えない・MAX は静止したまま。フォーカス中（.active）とパネル表示中
+   （.inactive）も静止する ― .dim がその 3 つを同時に外すので、選択肢の合図
+   （点滅）と選択中の合図（.active の定常点灯）が同じ部位で二重にならない。
+   .ds-part 本体ではなく子の円盤へ掛けるのは、#ds.entering .ds-part の
+   ds-icon-in と animation プロパティを取り合うため */
 #ds .ds-part.dim:not(.poor):not(.maxed) .ds-arc-bg {
-  animation: ds-avail 2.8s ease-in-out infinite;
+  animation: ds-avail .5s linear infinite;
 }
 
 /* --- Level 2 詳細パネル --- */
@@ -977,14 +973,24 @@
 /* from-only（forwards/both を使わない理由は #ds.entering .ds-part を参照） */
 @keyframes ds-icon-in { from { opacity: 0; } }
 @keyframes ds-fade-back { to { opacity: .4; } }
-@keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-/* 待機中の「買える」合図。呼吸（ds-breathe）より淡く、輪郭が部位色で
-   にじむ程度に留める。強い点滅は idle の主役（地下へ潜る）と競合する */
+/* 「買える」合図。0.5 秒のうち前半 0.3 秒で部位色いっぱいまで灯して消し、
+   残り 0.2 秒は消灯のまま置く ― 明暗の差と暗い間の両方が「点滅している」と
+   読ませる。輪郭がにじむ程度の淡い明滅（色を 55% に減光した 2.8 秒周期）では、
+   視線が人体模型へ向いていない限り気づけなかった。ピークの線幅と光の量は
+   .active の定常点灯（drop-shadow 6px）と同じ強さの帯に収め、点滅＝選択肢・
+   点灯＝選択中という読みを保つ */
 @keyframes ds-avail {
-  0%, 100% { stroke: rgba(120, 160, 135, .3); filter: none; }
-  50% {
-    stroke: color-mix(in srgb, var(--c) 55%, rgba(120, 160, 135, .3));
-    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--c) 45%, transparent));
+  0%, 60%, 100% {
+    stroke: rgba(120, 160, 135, .3);
+    stroke-width: 2;
+    fill: rgba(4, 10, 7, .8);
+    filter: none;
+  }
+  30% {
+    stroke: var(--c);
+    stroke-width: 3.5;
+    fill: color-mix(in srgb, var(--c) 25%, rgba(4, 10, 7, .8));
+    filter: drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 8px color-mix(in srgb, var(--c) 55%, transparent));
   }
 }
 /* 33% ≈ 0.10s / 0.3s。トラフの深さは「0.12s で 0 まで沈む速さのまま
@@ -1052,11 +1058,10 @@
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。death-screen.ts の
    状態タイマーと残高カウントも同じ設定を読み、見た目の完了後に busy を残さない。
-   反復回数も 1 に落とす ― このファイルには無限ループが 6 本あり
-   （ds-breathe / ds-nr-glow / ds-avail / ds-hatch-glow / ds-ember /
-   ds-cig-smoke）、尺だけを詰めると周期 1ms で
-   回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの
-   指定が、reduce を選んだ環境にだけストロボを作ってしまう */
+   反復回数も 1 に落とす ― このファイルには無限ループが 5 本あり
+   （ds-avail / ds-nr-glow / ds-hatch-glow / ds-ember / ds-cig-smoke）、尺だけを
+   詰めると周期 1ms で回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。
+   動きを減らすはずの指定が、reduce を選んだ環境にだけストロボを作ってしまう */
 @media (prefers-reduced-motion: reduce) {
   #ds *, #ds *::before, #ds *::after {
     animation-duration: .001s !important;
