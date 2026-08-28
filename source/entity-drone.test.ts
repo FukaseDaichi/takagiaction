@@ -31,6 +31,7 @@ import { entity_plasma_t } from './entity-plasma'
 import { entity_player_t } from './entity-player'
 import { entity_smoke_t } from './entity-smoke'
 import { entity_yani_t } from './entity-yani'
+import { generate_level } from './level-generator'
 import { monologue_drone_kill } from './monologue'
 import { camera } from './renderer'
 import { level_data, state } from './state'
@@ -222,5 +223,91 @@ describe('清掃ドローン', () => {
     drone._check(player)
     player._check(drone)
     expect(player.h).toBe(hp)
+  })
+
+  // 摩擦 5 なので終端速度は加速度の 1/5。加速度の生値ではなく終端速度で表明して、
+  // 摩擦を変える変異も一緒に殺す
+  function terminal_speed(drone: entity_drone_t, frames: number): number {
+    for (let i = 0; i < frames; i++) { drone._update() }
+    return Math.sqrt(drone.vx * drone.vx + drone.vz * drone.vz)
+  }
+
+  // 自機速度は 128 × (1 + 0.05625 × 脚力Lv) + 2.5 × ソールLv。摩擦 5 で割ると
+  // 脚力 Lv3 = 29.92px/s、Lv4 = 31.36px/s。巡回速度をこの間に置くことで
+  // 「脚力 Lv4 でドローン狩りが解禁される」を巡回の側で成立させる
+  it('巡回の終端速度は脚力 Lv3 では追いつけず Lv4 で追いつく帯に収まる', () => {
+    player.x = 10000
+    player.z = 10000
+    const drone = new entity_drone_t(80, 0, 64, 5, 39)
+    new entity_yani_t(10000, 0, 64, 5, 26) // 遠方に置いて +x へ直進させる
+    const speed = terminal_speed(drone, 600)
+    expect(speed).toBeGreaterThan(29.92)
+    expect(speed).toBeLessThan(31.36)
+  })
+
+  // 下限: 自機の絶対上限は 脚力 Lv10（200）＋ ソール Lv10（+25）= 225 で 45px/s。
+  // 上限: プラズマの弾速 96px/s を超えると弾が永久に追いつかず撃破不能になる
+  it('逃走の終端速度は自機の絶対上限を超え、プラズマの弾速には届かない', () => {
+    const drone = new entity_drone_t(80, 0, 64, 5, 39)
+    const plasma = new entity_plasma_t(80, 0, 64, 1, 26, 0)
+    drone._receive_damage(plasma, 1) // _panic_timer = 2 秒。視界外でも逃げ続ける
+    const speed = terminal_speed(drone, 100) // 1.67 秒。パニックの満了前
+    expect(speed).toBeGreaterThan(45)
+    expect(speed).toBeLessThan(96)
+  })
+
+  // 吸い殻がないときの _select_target() は Math.random() をちょうど 2 回引く
+  it('巡回先は 1 秒では引き直さず 2.5 秒までに引き直す', () => {
+    player.x = 10000
+    player.z = 10000
+    const drone = new entity_drone_t(80, 0, 64, 5, 39)
+    // 0.5 だと目的地が現在地に一致して毎フレーム到着扱いになるため 1 を返す
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(1)
+    drone._update()
+    expect(rand).toHaveBeenCalledTimes(2)
+    for (let i = 0; i < 60; i++) { drone._update() } // 1.0 秒
+    expect(rand).toHaveBeenCalledTimes(2)
+    for (let i = 0; i < 90; i++) { drone._update() } // 通算 2.5 秒
+    expect(rand).toHaveBeenCalledTimes(4)
+  })
+
+  // 半径が 1 脚で届く近さだと、到着のたびに引き直されてコミットが切れ、
+  // 方角が振り直されて正味の移動が生まれない
+  it('巡回先は目的地を保持している 2 秒の間に到着しない遠さにある', () => {
+    player.x = 10000
+    player.z = 10000
+    const drone = new entity_drone_t(80, 0, 64, 5, 39)
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(1) // 半径いっぱいへ
+    for (let i = 0; i < 120; i++) { drone._update() } // 2.0 秒
+    expect(rand).toHaveBeenCalledTimes(2) // 初回の 1 度だけ
+  })
+
+  // 「壁の中に入らない」は「壁を回避して進める」を保証しない。到達距離の側で固定する。
+  // 乱数を含むので 1 サンプルの閾値ではなく N シード中 M 以上の集計統計にする。
+  // 実装 17/40 に対し、接触のたびに目的地を捨てる変異体は 8/40 まで落ちる
+  it('巡回で実際にフロアを横断する', () => {
+    let reached = 0
+    for (let seed = 1; seed <= 40; seed++) {
+      let s = (seed * 48271) % 2147483647
+      vi.spyOn(Math, 'random').mockImplementation(() => {
+        s = (s * 48271) % 2147483647
+        return s / 2147483647
+      })
+      const layout = generate_level(3, seed)
+      level_data.set(layout.tiles)
+      state.entities = []
+      player = new entity_player_t(10000, 0, 10000, 5, 18)
+      state.entity_player = player
+      const start_x = layout.start.x * 8
+      const start_z = layout.start.z * 8
+      const drone = new entity_drone_t(start_x, 0, start_z, 5, 39)
+      for (let i = 0; i < 300; i++) { drone._update() } // 5 秒
+      const moved = Math.sqrt(
+        (drone.x - start_x) ** 2 + (drone.z - start_z) ** 2,
+      )
+      if (moved >= 40) { reached++ }
+      vi.restoreAllMocks()
+    }
+    expect(reached).toBeGreaterThanOrEqual(13)
   })
 })
