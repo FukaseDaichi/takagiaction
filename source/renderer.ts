@@ -25,7 +25,14 @@ const light_data = new Float32Array(max_lights * 7) // 16 lights, 7 properties p
 // 書き換えられるため、オブジェクトのプロパティとして公開する。
 export const camera = { x: 0, y: 0, z: 0, shake: 0 }
 
+// 環境光と霧の遠距離。camera と同じく game.ts が毎フレーム書き換える受け渡し口で、
+// 値の正本は boss-light-model.ts にある（ボス階だけ 3 秒かけて明るくするために
+// シェーダ定数から uniform へ出した）。ここの初期値は通常フロアの見え方
+export const lighting = { r: 0.3, g: 0.3, b: 0.6, fog_far: 112 }
+
 let camera_uniform: WebGLUniformLocation
+let ambient_uniform: WebGLUniformLocation
+let fog_far_uniform: WebGLUniformLocation
 
 const shader_attribute_vec = 'attribute vec'
 const shader_varying =
@@ -41,13 +48,14 @@ const vertex_shader =
   shader_attribute_vec + "2 uv;" +
   shader_attribute_vec + "3 n;" +
   shader_uniform + "vec3 cam;" +
+  shader_uniform + "vec3 amb;" +
   shader_uniform + "float l[7*"+max_lights+"];" +
   // source/projection.ts はこの v・r 行列と renderer_end_frame() の cam オフセット（-10/-30）を
   // JS で再現して DOM の吹き出しを配置する契約。片方だけ動かすと吹き出しが別の場所に出る。
   shader_const_mat4 + "v=mat4(1,0,0,0,0,.707,.707,0,0,-.707,.707,0,0,-22.627,-22.627,1);" + // view
   shader_const_mat4 + "r=mat4(.977,0,0,0,0,1.303,0,0,0,0,-1,-1,0,0,-2,0);"+ // projection
   "void main(void){" +
-    "vl=vec3(0.3,0.3,0.6);" + // ambient color
+    "vl=amb;" + // ambient color（boss-light-model.ts）
     "for(int i=0; i<"+max_lights+"; i++) {"+
       "vec3 lp=vec3(l[i*7],l[i*7+1],l[i*7+2]);" + // light position
       "vl+=vec3(l[i*7+3],l[i*7+4],l[i*7+5])" + // light color *
@@ -63,6 +71,7 @@ const vertex_shader =
 const fragment_shader =
   shader_varying +
   shader_uniform + "sampler2D s;" +
+  shader_uniform + "float ff;" +
   "void main(void){" +
     "vec4 t=texture2D(s,vuv);" +
     "if(t.a<.8)" + // 1) discard alpha
@@ -75,7 +84,7 @@ const fragment_shader =
     "else{" +  // 3) calculate color with lights and fog
       "gl_FragColor=t*vec4(vl,1.);" +
       "gl_FragColor.rgb*=smoothstep(" +
-        "112.,16.," + // fog far, near
+        "ff,16.," + // fog far（boss-light-model.ts）, near
         "gl_FragCoord.z/gl_FragCoord.w" + // fog depth
       ");" +
     "}" +
@@ -97,6 +106,8 @@ export function renderer_init(): void {
 
   camera_uniform = gl.getUniformLocation(shader_program, "cam")!
   light_uniform = gl.getUniformLocation(shader_program, "l")!
+  ambient_uniform = gl.getUniformLocation(shader_program, "amb")!
+  fog_far_uniform = gl.getUniformLocation(shader_program, "ff")!
 
   gl.enable(gl.DEPTH_TEST)
   gl.enable(gl.BLEND)
@@ -129,6 +140,8 @@ export function renderer_prepare_frame(): void {
 export function renderer_end_frame(): void {
   gl.uniform3f(camera_uniform, camera.x, camera.y - 10, camera.z-30)
   gl.uniform1fv(light_uniform, light_data)
+  gl.uniform3f(ambient_uniform, lighting.r, lighting.g, lighting.b)
+  gl.uniform1f(fog_far_uniform, lighting.fog_far)
 
   gl.clearColor(0,0,0,1)
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT)

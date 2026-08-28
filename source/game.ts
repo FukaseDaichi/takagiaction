@@ -1,4 +1,7 @@
 import { audio_music_boss, audio_music_normal, audio_music_restore } from './audio'
+import {
+  boss_light_progress, light_ambient, light_fog_far,
+} from './boss-light-model'
 import { boss_arms, boss_spawn_offset } from './boss-model'
 import { death_screen_show } from './death-screen'
 import {
@@ -31,7 +34,7 @@ import {
   camera_shake_amount, nicotine_drain_rate, nicotine_stage, nicotine_stage_limit,
 } from './nicotine'
 import {
-  camera, push_block, push_floor, push_light,
+  camera, lighting, push_block, push_floor, push_light,
   renderer_end_frame, renderer_freeze_level_geometry,
   renderer_prepare_frame, renderer_reset_level_geometry,
 } from './renderer'
@@ -136,6 +139,9 @@ function load_level(depth: number): void {
   // 触れた直後に死ぬと予約が残ったままリザルトへ抜ける。ここで消さないと
   // 次のランの 1 階が数秒で勝手に降下する
   state.descend_timer = 0
+  // 明転はフロアごとにやり直す（boss-light-model.ts）。持ち越すと 2 度目の
+  // ボス階が最初から明るい
+  state.boss_light_elapsed = 0
   limit_damage_timer = 0
   camera.shake = 0 // 死亡時に貯まった震えを次のランへ持ち越さないようにする
 
@@ -266,6 +272,21 @@ function game_tick(): void {
   }
 
   renderer_prepare_frame()
+
+  // ボス階の明転（boss-light-model.ts）。闘技場は 23 タイル四方あり、通常の霧
+  // では遠側のボスが黒く沈むので、到達から 3 秒かけて環境光と霧の遠距離を
+  // 一緒に押し上げる。進めるのは state.time_elapsed なので、ポーズ中
+  // （開封ダイアログ・ボス報酬）は自動的に止まる。通常フロアでも毎フレーム
+  // 書くのは、lighting が renderer への受け渡し口で、書かないと前のフロアの
+  // 明るさが残るため
+  if (is_boss_depth(state.depth)) { state.boss_light_elapsed += state.time_elapsed }
+  // 通常フロアは経過が 0 のままなので、進捗の側にボス階の分岐は要らない
+  const light_t = boss_light_progress(state.boss_light_elapsed)
+  const ambient = light_ambient(light_t)
+  lighting.r = ambient[0]
+  lighting.g = ambient[1]
+  lighting.b = ambient[2]
+  lighting.fog_far = light_fog_far(light_t)
 
   const player = state.entity_player!
 
