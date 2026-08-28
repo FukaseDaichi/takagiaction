@@ -221,15 +221,24 @@ function build(): HTMLDivElement {
     '<div class="ds-detail-cost">所持 <b class="ds-detail-own"></b>' +
     '<span class="ds-detail-need-wrap">必要 <b class="ds-detail-need"></b></span></div>' +
     '</div>' +
-    // ボタン自体を「地下へ続く入口」として組む。左＝ハッチと奥からの
-    // アンバー光（背景画像）、右寄り＝ラベル。文言は画像に焼き込まない ―
-    // ラベルは初回起動と死亡後で変わる（fill_static）。煙草の火種と煙は
-    // 画像側の煙草の位置に CSS で重ねる（death-screen.css の .ds-descend-ember）
+    // ボタン自体を「地下へ続く入口」として組む。角を斜めに落とした工業プレート:
+    // 金属フレーム（frame / frame-hot）が窓（inner ＝ 背景画像）を囲み、
+    // 左端にハザードストライプ、右端に下向きシェブロン列。文言は画像に
+    // 焼き込まない ― ラベルは初回起動と死亡後で変わる（fill_static）。
+    // 煙草の火種と煙は画像側の煙草の位置に CSS で重ねるため、画像を引き
+    // 伸ばして張る inner の中に置く（% 座標＝画像座標のまま）
     '<button class="ds-descend" data-item="' + ds_idle_descend + '">' +
+    '<span class="ds-descend-frame"></span>' +
+    '<span class="ds-descend-frame-hot"></span>' +
+    '<span class="ds-descend-inner">' +
     '<span class="ds-descend-plate" style="background-image:url(' + descend_url + ')"></span>' +
     '<span class="ds-descend-glow"></span>' +
     '<span class="ds-descend-smoke"></span>' +
     '<span class="ds-descend-ember"></span>' +
+    '<span class="ds-descend-hazard"></span>' +
+    '<span class="ds-descend-sweep"></span>' +
+    '</span>' +
+    '<span class="ds-descend-chevrons"><i></i><i></i><i></i></span>' +
     '<span class="ds-descend-text">' +
     '<span class="ds-descend-label">地下へ戻る</span>' +
     '<small class="ds-descend-depth"></small>' +

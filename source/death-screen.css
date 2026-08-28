@@ -771,31 +771,80 @@
 
 /* --- 地下へ戻る --- */
 
-/* ボタン自体が「地下へ続く入口」。左＝重い鉄のハッチと奥から漏れるアンバー光
-   （背景画像 m/ui/descend.webp）、右寄り中央＝ラベル。文字を画像に焼き込まない
-   のは、ラベルが初回起動（地下へ潜る）と死亡後（地下へ戻る）で変わるため */
+/* ボタン自体が「地下へ続く入口」。角（左上・右下）を斜めに落とした工業
+   プレートで、金属フレームが窓（背景画像 m/ui/descend.webp ＝ 重い鉄の
+   ハッチと奥から漏れるアンバー光）を囲む。文字を画像に焼き込まないのは、
+   ラベルが初回起動（地下へ潜る）と死亡後（地下へ戻る）で変わるため。
+   clip-path は box-shadow ごと切り落とすので、外周の光は border /
+   box-shadow ではなく filter: drop-shadow（clip 後に適用される）で出す */
 #ds .ds-descend {
   position: absolute;
   right: 3%;
   bottom: 5%;
   width: 26vw;
-  /* 背景画像（1536×520 の帯）と同じ比にして background-size: 100% 100% で
-     ぴったり嵌める。cover で切らないのは、画像側の煙草の座標に CSS の
-     火種・煙を重ねるため ― 切ると % 座標が窓の比で流れる */
+  /* 窓に張る画像（1536×520 の帯）とほぼ同じ比。フレーム分の誤差は
+     .38vw の均等 inset なので比を崩さない */
   aspect-ratio: 1536 / 520;
   padding: 0;
-  border: 1px solid rgba(122, 104, 82, .55);
-  background: #0a0806;
+  border: 0;
+  background: none;
   color: #ffaa2b;
   font: inherit;
   cursor: pointer;
-  overflow: hidden;
-  transition: opacity .25s var(--ease-in), box-shadow .25s var(--ease-in),
-    border-color .25s var(--ease-in);
+  clip-path: polygon(1.4vw 0, 100% 0, 100% calc(100% - 1.4vw),
+    calc(100% - 1.4vw) 100%, 0 100%, 0 1.4vw);
+  filter: drop-shadow(0 .1vw .4vw rgba(0, 0, 0, .6));
+  transition: opacity .25s var(--ease-in), filter .35s var(--ease-in);
 }
+/* 削り出しの金属フレーム。-hot は通電した同形のフレームで、フォーカスが
+   opacity で炙り出す ― background は transition できないため 2 枚重ねる */
+#ds .ds-descend-frame, #ds .ds-descend-frame-hot {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 14%),
+    linear-gradient(168deg, #3d3931, #1a1712 34%, #2b251c 58%, #100d09);
+}
+#ds .ds-descend-frame-hot {
+  background:
+    linear-gradient(180deg, rgba(255, 220, 160, .18), transparent 16%),
+    linear-gradient(168deg, #7a5526, #33200a 34%, #5a3a16 58%, #1a1005);
+  opacity: 0;
+  transition: opacity .35s var(--ease-in);
+}
+/* フレームのリベット。切り落とした角（左上・右下）を避けた 4 点。
+   子要素より後に描く ::after なので、-hot の炙りの上でも常に見える */
+#ds .ds-descend::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle .14vw at 8% 13%, #6b6353, #38332a 55%, rgba(0, 0, 0, .6) 78%, transparent 90%),
+    radial-gradient(circle .14vw at 96.7% 12%, #6b6353, #38332a 55%, rgba(0, 0, 0, .6) 78%, transparent 90%),
+    radial-gradient(circle .14vw at 3.3% 87%, #6b6353, #38332a 55%, rgba(0, 0, 0, .6) 78%, transparent 90%),
+    radial-gradient(circle .14vw at 92% 88%, #6b6353, #38332a 55%, rgba(0, 0, 0, .6) 78%, transparent 90%);
+}
+/* 窓。フレームの内側に一段沈み、画像と火種・煙・掃過光を収める。
+   斜め辺がフレームと平行になるよう、角の落とし量は外側の 1.4vw に
+   inset .38vw × √2 を足し引きした 1.2vw（45° の平行線間距離の換算） */
+#ds .ds-descend-inner {
+  position: absolute;
+  inset: .38vw;
+  clip-path: polygon(1.2vw 0, 100% 0, 100% calc(100% - 1.2vw),
+    calc(100% - 1.2vw) 100%, 0 100%, 0 1.2vw);
+  background: #0a0806;
+  overflow: hidden;
+  box-shadow: inset 0 0 .9vw rgba(0, 0, 0, .75);
+  transition: box-shadow .35s var(--ease-in), transform .08s var(--ease-out);
+}
+/* マウス押下の押し込み。キー操作（Enter/Esc）は退場演出が受け持つ */
+#ds .ds-descend:active .ds-descend-inner { transform: translateY(.15vw); }
 #ds .ds-descend-plate {
   position: absolute;
   inset: 0;
+  /* 100% 100% で引き伸ばして張る。cover で切らないのは、画像側の煙草の
+     座標に CSS の火種・煙を重ねるため ― 切ると % 座標が窓の比で流れる */
   background-size: 100% 100%;
   filter: brightness(.8) saturate(.85);
   transition: filter .4s var(--ease-in), transform .4s var(--ease-in);
@@ -847,9 +896,67 @@
   animation: ds-cig-smoke 6s linear infinite;
   pointer-events: none;
 }
+/* 左端のハザードストライプ。「この先危険区画」の記号。待機中は沈み、
+   フォーカスで明度を上げて低速で流れる */
+#ds .ds-descend-hazard {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1vw;
+  background: repeating-linear-gradient(45deg,
+    rgba(255, 170, 43, .8) 0 .32vw, rgba(10, 8, 6, .92) .32vw .64vw);
+  opacity: .4;
+  transition: opacity .35s var(--ease-in);
+  pointer-events: none;
+}
+#ds .ds-descend.active .ds-descend-hazard {
+  opacity: .85;
+  animation: ds-desc-hazard 1.6s linear infinite;
+}
+/* 掃過光。フォーカス直後に一閃し、以後は 4s 周期で静かに再走する。
+   幅 34% の帯なので、右へ完全に抜ける移動量は自身の約 3.4 倍 ＋ 余白 */
+#ds .ds-descend-sweep {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(105deg, transparent,
+    rgba(255, 210, 140, .26) 45%, rgba(255, 240, 210, .4) 50%,
+    rgba(255, 210, 140, .26) 55%, transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+#ds .ds-descend.active .ds-descend-sweep { animation: ds-desc-sweep 4s var(--ease-out) .1s infinite; }
+/* 右端の下向きシェブロン列。エレベーターの行先表示の記号性で「下へ」を
+   運動として示す。フォーカスで上から順に灯って流れ落ちる */
+#ds .ds-descend-chevrons {
+  position: absolute;
+  right: 3.2%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: .26vw;
+  pointer-events: none;
+}
+#ds .ds-descend-chevrons i {
+  width: .8vw;
+  height: .8vw;
+  border-right: .14vw solid #c9a377;
+  border-bottom: .14vw solid #c9a377;
+  transform: rotate(45deg);
+  opacity: .22;
+}
+#ds .ds-descend.active .ds-descend-chevrons i { animation: ds-desc-chevron .9s linear infinite; }
+#ds .ds-descend.active .ds-descend-chevrons i:nth-child(2) { animation-delay: .15s; }
+#ds .ds-descend.active .ds-descend-chevrons i:nth-child(3) { animation-delay: .3s; }
 #ds .ds-descend-text {
   position: absolute;
-  inset: 0 0 0 24%;
+  /* 右はシェブロン列の分だけ詰める */
+  inset: 0 7% 0 26%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -864,6 +971,8 @@
   margin-right: -.32em;
   color: #f5e3c8;
   text-shadow: 0 0 14px rgba(255, 150, 40, .55), 0 1px 0 rgba(0, 0, 0, .85);
+  transition: letter-spacing .4s var(--ease-out), margin-right .4s var(--ease-out),
+    text-shadow .4s var(--ease-out);
 }
 #ds .ds-descend-depth {
   font-size: .85vw;
@@ -871,12 +980,26 @@
   letter-spacing: .3em;
   margin-right: -.3em;
   color: #c9a377;
+  transition: color .4s var(--ease-out);
 }
+/* フォーカスの振り付け: フレーム通電（-hot の炙り出し）→ 外周ブルーム →
+   掃過光の一閃（.1s 遅れ）→ シェブロンの流れ落ち。文字はわずかに開く */
 #ds .ds-descend.active {
-  border-color: rgba(255, 170, 43, .8);
-  box-shadow: 0 0 26px rgba(255, 140, 30, .35);
+  filter: drop-shadow(0 0 .5vw rgba(255, 140, 30, .45))
+    drop-shadow(0 0 1.6vw rgba(255, 120, 20, .22));
+}
+#ds .ds-descend.active .ds-descend-frame-hot { opacity: 1; }
+#ds .ds-descend.active .ds-descend-inner {
+  box-shadow: inset 0 0 .9vw rgba(0, 0, 0, .6), inset 0 0 .16vw rgba(255, 190, 120, .55);
 }
 #ds .ds-descend.active .ds-descend-plate { filter: brightness(1) saturate(1); transform: scale(1.03); }
+#ds .ds-descend.active .ds-descend-label {
+  letter-spacing: .42em;
+  margin-right: -.42em;
+  text-shadow: 0 0 18px rgba(255, 170, 43, .85), 0 0 40px rgba(255, 140, 30, .4),
+    0 1px 0 rgba(0, 0, 0, .85);
+}
+#ds .ds-descend.active .ds-descend-depth { color: #e8c187; }
 /* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
    Animation 発生源の値として永久に残り、下の .ds-descend.active/.dim/.inactive
    （強調階層）を上書きし続けてしまう。ds-figure-in（#ds .ds-figure 付近）・
@@ -1050,6 +1173,19 @@
   70% { opacity: .18; }
   100% { transform: translate(-.7vw, -7.5vh) scale(1.7); opacity: 0; }
 }
+/* ストライプの周期は .64vw（縞 2 本分）を 45° の走行方向へ換算した約 .905vw。
+   1 周期ぶんだけ動かして繋ぐので、ループの継ぎ目が見えない */
+@keyframes ds-desc-hazard { to { background-position: .905vw 0; } }
+/* 序盤 16% で右へ抜け、残りは静止 ― 「一閃してから間を置く」を 1 本で表す */
+@keyframes ds-desc-sweep {
+  0% { transform: translateX(-140%) skewX(-18deg); }
+  16%, 100% { transform: translateX(360%) skewX(-18deg); }
+}
+@keyframes ds-desc-chevron {
+  0%, 100% { opacity: .18; border-color: #c9a377; filter: none; }
+  25% { opacity: 1; border-color: #ffd24a; filter: drop-shadow(0 0 .3vw rgba(255, 170, 43, .8)); }
+  55% { opacity: .35; border-color: #c9a377; }
+}
 @keyframes ds-suck-in { to { opacity: 0; transform: translate(2vw, 1vh) scale(.94); } }
 @keyframes ds-figure-out { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
 @keyframes ds-split-show { to { opacity: 1; } }
@@ -1058,8 +1194,9 @@
 
 /* 段階アニメーションをすべて 0 秒にして最終状態へ置く。death-screen.ts の
    状態タイマーと残高カウントも同じ設定を読み、見た目の完了後に busy を残さない。
-   反復回数も 1 に落とす ― このファイルには無限ループが 5 本あり
-   （ds-avail / ds-nr-glow / ds-hatch-glow / ds-ember / ds-cig-smoke）、尺だけを
+   反復回数も 1 に落とす ― このファイルには無限ループが 8 本あり
+   （ds-avail / ds-nr-glow / ds-hatch-glow / ds-ember / ds-cig-smoke /
+   ds-desc-hazard / ds-desc-sweep / ds-desc-chevron）、尺だけを
    詰めると周期 1ms で回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。
    動きを減らすはずの指定が、reduce を選んだ環境にだけストロボを作ってしまう */
 @media (prefers-reduced-motion: reduce) {
