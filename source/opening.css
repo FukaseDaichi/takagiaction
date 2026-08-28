@@ -1,0 +1,84 @@
+/* OP（予告編）。index.html の <style> と独立。z-index は死亡画面 (#ds=10) と
+   装備画面・ボス報酬 (12) より上、全画面フラッシュ (#bf=18) より下。
+   寸法は vw / vh（death-screen と同じ前提） */
+#op {
+  position: fixed;
+  inset: 0;
+  display: none;
+  background: #000;
+  z-index: 15;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+/* カットのレイヤー。背景画像は静止画カットの絵兼、動画カットのポスター */
+#op .op-cut {
+  position: absolute;
+  inset: 0;
+  background: #000 center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+#op .op-cut.on {
+  opacity: 1;
+  animation: op-kb 6s ease-out forwards;
+}
+@keyframes op-kb { to { transform: scale(1.05); } }
+/* 黒 1 拍（カット 5 直前）はクロスフェードでは作れない ― フェードの 0.8s が
+   黒 1 拍の 600ms より長く、画面が黒くなる前にカット 5 が明ける。
+   ここだけ遷移を切って即座に落とす（opening.ts の show_cut(-1)） */
+#op.op-black .op-cut { transition: none; }
+/* 動画は再生が始まるまで透明のまま（ポスターが見える）。.playing は
+   video.play() の成功時に opening.ts が付ける */
+#op .op-cut video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+}
+#op .op-cut video.playing { opacity: 1; }
+/* 字幕。語り（.op-line）はセリフ体で画面中央 ― ターミナルの等幅アンバーと
+   別の声であることを字面で示す（docs/story.md「声の使い分け」） */
+#op .op-sub {
+  position: absolute;
+  left: 8vw;
+  right: 8vw;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+}
+#op .op-line {
+  color: #e8e2d0;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'BIZ UDMincho', serif;
+  font-size: 2.4vw;
+  letter-spacing: 0.18em;
+  line-height: 2;
+  text-shadow: 0 0 12px #000, 0 0 4px #000;
+  animation: op-line-in 0.9s ease-out both;
+}
+/* 高木の声。吹き出し (#b) と同じアンバーのゴシックで「中の人」と分かる形にする */
+#op .op-line.tk {
+  color: #e90;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+  font-weight: bold;
+  font-size: 3.2vw;
+  text-shadow: 0 0 14px #f70;
+}
+@keyframes op-line-in { from { opacity: 0; } to { opacity: 1; } }
+#op .op-skip {
+  position: absolute;
+  right: 2vw;
+  bottom: 3vh;
+  color: #b9dcc4;
+  opacity: 0.5;
+  font-size: 1.1vw;
+  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* カットは静止画の即時切替のみ。動画を再生しない側は opening.ts が畳む */
+  #op .op-cut { transition: none; }
+  #op .op-cut.on { animation: none; }
+  #op .op-line { animation: none; }
+}
