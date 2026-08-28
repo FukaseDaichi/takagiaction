@@ -247,6 +247,11 @@ function build(): HTMLDivElement {
     '<div class="ds-hint">' +
     '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
     '<span class="ds-hint-descend">[Esc] 地下へ戻る</span></div>' +
+    // 地下での操作の常設表示。OP から外した操作説明の置き場（docs/story.md）。
+    // 左下はこの画面自身のキーヒント、右下は降下ボタンが占めるので下中央に置く
+    '<div class="ds-controls">' +
+    '<span>[W A S D / 矢印] 移動</span><span>[Space] 射撃</span><span>[M] 音声</span>' +
+    '</div>' +
     '<div class="ds-record">' +
     '<div class="ds-record-scan"></div>' +
     '<div class="ds-record-title">今回の記録</div>' +

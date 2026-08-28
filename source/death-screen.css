@@ -467,6 +467,29 @@
    both にしてある） */
 #ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s backwards; }
 
+/* 地下での操作の常設表示。.ds-hint（画面操作）と別置き ― 混ぜると
+   「この画面のキー」と「地下のキー」の区別がつかない。
+   left: 50% + transform: translateX(-50%) では中央寄せできない ― 下の
+   ds-in-up / ds-suck-in は自身も transform を持つ keyframe アニメーションで、
+   entering/exiting 中はその transform が要素の transform を丸ごと上書きする
+   ため、アニメーション中だけ横にずれる。固定幅の左右 inset + justify-content
+   で中央寄せし、transform に頼らない */
+#ds .ds-controls {
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 4%;
+  display: flex;
+  justify-content: center;
+  gap: 2vw;
+  font-size: .85vw;
+  color: #7fe0a8;
+  opacity: .5;
+  white-space: nowrap;
+}
+#ds.entering .ds-controls { animation: ds-in-up .5s var(--ease-in) 1.4s backwards; }
+#ds.exiting .ds-controls { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
+
 /* --- Level 3 記録確認パネル --- */
 
 #ds .ds-record {
