@@ -18,6 +18,7 @@ const harness = vi.hoisted(() => {
     playsInline: boolean
     preload: string
     src: string
+    currentTime: number
     style: Record<string, string>
     classList: { add(n: string): void; remove(n: string): void; toggle(n: string, force: boolean): void }
     appendChild(c: el_t): void
@@ -34,7 +35,7 @@ const harness = vi.hoisted(() => {
       // 「切り替わりで字幕が消える」ことを検証できない
       get innerHTML() { return '' },
       set innerHTML(_value: string) { children.length = 0 },
-      id: '', muted: false, playsInline: false, preload: '', src: '',
+      id: '', muted: false, playsInline: false, preload: '', src: '', currentTime: 0,
       style: {},
       classList: {
         add: (n) => { classes.add(n) },
@@ -61,6 +62,9 @@ const harness = vi.hoisted(() => {
   }
   ;(globalThis as Record<string, unknown>).document = doc
   ;(globalThis as Record<string, unknown>).matchMedia = () => ({ matches: motion.reduced })
+  // opening.ts はポスターの先読みに new Image() を使う（#op が display:none の
+  // 間は background-image が取得されないため）。Node に Image は無いので最小限を置く
+  ;(globalThis as Record<string, unknown>).Image = class { src = '' }
   return { created, listeners, motion, play_calls }
 })
 
@@ -82,7 +86,7 @@ vi.mock('./audio', () => ({
   audio_sfx_lighter: {},
 }))
 
-import { opening_show } from './opening'
+import { opening_preload, opening_show } from './opening'
 import { op_black_lead, op_cut_at, op_total } from './opening-model'
 
 const cuts = (): typeof harness.created =>
@@ -153,6 +157,17 @@ describe('OP のタイムライン', () => {
     expect(done).toBe(1)
   })
 
+  it('動画カット（5・6）にだけ op-video が付き Ken Burns の対象から外れる', () => {
+    // op-video は opening_preload（DOM 構築時）に 1 度だけ付く。opening_show を
+    // 呼ぶとタイマー・リスナーが張られたまま残り後続テストを汚すので、
+    // ここでは DOM 構築だけを呼ぶ（preload は冪等 ― 既に組んであれば何もしない）
+    opening_preload()
+    const video_indices = new Set([4, 5])
+    cuts().forEach((el, i) => {
+      expect(el.classes.has('op-video')).toBe(video_indices.has(i))
+    })
+  })
+
   it('スキップは即 on_done を呼び、音を止め、二重発火しない', () => {
     let done = 0
     opening_show(() => { done++ })
@@ -187,5 +202,25 @@ describe('OP のタイムライン', () => {
     expect(harness.play_calls).toEqual([])
     expect(done).toBe(1)
     harness.motion.reduced = false
+  })
+
+  it('finish 後の再表示は前回の表示状態を持ち越さない', () => {
+    opening_show(() => {})
+    vi.advanceTimersByTime(op_cut_at(5)) // タイトル動画まで進める
+    for (const fn of [...harness.listeners.click]) { fn({}) } // 途中でスキップ
+
+    // スキップは pause するだけで再生位置は残る。実機で途中再生になる条件を作る
+    const videos = harness.created.filter((el) => el.tag === 'video')
+    for (const video of videos) { video.currentTime = 2.5 }
+
+    opening_show(() => {})
+
+    expect(on_cut()).toEqual([])
+    expect(root_el().classes.has('op-black')).toBe(false)
+    expect(subs().children.length).toBe(0)
+    for (const video of videos) {
+      expect(video.currentTime).toBe(0)
+      expect(video.classes.has('playing')).toBe(false)
+    }
   })
 })

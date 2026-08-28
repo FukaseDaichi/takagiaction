@@ -21,6 +21,11 @@
 }
 #op .op-cut.on {
   opacity: 1;
+}
+/* Ken Burns は静止画カット限定。動画カット（.op-video）は自分自身が動くうえ、
+   タイトルはスティングに合わせて静止するのが仕様なので、拡大を足すと
+   「静止」が崩れる（設計書 素材計画） */
+#op .op-cut.on:not(.op-video) {
   animation: op-kb 6s ease-out forwards;
 }
 @keyframes op-kb { to { transform: scale(1.05); } }
@@ -77,8 +82,10 @@
   font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
 }
 @media (prefers-reduced-motion: reduce) {
-  /* カットは静止画の即時切替のみ。動画を再生しない側は opening.ts が畳む */
+  /* カットは静止画の即時切替のみ。動画を再生しない側は opening.ts が畳む。
+     セレクタは有効化側 (.on:not(.op-video)) と同じ詳細度にする ― #op .op-cut.on
+     のままだと詳細度で負けて静止画カットの Ken Burns を消せない */
   #op .op-cut { transition: none; }
-  #op .op-cut.on { animation: none; }
+  #op .op-cut.on:not(.op-video) { animation: none; }
   #op .op-line { animation: none; }
 }

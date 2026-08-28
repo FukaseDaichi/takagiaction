@@ -54,6 +54,12 @@ export function opening_preload(): void {
     //（reduced-motion と再生失敗のフォールバック）
     cut.style.backgroundImage = 'url(' + posters[i] + ')'
     if (i in video_urls) {
+      // Ken Burns（op-kb）の対象から外す。動画は自分自身が動くうえ、
+      // タイトルはスティングに合わせて静止するのが仕様なので、拡大を足すと
+      // 「静止」が「動き続ける」に変わってしまう（設計書 素材計画）。
+      // classList.add で付ける ― className を上書きすると cuts() が
+      // className === 'op-cut' で絞っているテストの前提が崩れる
+      cut.classList.add('op-video')
       const video = document.createElement('video')
       // muted は属性でなくプロパティで立てる（自動再生判定に効く）
       video.muted = true
@@ -65,6 +71,13 @@ export function opening_preload(): void {
     }
     root.appendChild(cut)
     cut_els.push(cut)
+  }
+  // 画像の先読み。#op は display:none なので background-image は取得されない
+  //（表示されない部分木はフェッチされない）。クリック待ちのあいだに落として
+  // おかないと、クリック直後のカット 1 が黒から明ける（設計書「技術制約」）
+  for (const url of posters) {
+    const img = new Image()
+    img.src = url
   }
   sub_el = document.createElement('div')
   sub_el.className = 'op-sub'
@@ -161,8 +174,25 @@ function stop_sounds(): void {
   stops = []
 }
 
+// 再表示のたびに前回の表示を畳む。残すと前回の最終カットが 1 tick 見えたまま
+// 0.8s かけて消え、スキップで一時停止した動画は途中から再生される
+// （opening_show は再入可能な契約 ― main.ts からは 1 回しか呼ばないが、
+// テストは同一モジュールインスタンスを共有して複数回 show する）
+function reset_view(): void {
+  root!.classList.remove('op-black')
+  for (const cut of cut_els) { cut.classList.remove('on') }
+  sub_el!.innerHTML = ''
+  for (const index in video_els) {
+    const video = video_els[index]
+    video.pause()
+    video.classList.remove('playing')
+    video.currentTime = 0
+  }
+}
+
 export function opening_show(on_done: () => void): void {
   opening_preload()
+  reset_view()
   on_done_cb = on_done
   running = true
   root!.style.display = 'block'
