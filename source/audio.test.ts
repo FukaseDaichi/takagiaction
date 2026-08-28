@@ -349,7 +349,7 @@ describe('OP 用の再生口', () => {
     stop() // 投げないこと
   })
 
-  it('レート・音量・ループを指定して鳴らし、stop で止められる', async () => {
+  it('レート・音量・ループを指定して鳴らす', async () => {
     const audio = await load_audio()
     audio.audio_unlock()
     const before = fake.started.length
@@ -364,6 +364,32 @@ describe('OP 用の再生口', () => {
     const gain = fake.gains[fake.gains.length - 1]
     expect(gain.gain.value).toBe(0.4)
     stop()
-    stop() // 二重 stop も投げないこと
+    stop() // 二重 stop も投げないこと（元 stub の stop は no-op なので、投げないこと自体はこのテストでは確認できない）
+  })
+
+  it('再生が終わった source への二重 stop でも投げない', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock() // BGM の source は元の stub で作らせる
+
+    const original = fake.ctx.createBufferSource
+    // 元の source をそのまま作り、stop だけを「2 回目で投げる」ものに差し替える。
+    // 実物の AudioBufferSourceNode は再生終了後の stop() で InvalidStateError を投げるため、
+    // audio_play_op の try/catch がその経路を握っていることをここで確かめる
+    fake.ctx.createBufferSource = () => {
+      const source = original()
+      let stopped = false
+      source.stop = () => {
+        if (stopped) { throw new Error('InvalidStateError') }
+        stopped = true
+      }
+      return source
+    }
+    try {
+      const stop = audio.audio_play_op({} as AudioBuffer, 0.4)
+      stop()
+      expect(() => { stop() }).not.toThrow()
+    } finally {
+      fake.ctx.createBufferSource = original
+    }
   })
 })
