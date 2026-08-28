@@ -26,7 +26,7 @@ import './death-screen.css'
 import hero_url from '../m/ui/hero.webp'
 import body_url from '../m/ui/body.webp'
 import cig_url from '../m/ui/icon-cig.webp'
-import door_url from '../m/ui/door.webp'
+import descend_url from '../m/ui/descend.webp'
 import stat_depth_url from '../m/ui/icon-stat-depth.webp'
 import stat_time_url from '../m/ui/icon-stat-time.webp'
 import stat_kills_url from '../m/ui/icon-stat-kills.webp'
@@ -221,10 +221,19 @@ function build(): HTMLDivElement {
     '<div class="ds-detail-cost">所持 <b class="ds-detail-own"></b>' +
     '<span class="ds-detail-need-wrap">必要 <b class="ds-detail-need"></b></span></div>' +
     '</div>' +
+    // ボタン自体を「地下へ続く入口」として組む。左＝ハッチと奥からの
+    // アンバー光（背景画像）、右寄り＝ラベル。文言は画像に焼き込まない ―
+    // ラベルは初回起動と死亡後で変わる（fill_static）。煙草の火種と煙は
+    // 画像側の煙草の位置に CSS で重ねる（death-screen.css の .ds-descend-ember）
     '<button class="ds-descend" data-item="' + ds_idle_descend + '">' +
-    '<img src="' + door_url + '" alt="">' +
+    '<span class="ds-descend-plate" style="background-image:url(' + descend_url + ')"></span>' +
+    '<span class="ds-descend-glow"></span>' +
+    '<span class="ds-descend-smoke"></span>' +
+    '<span class="ds-descend-ember"></span>' +
+    '<span class="ds-descend-text">' +
     '<span class="ds-descend-label">地下へ戻る</span>' +
     '<small class="ds-descend-depth"></small>' +
+    '</span>' +
     '</button>' +
     '<div class="ds-hint">' +
     '<span>[Tab] 強化</span><span>[Enter] 決定</span>' +
