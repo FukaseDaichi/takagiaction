@@ -48,6 +48,18 @@ let root: HTMLDivElement | null = null
 // 入場シーケンスの解除タイマー。表示のたびに張り直すので id を控える
 let entry_timer: ReturnType<typeof setTimeout> = 0
 
+const reduced_motion_query = '(prefers-reduced-motion: reduce)'
+
+function reduced_motion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia(reduced_motion_query).matches
+}
+
+// CSS が演出を 1ms へ畳む環境では、演出に対応する入力ロックも待たせない。
+// 見た目だけ終わっているのに busy が残ると、静止した画面が反応しなくなるため
+function motion_duration(duration: number): number {
+  return reduced_motion() ? 0 : duration
+}
+
 // upgrade_rows は表示定義の順、body_parts は解剖順。行を id で引くための索引
 const row_of = new Map(upgrade_rows.map((row) => [row.id, row]))
 
@@ -87,8 +99,12 @@ export function death_screen_show(
   entry_timer = setTimeout(() => {
     state = { ...state, busy: false }
     apply()
-  }, 1400)
-  count_yani()
+  }, motion_duration(1400))
+  if (reduced_motion()) {
+    text('.ds-yani-value', String(meta.yani))
+  } else {
+    count_yani()
+  }
   document.addEventListener('keydown', on_key)
 }
 
@@ -113,7 +129,9 @@ function build(): HTMLDivElement {
   let wires = ''
   let organs = ''
   let gear_wires = ''
-  for (const card of gear_cards) {
+  let gear_cards_html = ''
+  for (let i = 0; i < gear_cards.length; i++) {
+    const card = gear_cards[i]
     const a = gear_anchors[card.slot]
     // カードは右へ展開するので、線はアンカーから右外へ抜けてカード帯の左端で
     // 止まる。終端の y はカードの縦位置そのもの（body-figure.ts の gear_cards）
@@ -121,6 +139,13 @@ function build(): HTMLDivElement {
       '" style="--l:' + wire_length(a.x, a.y, gear_card_x, card.y) +
       '" x1="' + a.x + '" y1="' + a.y +
       '" x2="' + gear_card_x + '" y2="' + card.y + '"/>'
+    // 装備カードも build() で固定する。fill_gear() は所持状態に応じて
+    // class・画像 URL・テキストだけを書き換える
+    gear_cards_html += '<div class="ds-card none" data-slot="' + card.slot +
+      '" style="--i:' + i + ';top:' + figure_y_vh(card.y).toFixed(2) + 'vh">' +
+      '<img alt=""><div class="ds-card-empty"></div>' +
+      '<div><div class="ds-card-slot">' + gear_slot_labels[card.slot] + '</div>' +
+      '<div class="ds-card-name"></div></div></div>'
   }
   for (let i = 0; i < body_parts.length; i++) {
     const part = body_parts[i]
@@ -207,14 +232,30 @@ function build(): HTMLDivElement {
     '<div class="ds-record">' +
     '<div class="ds-record-scan"></div>' +
     '<div class="ds-record-title">今回の記録</div>' +
-    '<div class="ds-record-rows"></div>' +
+    // 記録行も表示のたびに作り直さない。値・表示有無・強調だけを fill_record()
+    // が更新する。最高深度だけは更新前の値と NEW バッジ用の固定ノードを持つ
+    '<div class="ds-record-rows">' +
+    '<div class="ds-record-row" data-record="depth"><img src="' + stat_depth_url +
+    '" alt="">到達深度<b><span class="ds-record-value"></span></b></div>' +
+    '<div class="ds-record-row" data-record="best"><img src="' + stat_depth_url +
+    '" alt="">最高深度<b><span class="ds-record-value"></span>' +
+    '<span class="ds-record-prev"></span><span class="ds-record-new">NEW</span></b></div>' +
+    '<div class="ds-record-row" data-record="time"><img src="' + stat_time_url +
+    '" alt="">生存時間<b><span class="ds-record-value"></span></b></div>' +
+    '<div class="ds-record-row" data-record="kills"><img src="' + stat_kills_url +
+    '" alt="">撃破数<b><span class="ds-record-value"></span></b></div>' +
+    '<div class="ds-record-row" data-record="smoke"><img src="' + stat_smoke_url +
+    '" alt="">喫煙回数<b><span class="ds-record-value"></span></b></div>' +
+    '<div class="ds-record-row" data-record="dummy"><img src="' + stat_dummy_url +
+    '" alt="">ダミー踏み<b><span class="ds-record-value"></span></b></div>' +
+    '</div>' +
     '<div class="ds-record-close">[Esc] 閉じる</div>' +
     '</div>' +
     '<div class="ds-nr">' +
     '<div class="ds-nr-title">NEW RECORD</div>' +
     '<div class="ds-nr-sub"></div>' +
     '</div>' +
-    '<div class="ds-gearpanel"></div>' +
+    '<div class="ds-gearpanel">' + gear_cards_html + '</div>' +
     '<div class="ds-split"><i></i><i></i></div>'
 
   document.body.appendChild(el)
@@ -421,67 +462,74 @@ function fill_detail(): void {
   })
 }
 
-// Level 3。記録確認パネル。行の出現を 70ms ずつずらすための連番。
-// fill_record() が 0 に戻す
-let record_index = 0
+const record_ids = ['depth', 'best', 'time', 'kills', 'smoke', 'dummy'] as const
 
-function record_row(icon: string, label: string, value: string, cls = ''): string {
-  return '<div class="ds-record-row' + (cls ? ' ' + cls : '') +
-    '" style="--i:' + record_index++ + '">' +
-    '<img src="' + icon + '" alt="">' + label + '<b>' + value + '</b></div>'
+function record_row(id: typeof record_ids[number]): HTMLElement {
+  return root!.querySelector<HTMLElement>('.ds-record-row[data-record="' + id + '"]')!
 }
 
-// パネルの中身は表示のたびに 1 度だけ組む。アニメーションは行が持つが、
-// 開くのは Enter のときだけなので、ここで作り直しても位相は壊れない
+function set_record_row(
+  id: typeof record_ids[number], value: string, index: number, last = false,
+): void {
+  const row = record_row(id)
+  row.style.display = ''
+  row.style.setProperty('--i', String(index))
+  row.classList.toggle('last', last)
+  row.querySelector<HTMLElement>('.ds-record-value')!.textContent = value
+}
+
+// Level 3。記録確認パネル。build() が作った固定 6 行へ値だけを写す
 function fill_record(): void {
-  const rows = root!.querySelector<HTMLElement>('.ds-record-rows')!
-  record_index = 0
+  for (const id of record_ids) {
+    const row = record_row(id)
+    row.style.display = 'none'
+    row.classList.remove('record', 'last')
+  }
+
+  const best_row = record_row('best')
+  const previous = best_row.querySelector<HTMLElement>('.ds-record-prev')!
+  const badge = best_row.querySelector<HTMLElement>('.ds-record-new')!
   const r = current
   if (!r) {
     // 初回起動モード。今回の記録が無いので最高深度の 1 行だけに縮める
-    rows.innerHTML = record_row(stat_depth_url, '最高深度', meta.best_depth + ' F')
+    set_record_row('best', meta.best_depth + ' F', 0, true)
+    previous.style.display = 'none'
+    badge.style.display = 'none'
     return
   }
   const record = is_new_record(r.depth, r.best_depth_before)
-  const best = meta.best_depth + ' F' + (record
-    ? '<span class="ds-record-prev">← ' + r.best_depth_before + ' F</span>' +
-      '<span class="ds-record-new">NEW</span>'
-    : '')
-  rows.innerHTML =
-    // 到達深度と同じ量なので、アイコンは stat_depth_url を流用する
-    record_row(stat_depth_url, '到達深度', r.depth + ' F') +
-    record_row(stat_depth_url, '最高深度', best, record ? 'record' : '') +
-    record_row(stat_time_url, '生存時間', format_run_time(r.run_time)) +
-    record_row(stat_kills_url, '撃破数', r.kills + ' 体') +
-    record_row(stat_smoke_url, '喫煙回数', r.smoke_count + ' 回') +
-    record_row(stat_dummy_url, 'ダミー踏み', r.dummy_count + ' ヶ所')
+  set_record_row('depth', r.depth + ' F', 0)
+  set_record_row('best', meta.best_depth + ' F', 1)
+  set_record_row('time', format_run_time(r.run_time), 2)
+  set_record_row('kills', r.kills + ' 体', 3)
+  set_record_row('smoke', r.smoke_count + ' 回', 4)
+  set_record_row('dummy', r.dummy_count + ' ヶ所', 5, true)
+  best_row.classList.toggle('record', record)
+  previous.textContent = '← ' + r.best_depth_before + ' F'
+  previous.style.display = record ? '' : 'none'
+  badge.style.display = record ? '' : 'none'
 }
 
 // Level 3。装備確認パネル。装備は買うものではないので、強化の動線とは別の
 // 面に置く。カードは模型の装備部位から線で繋がっていて、閉じると模型側へ
 // 吸い込まれる
 function fill_gear(): void {
-  const panel = root!.querySelector<HTMLElement>('.ds-gearpanel')!
-  let html = ''
-  let index = 0
   for (const card of gear_cards) {
     const slot = card.slot
     const tier = meta.gear[slot]
     const owned = tier > 0
     const grade = owned ? gear_grades[gear_grade(tier)] : null
-    // top は接続線の終端そのもの。CSS の translateY(-50%) がこの高さを
-    // カードの中心にする（線はカードの左端の中心に着く）
-    html += '<div class="ds-card' + (owned ? '' : ' none') +
-      '" style="--i:' + index++ + ';top:' + figure_y_vh(card.y).toFixed(2) + 'vh' +
-      (grade ? ';--c:' + grade.color : '') + '">' +
-      (owned
-        ? '<img src="' + gear_icons[slot][tier - 1] + '" alt="">'
-        : '<div class="ds-card-empty"></div>') +
-      '<div><div class="ds-card-slot">' + gear_slot_labels[slot] + '</div>' +
-      '<div class="ds-card-name">' +
-      (owned ? gear_name(slot, tier) : '未所持') + '</div></div></div>'
+    const el = root!.querySelector<HTMLElement>('.ds-card[data-slot="' + slot + '"]')!
+    const image = el.querySelector<HTMLImageElement>('img')!
+    const empty = el.querySelector<HTMLElement>('.ds-card-empty')!
+    el.classList.toggle('none', !owned)
+    el.style.setProperty('--c', grade ? grade.color : '#5d7a68')
+    image.style.display = owned ? '' : 'none'
+    empty.style.display = owned ? 'none' : ''
+    if (owned) { image.src = gear_icons[slot][tier - 1] }
+    el.querySelector<HTMLElement>('.ds-card-name')!.textContent =
+      owned ? gear_name(slot, tier) : '未所持'
   }
-  panel.innerHTML = html
 }
 
 function set_layer(el: Element, layer: string): void {
@@ -569,7 +617,7 @@ function buy(): void {
     root!.classList.remove('upgrading', 'up-' + id, 'yani-spend')
     state = { ...state, busy: false }
     apply()
-  }, upgrade_duration)
+  }, motion_duration(upgrade_duration))
 }
 
 function descend(): void {
@@ -598,5 +646,5 @@ function descend(): void {
     keys[key_left] = 0
     keys[key_right] = 0
     on_descend_cb()
-  }, 1000)
+  }, motion_duration(1000))
 }

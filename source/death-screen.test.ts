@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const harness = vi.hoisted(() => {
   type listener_t = (ev: unknown) => void
   const keydown_listeners: listener_t[] = []
+  const motion = { reduced: false }
+  const stats = { inner_html_writes: 0 }
   // 死亡画面が実際に触る面だけを持つ要素。ここに並ぶ property は、モックを
   // 削って落ちたスタックが名指ししたものだけで、予防的な追加はしない
   // （classList.contains や dataset は実装が使わない。offsetWidth は
@@ -18,7 +20,8 @@ const harness = vi.hoisted(() => {
     // 代入され、setProperty は fill_detail() が --c（部位の色）を挿すのに使う
     style: { display: '', setProperty: () => {} },
     textContent: '',
-    innerHTML: '',
+    get innerHTML() { return '' },
+    set innerHTML(_value: string) { stats.inner_html_writes++ },
     // apply() / fill_static() / descend() が付け外しする。付いた class は
     // このテストの主題（keys の後始末）と無関係なので記録しない
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
@@ -45,7 +48,8 @@ const harness = vi.hoisted(() => {
     },
   }
   ;(globalThis as Record<string, unknown>).document = doc
-  return { doc, keydown_listeners }
+  ;(globalThis as Record<string, unknown>).matchMedia = () => ({ matches: motion.reduced })
+  return { doc, keydown_listeners, motion, stats }
 })
 
 vi.mock('./dom', () => ({ canvas: { style: { opacity: '1' } } }))
@@ -116,6 +120,7 @@ describe('死亡画面のキー後始末', () => {
   beforeEach(() => {
     // useFakeTimers() は前のテストが残した予約ごと作り直す
     vi.useFakeTimers()
+    harness.motion.reduced = false
     input_init()
     for (const [, code] of all_keys) { keys[code] = 0 }
     started = 0
@@ -136,6 +141,23 @@ describe('死亡画面のキー後始末', () => {
     keydown('Escape', 27)
     vi.advanceTimersByTime(exit_duration)
     expect(started).toBe(1)
+  })
+
+  it('reduced-motion では入場と退場の入力ロックを待たせない', () => {
+    harness.motion.reduced = true
+    death_screen_show(result, () => { started++ })
+
+    vi.advanceTimersByTime(0)
+    keydown('Escape', 27)
+    vi.advanceTimersByTime(0)
+
+    expect(started).toBe(1)
+  })
+
+  it('再表示しても DOM ノードを作り直さない', () => {
+    const before = harness.stats.inner_html_writes
+    death_screen_show(result, () => {})
+    expect(harness.stats.inner_html_writes).toBe(before)
   })
 
   it('押しっぱなしのスペースは、地下へ戻った時点で残らない', () => {
@@ -197,6 +219,7 @@ describe('死亡画面のキー後始末', () => {
 describe('死亡画面のキー既定動作', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    harness.motion.reduced = false
     input_init()
     death_screen_show(result, () => {})
   })

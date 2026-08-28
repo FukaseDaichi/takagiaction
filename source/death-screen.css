@@ -513,7 +513,7 @@
   transition: opacity .3s var(--ease-in) calc(.35s + var(--i) * 70ms),
     transform .3s var(--ease-in) calc(.35s + var(--i) * 70ms);
 }
-#ds .ds-record-row:last-child { border-bottom: none; }
+#ds .ds-record-row.last { border-bottom: none; }
 #ds .ds-record-row img { width: 1.2vw; height: 1.2vw; }
 #ds .ds-record-row b { margin-left: auto; font-size: 1.15vw; color: #eaf5ee; }
 /* バッジは点滅させない。演出はバナー側が持つ */
@@ -941,7 +941,8 @@
 @keyframes ds-split-l { to { transform: translateX(-100%); } }
 @keyframes ds-split-r { to { transform: translateX(100%); } }
 
-/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。JS 側に分岐を持たない。
+/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。death-screen.ts の
+   状態タイマーと残高カウントも同じ設定を読み、見た目の完了後に busy を残さない。
    反復回数も 1 に落とす ― このファイルには無限ループが 3 本あり
    （ds-breathe / ds-nr-glow / ds-door-glow）、尺だけを詰めると周期 1ms で
    回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの
