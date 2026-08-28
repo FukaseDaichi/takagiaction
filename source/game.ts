@@ -242,7 +242,7 @@ function load_level(depth: number): void {
 
 function game_tick(): void {
   const time_now = performance.now()
-  // 最初の game_tick はイントロのタイピングとクリック待ちのあとに走るので、
+  // 最初の game_tick はスタート画面のクリック待ち・OP・自席の端末のあとに走るので、
   // 素の差分は 30〜60 秒になる。タブをバックグラウンドにしたときも同じ。
   // そのままだとニコチンが一気に削られ、entity_t._update() の積分も飽和して
   // 自機と敵が壁をすり抜けて飛ぶ。フレームが落ちたときは飛ばさずスローモーションにする。

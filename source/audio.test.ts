@@ -115,7 +115,7 @@ describe('音声の初回解錠', () => {
   it('解錠前は resume() も再生もしない', async () => {
     const audio = await load_audio()
 
-    // イントロのタイピング音に相当する呼び出し。suspended のまま start() すると
+    // 起動時の「起動中...」のタイピング音に相当する呼び出し。suspended のまま start() すると
     // resume() の瞬間にまとめて鳴るため、ここでは何も鳴らしてはいけない
     audio.audio_play(audio.audio_sfx_terminal)
     audio.audio_play(audio.audio_sfx_beep)

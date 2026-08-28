@@ -3,72 +3,15 @@ import { terminal_el } from './dom'
 
 const terminal_text_ident = '&gt; '
 
-const terminal_text_title = '' +
-  'TAKAGI ACTION\n' +
-  '__ \n' +
-  '原作: UNDERRUN\n' +
-  'コンセプト・グラフィック・プログラム:\n' +
-  'DOMINIC SZABLEWSKI // PHOBOSLAB.ORG\n' +
-  '__ \n' +
-  '音楽:\n' +
-  'ANDREAS LÖSCH // NO-FATE.NET\n' +
-  '___ \n' +
-  'システムバージョン: 13.20.18\n' +
-  'CPU: PL(R) Q-COATL 7240 @ 12.6 THZ\n' +
-  'メモリ: 108086391056891900 バイト\n' +
-  ' \n' +
-  '接続中...'
-
-let terminal_text_garbage =
-  '´A1e{∏éI9·NQ≥ÀΩ¸94CîyîR›kÈ¡˙ßT-;ûÅf^˛,¬›A∫Sã€«ÕÕ' +
-  '1f@çX8ÎRjßf•ò√ã0êÃcÄ]Î≤moDÇ’ñ‰\\ˇ≠n=(s7É;'
-
-const terminal_text_story =
-  '日時: 2718年9月13日 13:32\n' +
-  '生体モニタリング 警告\n' +
-  '解析中...\n' +
-  '____\n \n' +
-  'エラーコード: NIC-0000\n' +
-  '状態: 血中ニコチン濃度 低下\n' +
-  '詳細: 対象は重度の喫煙依存と診断済み\n' +
-  '適用法令: 嗜好性燃焼物 全面禁止条例（2703年施行）\n' +
-  '当該施設の公認喫煙所: 0 箇所\n' +
-  ' \n' +
-  '代替療法を照会中...\n' +
-  '___' +
-  '該当なし\n \n' +
-  '離脱症状の抑制を試行中...\n' +
-  '___' +
-  '失敗\n' +
-  '_ \n \n' +
-  '地下区画に旧式の喫煙所が残存している可能性\n' +
-  '警備ドローンは稼働中\n' +
-  '_ \n' +
-  '移動: WASD または矢印キー / 射撃: スペース\n' +
-  '音声切替: M\n' +
-  'クリックで自席の端末へ\n '
-
 // 通知を打ち終えてから隠すまでの余韻（ミリ秒）
 const terminal_notice_tail = 2000
 
-// 1 行あたりの待ち（ミリ秒）と `> ` プレフィックスの有無。表示チェーンごとに
-// 決まる設定なので、モジュール変数ではなく引数でチェーンを引き回す。モジュール
-// 変数にすると、ノイズ表示（早送り・プレフィックスなし）のチェーンを
-// terminal_cancel() が途中で捨てたとき通常値へ戻す側が走らず、以後そのセッション
-// のすべての通知が早送り・プレフィックスなしのまま表示される
-type terminal_style_t = {
-  line_wait: number
-  print_ident: boolean
-}
-
-const terminal_style_normal: terminal_style_t = { line_wait: 100, print_ident: true }
-const terminal_style_garbage: terminal_style_t = { line_wait: 16, print_ident: false }
+// 1 行あたりの待ち（ミリ秒）。表示チェーンは通知だけになった
+const terminal_line_wait = 100
 
 let terminal_text_buffer: string[] = []
 let terminal_timeout_id: ReturnType<typeof setTimeout> = 0
 let terminal_hide_timeout: ReturnType<typeof setTimeout> = 0
-
-terminal_text_garbage += terminal_text_garbage + terminal_text_garbage
 
 function terminal_show(): void {
   clearTimeout(terminal_hide_timeout)
@@ -98,32 +41,26 @@ function terminal_prepare_text(text: string): string[] {
   return text.replace(/_/g, '\n'.repeat(10)).split('\n')
 }
 
-function terminal_write_text(lines: string[], style: terminal_style_t, callback?: () => void): void {
+function terminal_write_text(lines: string[], callback?: () => void): void {
   const line = lines.shift()
   if (line === undefined) {
     callback?.()
     return
   }
-  terminal_write_line(line, () => terminal_write_text(lines, style, callback), style)
+  terminal_write_line(line, () => terminal_write_text(lines, callback))
 }
 
-// style を最後の引数にしているのは、外から呼ぶ側（main.ts の `起動中...`）が
-// 通常の文体しか使わないため
-export function terminal_write_line(
-  line: string,
-  callback?: () => void,
-  style: terminal_style_t = terminal_style_normal,
-): void {
+export function terminal_write_line(line: string, callback?: () => void): void {
   if (terminal_text_buffer.length > 20) {
     terminal_text_buffer.shift()
   }
   if (line) {
     audio_play(audio_sfx_terminal)
-    terminal_text_buffer.push((style.print_ident ? terminal_text_ident : '') + line)
+    terminal_text_buffer.push(terminal_text_ident + line)
     terminal_el.innerHTML = '<div>' + terminal_text_buffer.join('&nbsp;</div><div>') + '<b>█</b></div>'
   }
   if (callback) {
-    terminal_timeout_id = setTimeout(callback, style.line_wait)
+    terminal_timeout_id = setTimeout(callback, terminal_line_wait)
   }
 }
 
@@ -142,38 +79,12 @@ export function terminal_show_notice(notice: string): void {
 
   terminal_cancel()
   terminal_show()
-  // 通知は画面上中央に出す。イントロの左上組みと同じ位置に出すと HUD の
-  // ニコチンゲージのパネルと重なる（クラスの実体は index.html の #a.nt）
+  // 通知は画面上中央に出す。起動時の左上組み（main.ts の「起動中...」）と
+  // 同じ位置に出すと HUD のニコチンゲージのパネルと重なる（クラスの実体は
+  // index.html の #a.nt）
   terminal_el.classList.add('nt')
 
-  terminal_write_text(terminal_prepare_text(notice), terminal_style_normal, () => {
+  terminal_write_text(terminal_prepare_text(notice), () => {
     terminal_timeout_id = setTimeout(terminal_hide, terminal_notice_tail)
   })
-}
-
-export function terminal_run_intro(): void {
-  terminal_el.classList.remove('nt')
-  terminal_text_buffer = []
-  terminal_write_text(terminal_prepare_text(terminal_text_title), terminal_style_normal, () => {
-    terminal_timeout_id = setTimeout(terminal_run_garbage, 4000)
-  })
-}
-
-function terminal_run_garbage(): void {
-  let t = terminal_text_garbage
-  const length = terminal_text_garbage.length
-
-  for (let i = 0; i < 64; i++) {
-    const s = (Math.random() * length) | 0
-    const e = (Math.random() * (length - s)) | 0
-    t += terminal_text_garbage.substr(s, e) + '\n'
-  }
-  t += ' \n \n'
-  terminal_write_text(terminal_prepare_text(t), terminal_style_garbage, () => {
-    terminal_timeout_id = setTimeout(terminal_run_story, 1500)
-  })
-}
-
-function terminal_run_story(): void {
-  terminal_write_text(terminal_prepare_text(terminal_text_story), terminal_style_normal)
 }

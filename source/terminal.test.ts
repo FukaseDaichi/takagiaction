@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('./dom', () => ({ terminal_el: mocks.el }))
 vi.mock('./audio', () => ({ audio_play: () => {}, audio_sfx_terminal: undefined }))
 
-import { terminal_cancel, terminal_run_intro, terminal_show_notice } from './terminal'
+import { terminal_show_notice } from './terminal'
 
 // terminal_write_line() が書く innerHTML は
 // '<div>' + 各行 + '&nbsp;</div><div>' ... + '<b>█</b></div>' なので、
@@ -57,7 +57,9 @@ describe('ターミナル', () => {
     terminal_show_notice('行1\n行2')
 
     expect(mocks.el.style.opacity).toBe('1')
+    expect(mocks.classes.has('nt')).toBe(true)
     expect(line_count()).toBe(1)
+    expect(last_line().startsWith('&gt; ')).toBe(true)
 
     vi.advanceTimersByTime(normal_line_wait)
     expect(line_count()).toBe(2)
@@ -69,37 +71,5 @@ describe('ターミナル', () => {
     expect(mocks.el.style.opacity).toBe('1')
     vi.advanceTimersByTime(1)
     expect(mocks.el.style.opacity).toBe('0')
-  })
-
-  it('ノイズ表示中にイントロを打ち切っても、以後の通知は通常の文体で出る', () => {
-    terminal_run_intro()
-
-    // タイトル（100ms/行・プレフィックス付き）→ 4 秒 → ノイズ（16ms/行・
-    // プレフィックスなし）。プレフィックスのない行が出たらノイズ表示に入っている
-    let elapsed = 0
-    while (last_line().startsWith('&gt; ')) {
-      vi.advanceTimersByTime(16)
-      elapsed += 16
-      expect(elapsed, 'ノイズ表示に到達しない').toBeLessThan(60000)
-    }
-    expect(last_line().startsWith('&gt; ')).toBe(false)
-
-    // ノイズのタイピング中に打ち切る。文体をモジュール変数に持たせていた頃は、
-    // ここで通常値に戻す側（ストーリー表示の冒頭）が永久に走らず、以後の通知が
-    // すべて 16ms/行・プレフィックスなしになった
-    terminal_cancel()
-
-    terminal_show_notice('深度 1 に到達')
-    expect(last_line().startsWith('&gt; ')).toBe(true)
-  })
-
-  it('ゲーム中の通知は画面上中央のクラスを付け、イントロは付けない', () => {
-    terminal_show_notice('深度 1 に到達')
-    expect(mocks.classes.has('nt')).toBe(true)
-
-    // 死亡画面から戻ってイントロを流し直す経路は無いが、位置クラスの持ち主が
-    // 通知側であることを固定する（付けたら剥がす側が要る）
-    terminal_run_intro()
-    expect(mocks.classes.has('nt')).toBe(false)
   })
 })

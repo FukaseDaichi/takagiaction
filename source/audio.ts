@@ -46,7 +46,8 @@ export let audio_sfx_swing: AudioBuffer | undefined
 // 自動再生ポリシーの下では、ユーザー操作より前に生成した AudioContext は
 // suspended で始まり、操作があっても自動では再開されない。suspended のまま
 // start() したソースは context の時計が止まっているため resume() の瞬間に
-// まとめて鳴る（イントロのタイピング音 100 発以上が一斉に出る）。
+// まとめて鳴る。いまの pre-unlock 音は起動時の「起動中...」のタイピング音
+// 1 回だけだが、鳴らせば同じく resume() まで溜まって不自然な遅延で鳴る。
 // そのため audio_unlock() までは何も鳴らさず、BGM の開始もそこまで遅らせる。
 // 判定に audio_ctx.state を使わないのは、Chrome では resume() の直後に同期で
 // 読んでもまだ 'suspended' のままで、BGM 自身が落ちてしまうため
@@ -231,7 +232,8 @@ export function audio_play(buffer: AudioBuffer | undefined, loop = false, delay 
 export function audio_toggle(): void {
   audio_enabled = !audio_enabled
   audio_gain.gain.value = audio_enabled ? 1 : 0
-  // イントロ／エンディング中は通知でテキスト表示チェーンを壊してしまうので出さない
+  // スタート画面・OP・死亡画面（自席の端末）では、通知がテキスト表示チェーンを
+  // 壊してしまうので出さない
   if (state.game_running) {
     terminal_show_notice(audio_enabled ? '音声: ON' : '音声: OFF')
   }
