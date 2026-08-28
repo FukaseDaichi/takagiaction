@@ -79,6 +79,11 @@ export const state = {
   dying: 0,
   death_elapsed: 0,
 
+  // ボス階の明転（boss-light-model.ts）。load_level が 0 に戻し、game_tick が
+  // ボス階でだけ進める。闘技場が広く、通常フロアの霧では遠側のボスが黒く
+  // 沈むため（docs/gameplay.md「ボス階」）
+  boss_light_elapsed: 0,
+
   entity_player: null as entity_player_t | null,
   entities: [] as entity_t[],
   entities_to_kill: [] as entity_t[],

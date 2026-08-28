@@ -26,6 +26,9 @@ const harness = vi.hoisted(() => {
 
 vi.mock('./renderer', () => ({
   camera: { x: 0, y: 0, z: 0, shake: 0 },
+  // game_tick が毎フレーム書き換える公開オブジェクト（renderer.ts の lighting と
+  // 同じ形）。本物と同じく通常フロアの値から始める
+  lighting: { r: 0.3, g: 0.3, b: 0.6, fog_far: 112 },
   push_quad: () => {},
   push_sprite: () => {},
   push_block: () => {},
@@ -98,6 +101,7 @@ import { meta, meta_max_level, meta_upgrade_ids } from './meta'
 import {
   monologue_arrival, monologue_boss_arrival, monologue_boss_kill,
 } from './monologue'
+import { lighting } from './renderer'
 import { level_data, level_height, level_width, state } from './state'
 
 // フレーム間隔は 1/16 秒。二進で正確に表せるので、何フレーム進めても
@@ -720,5 +724,73 @@ describe('ボス', () => {
     step()
     expect(harness.boss_rewards.length).toBe(0)
     expect(state.entities.filter((e) => e instanceof entity_container_t).length).toBe(2)
+  })
+})
+
+// 明転の数値そのものは boss-light-model.test.ts が持つ。ここで固定するのは
+// ループが実際に renderer の lighting を書いていること（配線を消す変異を殺す）
+describe('ボス階の照明', () => {
+  beforeEach(() => {
+    start_run()
+  })
+
+  it('ボス階に到達すると 3 秒かけて明るくなる', () => {
+    descend_to(5)
+    // 到達直後はまだ通常フロアの見え方
+    expect(lighting.r).toBeLessThan(0.31)
+    expect(lighting.fog_far).toBeLessThan(113)
+
+    advance(1.5)
+    expect(lighting.r).toBeGreaterThan(0.3)
+    expect(lighting.r).toBeLessThan(0.45)
+    expect(lighting.fog_far).toBeGreaterThan(112)
+    expect(lighting.fog_far).toBeLessThan(200)
+
+    advance(1.5) // 明転の終端（3 秒）を跨ぐ
+    expect(lighting.r).toBeCloseTo(0.45, 5)
+    expect(lighting.g).toBeCloseTo(0.45, 5)
+    expect(lighting.b).toBeCloseTo(0.9, 5)
+    expect(lighting.fog_far).toBeCloseTo(200, 5)
+  })
+
+  it('明転しきった後も明るいままで、それ以上は進まない', () => {
+    descend_to(5)
+    advance(3)
+    const settled = lighting.fog_far
+    advance(2)
+    expect(lighting.fog_far).toBe(settled)
+  })
+
+  it('通常フロアは何秒経っても暗いまま', () => {
+    descend_to(4)
+    advance(3)
+    expect(lighting.r).toBe(0.3)
+    expect(lighting.g).toBe(0.3)
+    expect(lighting.b).toBe(0.6)
+    expect(lighting.fog_far).toBe(112)
+  })
+
+  // 明転はフロアごとにやり直す。持ち越すと 2 度目のボス階が最初から明るい。
+  // 通常フロアは進捗を 0 に固定して描くので、経過のリセット漏れは次の
+  // ボス階（深度 10）まで降りないと現れない
+  it('2 度目のボス階も暗さから始まる', () => {
+    descend_to(5)
+    advance(3)
+    expect(lighting.fog_far).toBeCloseTo(200, 5)
+
+    descend_to(10)
+    expect(lighting.fog_far).toBeLessThan(113)
+  })
+
+  // ポーズ（開封ダイアログ・ボス報酬）は state.time_elapsed を 0 にする唯一の
+  // 経路。明転が生の時刻差で進むと、ダイアログを開いている間も明るくなる
+  it('ポーズ中は明転が止まる', () => {
+    descend_to(5)
+    advance(0.5)
+    const frozen = lighting.fog_far
+    state.paused = 1
+    advance(1)
+    expect(lighting.fog_far).toBe(frozen)
+    state.paused = 0
   })
 })
