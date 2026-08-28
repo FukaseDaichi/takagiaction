@@ -10,6 +10,8 @@
 		#c{width:100%;image-rendering:optimizeSpeed;image-rendering:pixelated;}
 		#h{position:fixed;inset:0;background:url(m/hero.webp) center/cover no-repeat;image-rendering:pixelated;animation:kb 30s ease-out forwards;transition:opacity 1s;}
 		#h::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.45) 100%);}
+		#cr{position:absolute;left:2vw;bottom:2.5vh;z-index:1;color:#8fae97;font-size:1.1vw;line-height:1.8;font-family:monospace;}
+		#st{display:none;position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);z-index:1;color:#e90;font-weight:bold;font-size:2.2vw;text-shadow:0 0 7px #f70;font-family:monospace;animation:r 1s infinite;}
 		@keyframes kb{to{transform:scale(1.06);}}
 		#a{font-weight:bold;color:#c80;position:absolute;top:4vw;left:2vw;font-size:1.6vw;overflow:hidden;white-space: nowrap;width:94%;text-shadow: 0 0 7px #f70;transition:opacity 1s;}
 		/* ゲーム中の通知。左上と右上は HUD のパネルで埋まっているので画面上中央に出す（幅は左右のパネルに届かない 52vw に抑える） */
@@ -40,7 +42,10 @@
 </head>
 <body style="margin:0;background:#000">
 	<canvas id="c" width=320 height=180></canvas>
-	<div id="h"></div>
+	<div id="h">
+		<div id="cr">原作: UNDERRUN — DOMINIC SZABLEWSKI // PHOBOSLAB.ORG<br>音楽: ANDREAS LÖSCH // NO-FATE.NET</div>
+		<div id="st">クリックで起動</div>
+	</div>
 	<code id="a"></code>
 	<!-- ミニマップと残り香は hud.ts が HUD のパネルへ移す（生成をあちらに移すと dom.ts の静的な取得が成り立たない） -->
 	<canvas id="m" width=64 height=64></canvas>

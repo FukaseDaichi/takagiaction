@@ -7,6 +7,7 @@ export const canvas = document.getElementById('c') as HTMLCanvasElement
 export const minimap_canvas = document.getElementById('m') as HTMLCanvasElement
 export const terminal_el = document.getElementById('a') as HTMLElement
 export const hero_el = document.getElementById('h') as HTMLElement
+export const start_el = document.getElementById('st') as HTMLElement
 export const sniff_el = document.getElementById('sn') as HTMLElement
 export const bubble_el = document.getElementById('b') as HTMLElement
 export const fade_el = document.getElementById('wf') as HTMLElement
