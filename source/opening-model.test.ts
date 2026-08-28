@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  op_black_lead, op_cut_at, op_cuts, op_line_at, op_total,
+  op_black_lead, op_cut_at, op_cuts, op_line_at, op_sting_delay, op_total,
 } from './opening-model'
 
 describe('OP の進行表', () => {
@@ -21,6 +21,8 @@ describe('OP の進行表', () => {
   })
 
   it('カットの開始時刻はカット 5 の黒 1 拍を含んで累積する', () => {
+    // 黒 1 拍そのものの尺を固定する（これが 0 や 6000 でも通る回帰を防ぐ）
+    expect(op_black_lead).toBe(600)
     expect(op_cut_at(0)).toBe(0)
     expect(op_cut_at(1)).toBe(4000)
     expect(op_cut_at(2)).toBe(8000)
@@ -37,5 +39,9 @@ describe('OP の進行表', () => {
     expect(op_line_at(cut4, 0)).toBe(0)
     expect(op_line_at(cut4, 1)).toBe(1667)
     expect(op_line_at(cut4, 2)).toBe(3333)
+  })
+
+  it('スティングはカット 6 開始から 1.5 秒後に着地する', () => {
+    expect(op_sting_delay).toBe(1500)
   })
 })
