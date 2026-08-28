@@ -191,6 +191,28 @@ export function audio_music_restore(): void {
   audio_music_normal()
 }
 
+// OP 専用の再生口。新しい instrument は作らず、既存 sfx をレート変更で流用する
+// （低レート = 低く長い音。ブーム・ドローン・スティングを賄う）。OP のスキップと
+// カット 5 の全音停止のため、呼び出し側が止められる stop 関数を返す。
+// 音量は source ごとの GainNode で載せ、audio_gain（ミュートトグル系）へ通す
+export function audio_play_op(
+  buffer: AudioBuffer | undefined, rate: number, gain = 1, loop = false,
+): () => void {
+  if (!audio_unlocked || !buffer) { return () => {} }
+  const source = audio_ctx.createBufferSource()
+  source.buffer = buffer
+  source.loop = loop
+  source.playbackRate.value = rate
+  const g = audio_ctx.createGain()
+  g.gain.value = gain
+  source.connect(g)
+  g.connect(audio_gain)
+  source.start(audio_ctx.currentTime)
+  // 再生が終わった source への stop() は InvalidStateError を投げうるので握る。
+  // OP は一発音も stop リストへ積んで一括停止するため、この経路は正常系
+  return () => { try { source.stop() } catch { /* 終了済みは無視 */ } }
+}
+
 // delay（秒）は同じ音を時間差で重ねる用途専用（entity-boss.ts の撃破音）。
 // 既定 0 なら currentTime + 0 = currentTime で、即時再生と挙動は変わらない
 export function audio_play(buffer: AudioBuffer | undefined, loop = false, delay = 0): void {

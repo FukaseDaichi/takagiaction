@@ -333,3 +333,37 @@ describe('ボス階のBGM', () => {
     expect(rate.calls.slice(-2)).toEqual([['cancel', 0, 7], ['set', 1, 7]])
   })
 })
+
+describe('OP 用の再生口', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('解錠前は何も鳴らさず no-op の stop を返す', async () => {
+    const audio = await load_audio()
+    const before = fake.started.length
+
+    const stop = audio.audio_play_op({} as AudioBuffer, 0.4)
+
+    expect(fake.started.length).toBe(before)
+    stop() // 投げないこと
+  })
+
+  it('レート・音量・ループを指定して鳴らし、stop で止められる', async () => {
+    const audio = await load_audio()
+    audio.audio_unlock()
+    const before = fake.started.length
+
+    const stop = audio.audio_play_op({} as AudioBuffer, 0.25, 0.4, true)
+
+    expect(fake.started.length).toBe(before + 1)
+    const started = fake.started[fake.started.length - 1]
+    expect(started.loop).toBe(true)
+    expect(started.playbackRate.value).toBe(0.25)
+    // 専用 GainNode を作って音量を載せている
+    const gain = fake.gains[fake.gains.length - 1]
+    expect(gain.gain.value).toBe(0.4)
+    stop()
+    stop() // 二重 stop も投げないこと
+  })
+})
