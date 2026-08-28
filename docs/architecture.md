@@ -25,14 +25,16 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 - `screen-flash.ts` — ボスのフェーズ移行の赤い全画面フラッシュ（`#bf` のクラス付け替え）。`screen-slash.ts` と同じ形だが別の層で、CSS も `index.html` が持つ。斜めの閃光帯（`#sl`）は「斬った」という意味を持つ絵なので流用しない
 - `nicotine.ts` — ニコチンの数値ロジック（段階判定・減少速度・移動速度・射撃と薙ぎの間隔）
 - `equipment.ts` — 装備の数値モデル（品名・効果の式・抽選・等級・ヤニ換算）。画像も DOM も知らない
-- `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコン 30 枚の静的 import はここが持つ。スタイルは `equip-screen.css`
+- `equip-screen.ts` — 押収品コンテナの開封ダイアログ。アイコンは `gear-icons.ts` から読む。スタイルは `equip-screen.css`
+- `gear-icons.ts` — 装備アイコン 30 枚の静的 import テーブル。`equip-screen.ts` と死亡画面の装備確認パネル（`death-screen.ts`）の両方が読む唯一の出どころ
 - `boss-reward.ts` — ボス撃破の報酬ダイアログ（恒久強化 1 段の選択）。スタイルは `boss-reward.css`
 - `boss-reward-model.ts` — ボス報酬の実効段（`meta.levels` ＋ このランで選んだ回数）と上限の判定
 - `upgrade-rows.ts` — 恒久強化 6 行の表示定義（名前・アイコン・色・フレーバー・効果の書式）。死亡画面とボス報酬の両方が読む唯一の出どころ
 - `hud.ts` — ゲーム中の HUD（タバコ型のニコチンゲージ・HP・予備の一本・武器スロット・ミニマップの枠・非常口の通過カウントダウン）。構造を起動時に 1 度だけ組み、`hud_update()` は値が変わったノードだけを書き換える。スタイルは `hud.css` が持ち、タバコもカウントダウンのリングも画像を使わず CSS だけで描く
 - `hud-model.ts` — HUD の表示条件（何をいつ出して、いつ消すか）
-- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。スタイルは `death-screen.css` が持つ
-- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、体調テキスト、生存時間の書式）
+- `death-screen.ts` — 死亡時のリザルトと闇サイト（恒久強化の購入）を統合した全画面 DOM UI。DOM は 1 度だけ組み、以降はキー入力のたびに class とテキストだけを書き換える。スタイルは `death-screen.css` が持つ
+- `death-screen-model.ts` — 死亡画面の表示ロジック（死因メッセージ、生存時間の書式、状態機械、強調階層）
+- `body-figure.ts` — 死亡画面が使う人体模型のジオメトリ（部位のアンカーとアイコン定位置、収納比率、装備アンカーと装備カードの引き出し先、器官の SVG）。SVG 座標から画面座標（vh）への写像もここが持つ ― 装備カードは SVG の外にある HTML だが、接続線の終端とカードの縦位置を別々の数で置くと必ず食い違うため
 - `death-sequence-model.ts` — 死亡シーケンスの時間割（ビートの発火判定、死体とドローン光の高さ）
 - `smoking-sequence-model.ts` — 一服演出の時間割（吸引中の煙、完了後の感知器と防災扉）
 - `monologue.ts` — 高木の内心の吹き出しの DOM とセリフプール。位置は `projection.ts` で自機頭上に追従させる
@@ -46,8 +48,8 @@ TypeScript + Vite + Vitest の ESM 構成。`index.html` が読み込むのは `
 
 似ているが別の 2 つの性質があり、モジュールを足すときはどちらに入れるかを先に決める。
 
-- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat` `music-boss`。後述の循環参照の起点になりえない
-- **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`boss-reward-model`（→ `meta`）・`hud-model` と `death-screen-model`（→ `nicotine`）を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
+- **実行時 import を持たない**（`import type` だけ）— `state` `dom` `nicotine` `equipment` `random` `projection` `slash-model` `boss-model` `body-figure` `death-screen-model` `death-sequence-model` `smoking-sequence-model` `monologue-model` `sound-effects` `music-dark-meat-beat` `music-boss`。後述の循環参照の起点になりえない
+- **Node（Vitest）でモックなしに評価できる** — 上から `dom` を除いたものに、`meta`（→ `equipment`）・`level-generator`（→ `random` / `state`）・`sniff`（→ `level-generator`）・`boss-reward-model`（→ `meta`）・`hud-model` を加えたもの。条件は、モジュール初期化時に `document` / `canvas.getContext()` / `new AudioContext()` を触るモジュールへ（推移的にも）到達しないことで、破ると該当モジュールのテストが一斉にモック必須になる
 
 `dom` が 1 つ目だけを満たすとおり、この 2 つは一致しない。数値・時間割・状態機械を DOM から切り離して `*-model.ts` に置いているのは、2 つ目を満たすためである。
 
@@ -82,7 +84,7 @@ ESM では import した束縛に代入できないため、規則は 1 つ:
 
 死亡画面（`death-screen.ts`）はこの制約の外にある。入力ハンドラを表示チェーンに載せるのではなく、`document` の `keydown` と各要素の `onclick` を自分で張り、表示に入る時点で逆にチェーンを打ち切って `terminal_clear()`（表示内容と `terminal_text_buffer` を対で戻す）を呼んでから隠す。ターミナルを使わない UI なので、入力の有効期間をチェーンの寿命に結び付ける必要がない。
 
-その代わり、**画面を抜けるときに `input.ts` の `keys` を自分で 0 へ戻す**義務を負う。`death-screen.ts` が `document` に張る `keydown` は、`input.ts` がモジュール初期化時に張る `document.onkeydown` と並んで走る別のハンドラで、`preventDefault()` を呼んでも `keys` の更新は止まらない。画面を抜ける時点で押されているキーは押下状態のまま次のランへ持ち越され、スペースなら復活と同時の発砲になる。`descend()` は `keys` に載る全キーを 0 に戻してから `on_descend()` を呼ぶ。ゲームを止める 2 つのダイアログ（`boss-reward.ts` / `equip-screen.ts`）が閉じるときにエッジ検出の 2 キーを戻すのも同じ理由である。
+その代わり、**画面を抜けるときに `input.ts` の `keys` を自分で 0 へ戻す**義務を負う。`death-screen.ts` が `document` に張る `keydown` は、`input.ts` がモジュール初期化時に張る `document.onkeydown` と並んで走る別のハンドラで、`preventDefault()` を呼んでも `keys` の更新は止まらない。画面を抜ける時点で押されているキーは押下状態のまま次のランへ持ち越され、スペースなら復活と同時の発砲になる。`descend()` は `keys` に載る全キーを 0 に戻してから `on_descend_cb()` を呼ぶ。ゲームを止める 2 つのダイアログ（`boss-reward.ts` / `equip-screen.ts`）が閉じるときにエッジ検出の 2 キーを戻すのも同じ理由である。
 
 ## ターミナルのテキストに `_` を書かない
 
@@ -145,7 +147,7 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 
 ## アセットの読み込み
 
-画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、`m/ui/` 配下のイラスト・アイコン 14 枚（死亡画面のイラストと記録アイコン 8 枚は `death-screen.ts`、恒久強化 6 行のアイコンは `upgrade-rows.ts` が持ち、死亡画面と報酬ダイアログの両方が読む）、開封ダイアログ（`equip-screen.ts`）が使う装備アイコン 30 枚を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
+画像 URL は `import atlas_url from '../m/q2.png'` のような**静的 import** で得る。`'m/' + id + '.webp'` のような文字列連結は Vite が静的に検出できず、本番ビルドで画像が `dist` に出力されずに 404 になる。レベルは `level-generator.ts` の手続き生成によるもので画像を使わないため、静的 import される画像はスプライトアトラス `m/q2.png` 1 枚と、`m/ui/` 配下のイラスト・アイコン 14 枚（死亡画面のイラストと記録アイコン 8 枚は `death-screen.ts`、恒久強化 6 行のアイコンは `upgrade-rows.ts` が持ち、死亡画面と報酬ダイアログの両方が読む）、装備アイコン 30 枚（`gear-icons.ts` が静的 import を持ち、開封ダイアログと死亡画面の装備確認パネルへ配る）を合わせた 45 枚である（ゲーム中の HUD は画像を使わない）。`m/ui/` も同じ静的 import の規則に従う。`load_image()` は存在しない。
 
 これに加えて、イントロの hero 画像（`m/hero.webp`）だけは静的 import ではなく、`index.html` の `<style>` 内の `url(m/hero.webp)` から参照する。Vite はインライン `<style>` も CSS として処理するため、この参照も静的 import と同様にビルドで解決される（ハッシュ付きで `dist/assets/` に出力され、`dist/index.html` がその URL を指す）。禁止されているのは Vite が静的に検出できない JS 側の文字列連結であって、`index.html` 内の静的な CSS 参照は使ってよい。ただし効くのは CSS として解釈される位置に限る。`m/` へのパスを `<style>` の外（属性値の文字列など）へ動かすと `dist` に出なくなる。
 
@@ -189,6 +191,32 @@ sonant-x の派生（zlib ライセンス）。意図的に `.js` のまま残�
 `index.html` の `#h` はイントロ用のフルスクリーン画像レイヤーで、`#c` の直後・`#a`（terminal）の直前に配置する。`z-index` は使わず、DOM 順（`#c` → `#h` → `#a`）だけで重なりを決めているため、この順序を変えると terminal の文字が hero の下に隠れる。`::after` の暗いグラデーション（スクリム）は terminal の文字を hero 画像の上でも視認できるようにするためのもの。アニメーションは 30 秒かけて `scale(1)` から `scale(1.06)` まで拡大する Ken Burns 効果のみで、他の演出は乗せない。
 
 `hero_el`（`dom.ts`）はゲーム開始クリックで `opacity` を 1 秒かけてフェードアウトさせたあと `display:none` にする。この非表示はページの生存期間中ずっと有効で、死亡画面などで hero を再表示することはない。
+
+## 全画面 DOM UI の作り方
+
+`death-screen.ts` / `hud.ts` のような、入力や値の変化で刻々と書き換わる DOM は、**ツリーを 1 度だけ組み、以降はノードを作り直さず class とテキストだけを書き換える。** ノードを作り直すと、そこに掛かっていた CSS アニメーションがノードごと破棄されて位相が 0 に戻り、段階開示の演出が成立しない。
+
+この方式を採るにあたって、次の 2 案を却下した。
+
+- **`innerHTML` の再構築を続け、演出だけを兄弟レイヤーへ逃がす** — 死亡画面の NEW RECORD バナーを `#ds` の外へ出す回避策が以前あったが、あれは逃がす対象が 1 個だから成立していた。強化演出はフォーカスしている対象そのものの上で起きるので、部位 6 個・接続線・パネル 2 枚・詳細パネルに同じ回避を繰り返すことはできない
+- **小さな仮想 DOM やテンプレートライブラリを入れる** — js13k 由来の依存の薄い構成に依存を足すことになる。手書きの状態機械 1 本で要件を満たせている
+
+### 段階開示の順番は CSS 変数が持つ
+
+複数の要素を時間差で開示するとき、**順番だけを CSS カスタムプロパティ `--i`（0 始まりの添字）に載せ、実際の遅延は CSS 側が `calc(var(--i) * 刻み)` で導く。JS から要素ごとの `setTimeout` を撒かない。**
+
+- 並びを変えたときに時間差が自動で追従する。JS 側は要素を組み立てるときに添字を `--i` として書き込むだけでよく、何番目が何ミリ秒かを知らない
+- 演出の途中で状態が変わっても、JS 側に取り消すべきタイマーが残らない。`death-screen.ts` が持つ `setTimeout` は、入場が明けて入力を開く・強化演出の尺だけ `busy` を張る・降下の遷移といった**状態そのものの切り替え**と、CSS では表せない残高のカウントアップだけで、要素の開示順は 1 つも持たない
+
+**収納（逆順）は `--i` を反転させて作らない。** 逆順で動くのは「数値 → パネル → 接続線 → アイコン → 模型」という要素の**種類**の並びで、`--i` は同じ種類の繰り返しの中の順番しか表していない。種類の階梯は、その種類の基底ルールに固定の遅延を書いて作る。
+
+段階開示のイージングは展開用と収納用の 2 種類に固定し、制御点が 1 を超えるバウンスは使わない（重く機械的な質感を保つため）。この規定が縛るのは段階開示だけで、終わらない明滅や部位ごとの強化演出はそれぞれ別のイージングを使う。
+
+### `prefers-reduced-motion` は演出と状態タイマーを一緒に畳む
+
+`reduce` の環境では、アニメーションとトランジションの尺・遅延をほぼ 0 へ潰して最終状態に即座に置く。死亡画面の JS は同じ media query を読み、入場・購入・退場の `busy` タイマーと残高のカウントアップも即時完了させる。見た目だけが終わって入力ロックだけ残ると、静止した画面が反応しない状態になるためである。JS が変えるのは演出に対応する待ち時間だけで、状態遷移や表示内容は変えない。
+
+尺を潰すだけでは足りず、**反復回数も 1 に落とす。** 死亡画面には終わらない明滅が 3 本あり、尺だけを 1ms にすると周期 1ms で回り続けて、60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの指定が、`reduce` を選んだ環境にだけストロボを作ってしまう。
 
 ## 音声の初回解錠
 
@@ -239,6 +267,8 @@ Node の `globalThis.localStorage` は「`--localstorage-file` が無い」と�
 
 ## ブラウザでの動作検証
 
+### WebGL（ゲーム画面）
+
 スクリーンショットでは判定できない。ヘッドレス環境では `document.visibilityState` が `'hidden'` になり rAF が絞られて画面がほぼ黒のまま、かつ `preserveDrawingBuffer: false` のため rAF の外から `readPixels` すると全ゼロが返る。どちらもゲームの不具合ではない。
 
 検証手順の要点:
@@ -251,3 +281,11 @@ Node の `globalThis.localStorage` は「`--localstorage-file` が無い」と�
 6. 入力は `keys[key_right] = 1` のように `input.ts` の `keys` を直接叩く
 
 移動量など物理の数値は、`entity.ts` の `_update()` の更新式（`vx += ax*dt - vx*min(f*dt,1)`; `x += vx*dt`）を Node のワンライナーで単体再現すればブラウザなしで検証できる。
+
+### 全画面 DOM UI
+
+jsdom / happy-dom は入れていない（`test-setup.ts` はむしろ Node の `localStorage` を外して「持たないブラウザ」を再現する側にある）。依存を増やさない代わりに、**テストできるものはモジュールへ押し出す**: 死亡画面の状態機械と強調階層は `death-screen-model.ts`、人体模型のジオメトリは `body-figure.ts` にあり、どちらも Node で評価できる純関数・純データである。
+
+`document` を直に触る層も、必要な面だけを持つ最小のスタブを `vi.hoisted()` で `globalThis` に置けば Node で動かせる。ここで押さえられるのは「キーが 2 系統のハンドラを通って状態機械に届き、画面を抜けるときに `keys` を戻す」までの配線である。スタブに載せる property は、外して落ちたスタックが名指ししたものだけにする — 予防的に足すと、実装が読んでいない面までテストが保証しているように見える。
+
+**押さえられないのは「class → 見た目」である。** 付けた class が実際にどのアニメーションを起こし、どの遅延で、どんな順に見えるかは Node では分からない。ここは Browser ペインでの検証を証拠にする: スクリーンショット、`getAnimations()` によるアニメーション付与の確認と任意時刻へのスクラブ、`classList` の実読み。DOM UI は上の WebGL の制約（rAF が絞られて黒いまま）の対象外で、ペインでそのまま動く。

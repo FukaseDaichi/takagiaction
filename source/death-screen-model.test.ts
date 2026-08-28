@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  condition_texts, death_cause_nicotine, death_message, format_run_time,
-  is_new_record,
+  death_cause_nicotine, death_message, format_run_time, is_new_record,
+  ds_idle_descend, ds_idle_gear, ds_idle_record, ds_initial_state,
+  ds_item_layer, ds_part_count, ds_part_layer, ds_reduce,
 } from './death-screen-model'
+import type { ds_state_t } from './death-screen-model'
 
 describe('生存時間の表示', () => {
   it('mm:ss で秒は 2 桁にする', () => {
@@ -17,35 +19,13 @@ describe('生存時間の表示', () => {
 })
 
 describe('死因メッセージ', () => {
-  it('ニコチン切れと敵で文言が変わる', () => {
-    expect(death_message(death_cause_nicotine)[0]).toContain('ニコチン')
-    expect(death_message(0)[0]).toContain('やられた')
-  })
-})
-
-describe('死亡時の状態表示', () => {
-  it('ゲージ 0% は 手の震え MAX・集中力 崩壊', () => {
-    const c = condition_texts(0)
-    expect(c.tremor).toBe('MAX')
-    expect(c.focus).toBe('崩壊')
-    expect(c.craving_ratio).toBe(1)
+  // 赤い状態パネルを消したので、死因の区別が残るのは見出しだけになる
+  it('敵に殺されたときは既定の見出しを返す', () => {
+    expect(death_message(0)).toBe('死亡したよ、高木。')
   })
 
-  it('離脱症状帯（30% 以下）は 大・低下', () => {
-    const c = condition_texts(0.2)
-    expect(c.tremor).toBe('大')
-    expect(c.focus).toBe('低下')
-    expect(c.craving_ratio).toBeCloseTo(0.8, 6)
-  })
-
-  it('そわそわ帯（60% 以下）は 小・散漫', () => {
-    expect(condition_texts(0.5).tremor).toBe('小')
-    expect(condition_texts(0.5).focus).toBe('散漫')
-  })
-
-  it('通常帯は なし・正常', () => {
-    expect(condition_texts(0.9).tremor).toBe('なし')
-    expect(condition_texts(0.9).focus).toBe('正常')
+  it('ニコチン切れは別の見出しで死因が分かる', () => {
+    expect(death_message(death_cause_nicotine)).toBe('ニコチン、限界です。')
   })
 })
 
@@ -66,5 +46,171 @@ describe('ニューレコード判定', () => {
   it('旧ベスト 0（未プレイ）では更新にしない', () => {
     expect(is_new_record(1, 0)).toBe(false)
     expect(is_new_record(99, 0)).toBe(false)
+  })
+})
+
+// テストごとに開始状態を組み立てる。入場シーケンスが終わった直後（busy = false）
+// で、記録確認・装備確認はどちらも出ている状態を既定にする
+function idle(over: Partial<ds_state_t> = {}): ds_state_t {
+  return { ...ds_initial_state(true, true), busy: false, ...over }
+}
+
+describe('死亡画面の状態機械', () => {
+  it('初期状態は idle・地下へ戻るにフォーカス・入場中は busy', () => {
+    const s = ds_initial_state(true, true)
+    expect(s.mode).toBe('idle')
+    expect(s.focus).toBe(ds_idle_descend)
+    expect(s.panel).toBe('none')
+    expect(s.busy).toBe(true)
+  })
+
+  // 表示側が計算した「その回に出ている項目」をそのまま持つ
+  it('初期状態は記録確認・装備確認の有無を引数から受け取る', () => {
+    expect(ds_initial_state(false, true).has_record).toBe(false)
+    expect(ds_initial_state(false, true).has_gear).toBe(true)
+    expect(ds_initial_state(true, false).has_record).toBe(true)
+    expect(ds_initial_state(true, false).has_gear).toBe(false)
+  })
+
+  it('busy 中はどのキーも状態を変えない', () => {
+    const s = idle({ busy: true })
+    for (const key of ['Tab', 'Enter', 'Escape', 'ArrowUp', 'ArrowDown']) {
+      const r = ds_reduce(s, key)
+      expect(r.state).toBe(s)
+      expect(r.action).toBe('none')
+    }
+  })
+
+  it('Tab で強化モードへ入り、先頭の部位を選ぶ', () => {
+    const r = ds_reduce(idle(), 'Tab')
+    expect(r.state.mode).toBe('upgrade')
+    expect(r.state.focus).toBe(0)
+  })
+
+  it('Tab をもう一度押すと idle へ戻り、地下へ戻るへフォーカスが載る', () => {
+    const r = ds_reduce(idle({ mode: 'upgrade', focus: 3 }), 'Tab')
+    expect(r.state.mode).toBe('idle')
+    expect(r.state.focus).toBe(ds_idle_descend)
+  })
+
+  it('idle の矢印は 3 項目を巡回する', () => {
+    expect(ds_reduce(idle({ focus: ds_idle_record }), 'ArrowDown').state.focus)
+      .toBe(ds_idle_gear)
+    // 末尾から前へ回り込む
+    expect(ds_reduce(idle({ focus: ds_idle_record }), 'ArrowUp').state.focus)
+      .toBe(ds_idle_descend)
+  })
+
+  // 記録確認・装備確認は読むものが無ければ項目ごと出さない。出していない項目に
+  // フォーカスが乗ると、Enter で空のパネルが開けてしまう
+  it('出していない項目は矢印が飛ばす', () => {
+    const no_record = idle({ has_record: false })
+    expect(ds_reduce(no_record, 'ArrowDown').state.focus).toBe(ds_idle_gear)
+    expect(ds_reduce(no_record, 'ArrowUp').state.focus).toBe(ds_idle_gear)
+
+    const no_gear = idle({ has_gear: false })
+    expect(ds_reduce(no_gear, 'ArrowDown').state.focus).toBe(ds_idle_record)
+    expect(ds_reduce(no_gear, 'ArrowUp').state.focus).toBe(ds_idle_record)
+  })
+
+  it('どちらも出ていなければ矢印は何もしない', () => {
+    const s = idle({ has_record: false, has_gear: false })
+    expect(ds_reduce(s, 'ArrowDown').state).toBe(s)
+    expect(ds_reduce(s, 'ArrowUp').state).toBe(s)
+  })
+
+  // 6 部位は常に全部出ているので、強化モードの巡回は表示の有無に左右されない
+  it('強化モードの巡回は項目の表示に左右されない', () => {
+    const s = idle({ mode: 'upgrade', focus: 0, has_record: false, has_gear: false })
+    expect(ds_reduce(s, 'ArrowDown').state.focus).toBe(1)
+    expect(ds_reduce(s, 'ArrowUp').state.focus).toBe(ds_part_count - 1)
+  })
+
+  it('強化モードの矢印は 6 部位を解剖順に巡回する', () => {
+    expect(ds_reduce(idle({ mode: 'upgrade', focus: 5 }), 'ArrowDown').state.focus).toBe(0)
+    expect(ds_reduce(idle({ mode: 'upgrade', focus: 0 }), 'ArrowUp').state.focus)
+      .toBe(ds_part_count - 1)
+  })
+
+  it('← ↑ と → ↓ は同じ向きに動く', () => {
+    const s = idle({ mode: 'upgrade', focus: 2 })
+    expect(ds_reduce(s, 'ArrowLeft').state.focus).toBe(ds_reduce(s, 'ArrowUp').state.focus)
+    expect(ds_reduce(s, 'ArrowRight').state.focus).toBe(ds_reduce(s, 'ArrowDown').state.focus)
+  })
+
+  it('idle の Enter は、フォーカス位置ごとに違うことをする', () => {
+    expect(ds_reduce(idle({ focus: ds_idle_record }), 'Enter').state.panel).toBe('record')
+    expect(ds_reduce(idle({ focus: ds_idle_gear }), 'Enter').state.panel).toBe('gear')
+    expect(ds_reduce(idle({ focus: ds_idle_descend }), 'Enter').action).toBe('descend')
+  })
+
+  it('強化モードの Enter は購入を要求する（状態は動かない）', () => {
+    const s = idle({ mode: 'upgrade', focus: 2 })
+    const r = ds_reduce(s, 'Enter')
+    expect(r.action).toBe('buy')
+    expect(r.state.focus).toBe(2)
+    expect(r.state.mode).toBe('upgrade')
+  })
+
+  // Esc は「1 段戻る」。この 3 段の順序がこの画面の操作の背骨になる
+  it('Esc はパネル → 強化モード → 降下 の順に 1 段ずつ戻る', () => {
+    const opened = idle({ mode: 'upgrade', focus: 2, panel: 'record' })
+    const closed = ds_reduce(opened, 'Escape')
+    expect(closed.state.panel).toBe('none')
+    expect(closed.state.mode).toBe('upgrade') // 強化モードは維持される
+    expect(closed.action).toBe('none')
+
+    const collapsed = ds_reduce(closed.state, 'Escape')
+    expect(collapsed.state.mode).toBe('idle')
+    expect(collapsed.action).toBe('none')
+
+    expect(ds_reduce(collapsed.state, 'Escape').action).toBe('descend')
+  })
+
+  it('パネル表示中は Esc 以外を受け付けない', () => {
+    const s = idle({ panel: 'record' })
+    for (const key of ['Tab', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+      const r = ds_reduce(s, key)
+      expect(r.state).toBe(s)
+      expect(r.action).toBe('none')
+    }
+  })
+
+  it('知らないキーは何もしない', () => {
+    const s = idle()
+    expect(ds_reduce(s, 'a').state).toBe(s)
+  })
+})
+
+describe('強調階層', () => {
+  it('強化モードでは選択部位だけが active、残りは dim', () => {
+    const s = idle({ mode: 'upgrade', focus: 3 })
+    expect(ds_part_layer(s, 3)).toBe('active')
+    expect(ds_part_layer(s, 0)).toBe('dim')
+  })
+
+  // idle で部位を inactive にすると、この画面の主役が沈んでしまう。
+  // 触れないが「押せそう」に見えている必要がある
+  it('idle では部位はどれも dim で、active にはならない', () => {
+    const s = idle()
+    for (let i = 0; i < ds_part_count; i++) { expect(ds_part_layer(s, i)).toBe('dim') }
+  })
+
+  it('idle では選択項目が active、残りは dim', () => {
+    const s = idle({ focus: ds_idle_gear })
+    expect(ds_item_layer(s, ds_idle_gear)).toBe('active')
+    expect(ds_item_layer(s, ds_idle_record)).toBe('dim')
+  })
+
+  it('強化モードでは記録確認と装備確認が inactive へ落ちる', () => {
+    const s = idle({ mode: 'upgrade', focus: 0 })
+    expect(ds_item_layer(s, ds_idle_record)).toBe('inactive')
+    expect(ds_item_layer(s, ds_idle_descend)).toBe('inactive')
+  })
+
+  it('パネル表示中は部位も項目もすべて inactive', () => {
+    const s = idle({ panel: 'gear' })
+    expect(ds_part_layer(s, 0)).toBe('inactive')
+    expect(ds_item_layer(s, ds_idle_descend)).toBe('inactive')
   })
 })

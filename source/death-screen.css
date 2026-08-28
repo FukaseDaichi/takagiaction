@@ -1,289 +1,958 @@
 /* 死亡画面（リザルト＋闇サイト）。index.html の <style> とは独立
    （id 限定スタイルだけでなく、裸の型セレクタ（b / div:last-child）も
    index.html 側で #a 限定にしてあるため干渉しない）。
-   寸法はすべて vw 単位で、16:9 前後のアスペクト比を前提にしている。
-   極端に横長・縦長な画面では右列の内容や状態パネルがはみ出す
-   （旧テキスト UI でも同じで、退行ではない） */
+   寸法はすべて vw / vh 単位で、16:9 前後のアスペクト比を前提にしている。 */
 #ds {
   position: fixed;
   inset: 0;
   display: none;
-  grid-template-rows: 1fr auto;
-  gap: 0.8vw;
-  padding: 1.2vw 1.5vw;
   box-sizing: border-box;
-  background:
-    radial-gradient(120% 90% at 50% 0%, #101d14 0%, #070d09 60%, #050805 100%);
+  background: #050805;
   color: #b9dcc4;
   font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
   z-index: 10;
   user-select: none;
-  overflow: auto;
+  overflow: hidden;
+  /* 段階開示の刻み。--i を掛けて animation-delay にする */
+  --step: 80ms;
+  --ease-in: cubic-bezier(.2, .8, .2, 1);
+  --ease-out: cubic-bezier(.6, 0, .8, .2);
 }
-#ds .ds-main { display: grid; grid-template-columns: 52fr 48fr; gap: 1.5vw; min-height: 0; }
-#ds .ds-left { display: flex; flex-direction: column; gap: 0.8vw; min-height: 0; }
-/* イラストが左半分の背景で、記録と状態パネルがその上に浮く */
-#ds .ds-left-body {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8vw;
+/* busy ガードは JS 側（on_key / .ds-item・.ds-part の onclick）が主。ここは
+   CSS 層での多重防御と、busy class が読まれていることの明示を兼ねる */
+#ds.busy { pointer-events: none; }
+
+/* --- 背景 3 枚 --- */
+
+/* 16:9 では画像の高さの 38.5% にあたる帯が見える。center 16% で
+   左＝高木の顔と煙草、右上＝張り紙、右下＝闇サイト端末 の構図になる。
+   cover は縦にしか溢れないので background-position-x は効かない */
+#ds .ds-bg {
+  position: absolute;
+  inset: 0;
+  background-position: center 16%;
+  background-size: cover;
+  opacity: 0;
 }
+/* 入場シーケンス 0.00s。entering の内側に置く ― 外に置くと build() 直後の
+   1 度しか再生されず、その 1 度は main.ts が起動時に出す自席の端末なので、
+   実際の死亡では背景のフェードインが一度も走らない */
+#ds.entering .ds-bg { animation: ds-bg-in 1.2s var(--ease-in) forwards; }
+#ds .ds-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 100% at 50% 45%, rgba(5, 8, 5, .55) 0%, rgba(5, 8, 5, .88) 70%,
+      rgba(3, 5, 3, .96) 100%),
+    linear-gradient(90deg, rgba(3, 6, 4, .82) 0%, rgba(3, 6, 4, 0) 34%);
+}
+/* 模型の背後だけを落とす暗がり。背景で最も明るい 2 点（張り紙・端末画面）が
+   模型と同じ右半分にあるため、これが無いと模型が読めない */
+#ds .ds-well {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(38% 62% at 60% 52%,
+    rgba(2, 4, 3, .92) 0%, rgba(2, 4, 3, .55) 55%, rgba(2, 4, 3, 0) 100%);
+}
+/* 段階的な減光の専用レイヤー。ds-scrim の opacity を上げる形にすると 1 で
+   頭打ちになって効かない（既に 1 のため）ので、別の膜として重ねる。
+   ⑦ の「照明が落ちる」もこの 1 枚が担う */
+#ds .ds-dim {
+  position: absolute;
+  inset: 0;
+  background: #020403;
+  opacity: 0;
+  transition: opacity .35s var(--ease-in);
+}
+#ds.mode-upgrade .ds-dim { opacity: .22; }
+#ds.panel-record .ds-dim, #ds.panel-gear .ds-dim { opacity: .42; }
+
+/* --- 見出し --- */
 
 #ds .ds-title {
+  position: absolute;
+  left: 4%;
+  top: 5%;
   margin: 0;
-  font-size: 3.4vw;
+  font-size: 2.2vw;
   font-weight: bold;
   color: #ffaa2b;
   text-shadow: 0 0 14px #f70;
-  letter-spacing: 0.1em;
+  letter-spacing: .08em;
 }
-#ds .ds-sub { margin: 0; font-size: 1.1vw; color: #cfe8d8; }
-
-#ds .ds-panel {
-  border: 1px solid #2e6b4f;
-  border-radius: 0.4vw;
-  background: rgba(6, 20, 12, 0.85);
-  box-shadow: inset 0 0 18px rgba(20, 80, 50, 0.25);
-  padding: 0.8vw 1vw;
-}
-#ds .ds-panel-title { color: #7fe0a8; font-weight: bold; font-size: 1.15vw; margin-bottom: 0.5vw; }
-
-/* position: relative は、DOM 順で先行する absolute な .ds-hero の下に
-   隠れないようにするための重ね順の土台（消すとパネルが消えたように見える） */
-#ds .ds-record { width: 45%; position: relative; }
-#ds .ds-record-row {
-  display: flex; align-items: center; gap: 0.5vw;
-  font-size: 1.15vw; padding: 0.28vw 0;
-  border-bottom: 1px solid rgba(46, 107, 79, 0.4);
-}
-#ds .ds-record-row:last-child { border-bottom: none; }
-#ds .ds-record-row img { width: 1.4vw; height: 1.4vw; }
-#ds .ds-record-row b { margin-left: auto; font-size: 1.3vw; color: #eaf5ee; }
-/* 記録更新した行の強調。バッジは点滅させない — render() はキー入力の
-   たびに innerHTML を組み直すため、ここにアニメーションを置くと
-   矢印キーを押すたびに位相がリセットされる（演出はバナー側が持つ） */
-#ds .ds-record-row.record b { color: #ffd24a; text-shadow: 0 0 8px rgba(255, 210, 74, 0.8); }
-#ds .ds-record-prev {
-  margin-left: 0.5vw; font-size: 0.9vw; font-weight: normal; color: #7fe0a8;
-}
-#ds .ds-record-new {
-  margin-left: 0.5vw; padding: 0 0.35vw;
-  border: 1px solid #ffd24a; border-radius: 0.2vw;
-  font-size: 0.8vw; color: #ffd24a;
-}
-
-/* position: relative は .ds-record と同じ理由（絶対配置の .ds-hero の下に
-   隠れないようにする重ね順の土台） */
-#ds .ds-gear { width: 45%; position: relative; }
-#ds .ds-gear-none { color: #5d7a68; }
-
-#ds .ds-hero {
+#ds .ds-sub {
   position: absolute;
-  inset: 0;
-  border-radius: 0.4vw;
-  background-position: center 20%;
-  background-size: cover;
-  image-rendering: auto;
+  left: 4%;
+  top: 10.5%;
+  margin: 0;
+  font-size: .95vw;
+  color: #cfe8d8;
 }
+/* 3 秒後に存在感を落とす。死は 1 度伝われば十分で、以降は世界観の一部として
+   背景に馴染ませる */
+#ds.entering .ds-title { animation: ds-in-left .5s var(--ease-in) .15s both, ds-fade-back 1.2s var(--ease-in) 3s forwards; }
+#ds.entering .ds-sub { animation: ds-in-left .5s var(--ease-in) .3s both, ds-fade-back 1.2s var(--ease-in) 3s forwards; }
 
-/* 状態パネル（赤）。死亡モードのみ表示。死因の説明に徹し、
-   体の絵＋体調 3 行だけの帯にする（残量の数値表示は持たない） */
-#ds .ds-status {
-  /* position: relative は .ds-record と同じ理由（.ds-hero の下に隠れないため） */
-  position: relative;
-  margin-top: auto; /* イラストの下端に貼り付ける */
-  border: 1px solid #b3271e;
-  border-radius: 0.4vw;
-  background: rgba(30, 5, 3, 0.88);
-  box-shadow: 0 0 16px rgba(255, 60, 40, 0.25), inset 0 0 20px rgba(255, 60, 40, 0.15);
-  color: #ff6b5e;
-  padding: 0.7vw 1vw;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.4vw 1vw;
-  align-items: center;
-}
-#ds .ds-death-message { font-size: 1.25vw; font-weight: bold; line-height: 1.5; grid-column: 1 / -1; }
-#ds .ds-status img { height: 6vw; }
-#ds .ds-gauge-row {
-  display: flex; align-items: center;
-  gap: 0.6vw; font-size: 1vw; margin: 0.3vw 0;
+/* --- ヤニ残高 --- */
+
+#ds .ds-yani {
+  position: absolute;
+  right: 3%;
+  top: 3%;
+  text-align: right;
+  font-size: .9vw;
+  color: #e8c9a8;
   white-space: nowrap;
 }
-#ds .ds-gauge-row b { margin-left: 0.2vw; }
-/* 体調 2 項目は 1 行に並べ、値はラベルの直後に置く（右端まで飛ばさない） */
-#ds .ds-cond-line { font-size: 1vw; margin: 0.3vw 0; white-space: nowrap; }
-#ds .ds-cond-line b { color: #ffb3ab; margin: 0 1.6vw 0 0.6vw; }
-#ds .ds-cond-line b:last-child { margin-right: 0; }
-#ds .ds-blocks { display: flex; flex-shrink: 0; gap: 0.15vw; }
-#ds .ds-blocks i {
-  width: 0.8vw; height: 0.9vw;
-  background: #ff3b30; box-shadow: 0 0 5px #f33;
-}
-#ds .ds-blocks i.off { background: #4a1310; box-shadow: none; }
-
-/* 右列は「残高 → 強化 6 行 → 地下へ戻る」の一本道 */
-#ds .ds-right { display: flex; flex-direction: column; gap: 0.6vw; min-height: 0; }
-#ds .ds-shop {
-  border: 1px solid #b3271e;
-  border-radius: 0.4vw;
-  background: rgba(25, 8, 4, 0.85);
-  padding: 0.5vw 1vw;
-  display: flex; align-items: center; justify-content: space-between; gap: 1vw;
-}
-#ds .ds-shop-title { color: #ff6b5e; font-size: 1.3vw; font-weight: bold; letter-spacing: 0.08em; }
-#ds .ds-shop-sub { color: #e8c9a8; font-size: 0.9vw; margin-top: 0.15vw; }
-#ds .ds-warning { color: #ff6b5e; font-size: 0.9vw; margin-top: 0.15vw; }
-#ds .ds-shop-balance { color: #e8c9a8; font-size: 1vw; text-align: right; white-space: nowrap; }
-#ds .ds-shop-balance b {
-  display: block; color: #ffaa2b; font-size: 1.9vw; line-height: 1.1;
-  text-shadow: 0 0 10px #f70;
-}
-
-#ds .ds-row {
-  display: grid;
-  grid-template-columns: 3vw 1fr auto;
-  gap: 0.7vw;
-  align-items: center;
-  flex: 1 0 auto; /* 6 行で右列を埋める。行の高さはこれで決まる */
-  border: 1px solid #2e6b4f;
-  border-radius: 0.4vw;
-  background: rgba(8, 22, 14, 0.85);
-  padding: 0.4vw 0.7vw;
-}
-#ds .ds-row.selected { border-color: #ffaa2b; box-shadow: 0 0 10px rgba(255, 170, 43, 0.5); }
-#ds .ds-row img { width: 2.8vw; height: 2.8vw; }
-#ds .ds-row-name { font-weight: bold; font-size: 1.1vw; }
-#ds .ds-row-name small { color: #9cc4aa; font-weight: normal; font-size: 0.85vw; margin-left: 0.6vw; }
-/* 効果は「ラベル 現在値 → 次の値」。次の値だけ行の色（インライン指定）で光る */
-#ds .ds-row-stat { font-size: 0.95vw; color: #9cc4aa; margin-top: 0.15vw; }
-#ds .ds-row-stat b { font-size: 1.15vw; color: #eaf5ee; }
-#ds .ds-arrow { color: #6b8f78; margin: 0 0.5vw; }
-#ds .ds-next { text-shadow: 0 0 8px currentColor; }
-/* text-align: right が効くのは「Lv. n / m」の匿名テキストだけ。
-   flex-direction: column の既定 align-items: stretch がその匿名テキストを
-   幅いっぱいに伸ばすので右寄せが成立する（子の .ds-pips は個別に flex-end で右寄せ） */
-#ds .ds-row-level {
-  font-size: 0.95vw; color: #eaf5ee; text-align: right;
-  display: flex; flex-direction: column; justify-content: center;
-}
-#ds .ds-pips { display: flex; gap: 0.22vw; margin-top: 0.25vw; justify-content: flex-end; }
-#ds .ds-pips i { width: 0.6vw; height: 0.6vw; border-radius: 50%; background: #1c3a2a; }
-#ds .ds-pips i.on { box-shadow: 0 0 5px currentColor; background: currentColor; }
-#ds .ds-buy {
-  align-self: stretch; /* 行の高さいっぱいの箱にする */
-  display: flex; align-items: center; justify-content: center; gap: 0.5vw;
-  min-width: 5vw; /* 行ごとに桁数が違ってもボタン列を揃える */
-  border: 1px solid #ffaa2b; border-radius: 0.3vw;
-  background: rgba(60, 35, 5, 0.6);
-  color: #ffaa2b; font: inherit; font-size: 1vw; font-weight: bold;
-  padding: 0.3vw 0.6vw; cursor: pointer;
-}
-#ds .ds-cost { text-align: center; line-height: 1.2; }
-#ds .ds-plus { font-size: 1.6vw; }
-#ds .ds-buy:disabled { opacity: 0.35; cursor: default; }
-/* ds-row は align-items:center なので、値の箱を行の高さまで伸ばすには
-   この列だけ stretch に戻す必要がある */
-#ds .ds-row-right { align-self: stretch; display: flex; align-items: stretch; gap: 0.7vw; }
-
-/* 唯一の CTA。扉と推奨深度（次の潜入準備）をこの中に吸収する */
-#ds .ds-descend {
-  display: flex; align-items: center; justify-content: center; gap: 1vw;
-  border: 2px solid #ffaa2b; border-radius: 0.5vw;
-  background: linear-gradient(180deg, rgba(90, 50, 5, 0.7), rgba(40, 20, 2, 0.9));
-  color: #ffaa2b; font: inherit; font-weight: bold; font-size: 2vw;
-  text-shadow: 0 0 10px #f70; box-shadow: 0 0 16px rgba(255, 170, 43, 0.4);
-  cursor: pointer; padding: 0.5vw 1vw;
-}
-#ds .ds-descend img { height: 3.8vw; }
-#ds .ds-descend small { display: block; font-size: 0.95vw; font-weight: normal; color: #e8c9a8; text-shadow: none; }
-#ds .ds-descend.selected { box-shadow: 0 0 26px rgba(255, 170, 43, 0.9); }
-
-#ds .ds-footer {
-  border-top: 1px solid #2e6b4f;
-  padding-top: 0.5vw;
-  color: #7fe0a8;
-  font-size: 1vw;
-  display: flex; gap: 2.5vw;
-}
-
-/* ニューレコード演出。#ds（z-index 10）の兄弟として body 直下に作る。
-   render() の innerHTML 再構築の外に置くための配置で、理由は
-   death-screen.ts の show_record_banner() にある。
-   アニメーションは毎回作り直される内側の 2 要素が持ち、外枠は配置だけ。
-
-   位置は左列（イラスト）の、記録パネルと状態パネルの間に空く帯。16:9 で
-   高さ 232px・幅 628px あり、横 1 行のバナーが収まる */
-#ds-nr {
-  position: fixed;
-  left: 1.5vw;
-  top: 42vh;
-  width: 48vw;
-  display: none;
-  z-index: 11;
-  pointer-events: none;
-  user-select: none;
-  text-align: center;
-  font-family: 'BIZ UDGothic', 'Yu Gothic UI', system-ui, sans-serif;
-}
-
-/* padding はグロー（text-shadow）が overflow: hidden で切られないための余白。
-   overflow: hidden 自体は ::after のスイープを箱の中に留めるために要る */
-#ds-nr .ds-nr-title {
-  position: relative;
-  overflow: hidden;
-  padding: 0.6vw 1.2vw;
-  font-size: 5vw;
-  line-height: 1.05;
-  font-weight: bold;
-  letter-spacing: 0.08em;
-  color: #ffd24a;
-  animation:
-    ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) both,
-    ds-nr-glitch 0.35s steps(1) 0.35s forwards,
-    ds-nr-glow 2s ease-in-out 0.7s infinite;
-}
-#ds-nr .ds-nr-title::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
-  animation: ds-nr-sweep 1.8s ease-in-out 0.7s infinite;
-}
-#ds-nr .ds-nr-sub {
-  font-size: 1.6vw;
-  font-weight: bold;
+#ds .ds-yani-icon { width: 1.1vw; height: 1.1vw; vertical-align: middle; opacity: .8; }
+#ds .ds-yani-value {
+  margin-left: .5vw;
+  font-size: 1.8vw;
   color: #ffaa2b;
   text-shadow: 0 0 10px #f70;
-  animation: ds-nr-in 0.35s cubic-bezier(0.2, 1.6, 0.35, 1) 0.2s both;
+  vertical-align: middle;
+}
+#ds .ds-yani-warn {
+  display: none;
+  margin-top: .2vw;
+  font-size: .75vw;
+  color: #ff6b5e;
+  max-width: 16vw;
+  white-space: normal;
+}
+#ds.entering .ds-yani { animation: ds-in-up .5s var(--ease-in) 1.1s both; }
+
+/* --- 記録確認 / 装備確認 --- */
+
+#ds .ds-menu {
+  position: absolute;
+  left: 4%;
+  top: 42%;
+  display: flex;
+  flex-direction: column;
+  gap: .8vh;
+}
+#ds .ds-item {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 1.1vw;
+  letter-spacing: .12em;
+  color: #b9dcc4;
+  text-align: left;
+  padding: .3vh 0;
+  cursor: pointer;
+  transition: opacity .25s var(--ease-in), text-shadow .25s var(--ease-in),
+    transform .25s var(--ease-in);
+}
+/* フォーカスは枠でなく光と字間で示す */
+#ds .ds-item::before { content: '［'; opacity: .5; }
+#ds .ds-item::after { content: '］'; opacity: .5; }
+#ds.entering .ds-menu { animation: ds-in-left .5s var(--ease-in) 1.25s both; }
+
+/* --- 強調階層。枠線で囲わず明度・発光・拡大で示す --- */
+
+.ds-item.active, .ds-part.active, .ds-descend.active { opacity: 1; }
+.ds-item.dim, .ds-part.dim, .ds-descend.dim { opacity: .65; }
+.ds-item.inactive, .ds-part.inactive, .ds-descend.inactive { opacity: .35; }
+#ds .ds-item.active {
+  color: #7fe0a8;
+  text-shadow: 0 0 12px rgba(127, 224, 168, .9);
+  transform: translateX(.4vw);
 }
 
-@keyframes ds-nr-in {
-  from { opacity: 0; transform: translateX(-6vw) scale(1.4); }
+/* --- 人体模型 --- */
+
+#ds .ds-figure {
+  position: absolute;
+  top: 50%;
+  left: 60%;
+  height: 66vh;
+  /* viewBox 416:532 の比。下地と SVG が同じ箱に載る */
+  aspect-ratio: 416 / 532;
+  transform: translate(-50%, -50%);
+  transition: opacity .35s var(--ease-in), transform .35s var(--ease-in);
+}
+#ds.panel-record .ds-figure, #ds.panel-gear .ds-figure { opacity: .3; }
+/* forwards/both は使わない: entering class は入場後も外れないままなので、both
+   だと 100% キーフレームの opacity: 1 が Animation の値として永久に残り、
+   Animation は通常の author 宣言より優先されるため、直前の
+   #ds.panel-record .ds-figure, #ds.panel-gear .ds-figure { opacity: .3 } が
+   ずっと負けて模型が暗転しない（R27 で発覚。Task 8 の記録パネルでも同一条件で
+   再現していた既存の不具合）。backwards なら delay 中の from 側だけを保持し、
+   終了後は cascade（休止時は既定の 1、パネル表示中は .3）に自然に委ねられる。
+   #ds.entering .ds-part（ds-icon-in、上の :281-283）と同じ理由・同じ修正 */
+#ds.entering .ds-figure { animation: ds-figure-in .8s var(--ease-in) .45s backwards; }
+
+/* 下地は SVG の <image>。背景が near-black（rgb(12,15,12)）なので screen で
+   黒が抜ける。既定は彩度を落として灰色にし、強化モードで少しだけ色を戻す。
+   重ね順は文書順（接続線 → 下地 → 器官 → アイコン）で決まる — SVG に
+   z-index は無い。接続線が下地より先にあるおかげで、身体の明るい線の上を
+   通る箇所だけが下地の発光で覆われ、「線が腕の後ろを通っている」という
+   奥行きとして読める */
+#ds .ds-body {
+  mix-blend-mode: screen;
+  filter: saturate(.12) brightness(.55);
+  /* 収納（Tab で idle へ戻る）の階梯の最後の段。数値 0 → パネル .08 →
+     接続線 .16 → アイコン・模型 .24 の 80ms 刻みで、仕様 ② の
+     「数値 → パネル → 接続線 → アイコン → 模型 の逆順」を実時間で作る。
+     展開の側は #ds.mode-upgrade 側の規則が自分の delay を持つので、この
+     基底の delay は収納にしか効かない */
+  transition: filter .4s var(--ease-in) .24s;
+}
+/* 展開の側は段階開示 ② の 0.00s「模型の輪郭が発光」なので待たせない。
+   基底の delay（収納の 4 段目）を 0 に戻す ― 展開と収納で別の delay を
+   持たせる必要があるのは、この 2 つが同じ 1 つのプロパティだから */
+#ds.mode-upgrade .ds-body { filter: saturate(.3) brightness(.8); transition-delay: 0s; }
+
+#ds .ds-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+#ds .ds-wire {
+  stroke: var(--c);
+  stroke-width: 1;
+  opacity: 0;
+  /* --l は線の実長（build() が 1 本ずつ計算して載せる）。共通の固定値を
+     当てると、実長を超えるぶんの dashoffset は「もう描き切っている」区間に
+     消え、線が伸びる演出がその手前のわずかな時間へ圧縮される */
+  stroke-dasharray: var(--l);
+  stroke-dashoffset: var(--l);
+  /* 描画は animation でなく transition で行う。animation + forwards だと
+     保持している .55 は「アニメーションが乗せている見た目の値」でしかなく、
+     transition が比較する非アニメーションのカスケード値は opacity: 0 の
+     ままなので、#ds.mode-upgrade が外れても変化なしと判定されて transition
+     が発火せず瞬時に消えてしまう（実機で確認。Task 6 レビュー Finding 2）。
+     opacity/stroke-dashoffset を実値として transition させれば両方向とも
+     滑らかになる。0.3s はパネル本体の退場（0.22s）より遅く、アイコンの帰還
+     （translate 0.4s）より速い ― 「接続線が切れてからアイコンが体へ帰る」の
+     順を守るため。.16s は収納の階梯の 3 段目（#ds .ds-body を参照） */
+  transition: opacity .3s var(--ease-out) .16s, stroke-dashoffset .3s var(--ease-out) .16s;
+}
+#ds.mode-upgrade .ds-wire {
+  opacity: .55;
+  stroke-dashoffset: 0;
+  transition: opacity .34s var(--ease-in) calc(.16s + var(--i) * var(--step)),
+    stroke-dashoffset .34s var(--ease-in) calc(.16s + var(--i) * var(--step));
+}
+
+#ds .ds-organ {
+  opacity: 0;
+  /* mode-upgrade を外す（idle へ戻る Tab）ときの「後」のスタイルはこの基底
+     ルールになる。CSS Transitions は変化後のスタイルが持つ transition を
+     見るので、ここに無いとフェードせず一瞬で消える。.ds-wire（上の
+     :197-206 のコメント）と同じ理由・同じ形の不具合の再発だった
+     （Task 7 レビュー Finding 2） */
+  transition: opacity .3s var(--ease-in);
+}
+#ds .ds-organ * {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- 強化アイコン --- */
+
+#ds .ds-part {
+  /* transform-box の既定値は view-box。SVG 要素にそのまま scale/rotate を
+     掛けると基準点が viewBox 全体の中心になり、.active の scale(1.15) が
+     アイコンを模型ごしに吹き飛ばしてしまう。fill-box にして要素自身の
+     bounding box を基準にする */
+  transform-box: fill-box;
+  /* 収納位置↔定位置は translate、フォーカスの拡大は scale。個別プロパティに
+     分けるのは、この 2 つが別のタイミングで動くから（下の transition-delay
+     を参照）。translate は圧縮 transform を使うと scale と delay を共有して
+     しまい、フォーカス切替のたびに再分離できない。
+     以降 .ds-part に transform: を書かない。個別プロパティとは上書きではなく
+     合成（translate → rotate → scale → transform の順）になり、二重に移動する。
+     移動は translate:、拡大は scale: を使う */
+  translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px);
+  scale: 1;
+  transition: translate .4s var(--ease-in), opacity .3s var(--ease-in), scale .4s var(--ease-in);
+  /* 収納の階梯の 4 段目（#ds .ds-body を参照）。掛けるのは体へ帰る translate
+     だけで、scale と opacity は 0s のまま ― フォーカスを外れた側の縮小が
+     遅れると、拡大したまま居座って見える（R12）。パネルを開いたときの
+     inactive への減光もここでは待たせない */
+  transition-delay: .24s, 0s, 0s;
+  cursor: pointer;
+}
+#ds.mode-upgrade .ds-part {
+  translate: calc(var(--ix) * 1px) calc(var(--iy) * 1px);
+  /* 段階開示 ②（暗転0.00→器官0.08→接続線0.16→アイコン0.24→パネル0.32→
+     数値0.40）どおり、アイコンの移動は接続線（0.16s）より後の 0.24s から
+     始める。ここへ --i の段差を足す（240/320/400/480/560/640ms、Task 6
+     レビュー Finding 5。旧実装は 0/80/…/400ms で、線より先にアイコンが
+     動き出す段順の逆転だった）。
+     この段差は「収納位置→定位置」という強化モード突入時 1 度きりの translate
+     移動にだけ掛け、scale と opacity は常に 0 に固定する。1 つの
+     transition-delay を全プロパティ共有のままにしておくと、フォーカスを
+     外れた側のアイコンは --i 分だけ縮小開始が遅れ、拡大したまま居座って
+     見える（Task 5 レビューで実測）。新しくフォーカスを得る側は translate が
+     既に定位置なので元々このバグの影響を受けない ― 不具合があるのは退く側
+     だけだった。
+     （3 値は上の transition の translate, opacity, scale の並びに位置で
+     対応する） */
+  transition-delay: calc(.24s + var(--i) * var(--step)), 0s, 0s;
+}
+#ds .ds-part.active {
+  scale: 1.15;
+}
+
+/* 入場シーケンス 0.70s: 6 アイコンが収納位置で 80ms 間隔に点灯する（設計書）。
+   opacity だけを動かす — transform を動かすと収納/展開の translate に合成
+   されて二重にずれる。
+   forwards/both は使わない: 終了後も opacity: 1 に固定されてしまうと、
+   .dim（.65）/.inactive（.35）の強調階層を永久に上書きする。backwards な
+   from-only キーフレームなら、0 から cascade が決めた値（active/dim/inactive の
+   いずれか）まで補間できる */
+#ds.entering .ds-part {
+  animation: ds-icon-in .35s var(--ease-in) calc(.7s + var(--i) * var(--step)) backwards;
+}
+
+#ds .ds-arc-bg { fill: rgba(4, 10, 7, .8); stroke: rgba(120, 160, 135, .3); stroke-width: 2; }
+#ds .ds-arc {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 2.5;
+  /* transform-box を fill-box にしないと、下の transform-origin: center が
+     この円ではなく viewBox 全体の中心を指してしまう（R3） */
+  transform-box: fill-box;
+  /* 12 時から時計回りに満ちる */
+  transform: rotate(-90deg);
+  transform-origin: center;
+  filter: saturate(.15);
+  transition: stroke-dashoffset .45s var(--ease-in), filter .3s var(--ease-in);
+}
+#ds.mode-upgrade .ds-arc { filter: saturate(.6); }
+#ds .ds-part.active .ds-arc { filter: none; }
+#ds .ds-part.active .ds-arc-bg {
+  stroke: var(--c);
+  filter: drop-shadow(0 0 6px var(--c));
+}
+#ds .ds-part-icon { filter: saturate(.15) brightness(.8); transition: filter .3s var(--ease-in); }
+#ds.mode-upgrade .ds-part-icon { filter: saturate(.55) brightness(.9); }
+#ds .ds-part.active .ds-part-icon { filter: none; }
+
+/* ヤニ不足は静かに赤みを帯びるだけ */
+#ds .ds-part.poor .ds-arc { stroke: #b3564a; }
+#ds .ds-part.poor .ds-part-icon { filter: saturate(.1) brightness(.6) sepia(.5) hue-rotate(-30deg); }
+
+/* MAX は円弧が閉じてリングになり、小さなチェックが乗る。MAX ボタンは置かない */
+#ds .ds-check {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transform: translateY(19px);
+}
+#ds .ds-part.maxed .ds-check { opacity: .9; }
+
+/* 強化可能な部位だけが呼吸する。買えない・MAX は静止したまま */
+#ds.mode-upgrade .ds-part:not(.poor):not(.maxed):not(.active) .ds-arc-bg {
+  animation: ds-breathe 2.4s ease-in-out infinite;
+}
+
+/* --- Level 2 詳細パネル --- */
+
+#ds .ds-detail {
+  /* fill_detail() が走る前は --c が未設定で border-color が無効になる。
+     既定色を持たせておく */
+  --c: #7fe0a8;
+  position: absolute;
+  right: 3%;
+  top: 34%;
+  width: 20vw;
+  padding: 1vh 1vw;
+  border-left: 2px solid var(--c);
+  background: linear-gradient(90deg, rgba(6, 14, 10, .9), rgba(6, 14, 10, .35));
+  opacity: 0;
+  transform: translateX(1.5vw);
+  pointer-events: none;
+  /* .08s は収納の階梯の 2 段目（#ds .ds-body を参照）。数値（下の
+     .ds-detail-stat ほか、遅延なし）が消えてからパネル本体が退く */
+  transition: opacity .22s var(--ease-out) .08s, transform .22s var(--ease-out) .08s;
+}
+/* 展開は収納より 0.1s 遅れて始まる。完全に直列だと待ちが長く、
+   完全に並列だと 2 枚が同時に見える */
+#ds.mode-upgrade .ds-detail {
+  opacity: 1;
+  transform: none;
+  transition: opacity .3s var(--ease-in) .32s, transform .3s var(--ease-in) .32s;
+}
+
+/* フォーカス交代のたびに fill_detail() が .swap を張り直して再生する
+   （spec ③）。.ds-detail は使い回しの 1 要素なので「旧パネル」「新パネル」を
+   別要素にはできない。テキストは既に新しい値へ差し替わっている前提で、
+   同じ要素の opacity/transform を素早く沈めてから戻す 1 本のアニメーションで
+   代用する。収納 0.12s が沈み切る前、0.10s の時点で展開へ転じる（トラフの
+   深さはその比から逆算した近似値）― 完全に直列（沈み切ってから展開）だと
+   待ちが長く、完全に並列（最初から両方同時）だと変化したことが伝わらない
+   （Task 6 レビュー Finding 1） */
+#ds .ds-detail.swap { animation: ds-detail-swap .3s var(--ease-in); }
+
+/* 「数値」段（現在値→次段値・Lv/pips・所持/必要）はパネル本体（名前・
+   フレーバー・枠）と別の opacity を持つ。退場はパネル（0.22s）より速く消し、
+   入場はパネル（0.32s 遅延）より 0.08s 遅い 0.40s から出す ― 段階開示 ②
+   「パネル0.32→数値0.40」のとおり。opacity は入れ子で乗算されるので、この
+   3 つに transition を足すだけでパネル自身の opacity/transform には触れずに
+   独立した段になる（Task 6 レビュー Finding 2） */
+#ds .ds-detail-stat, #ds .ds-detail-level, #ds .ds-detail-cost {
+  opacity: 0;
+  transition: opacity .12s var(--ease-out);
+}
+#ds.mode-upgrade .ds-detail-stat, #ds.mode-upgrade .ds-detail-level, #ds.mode-upgrade .ds-detail-cost {
+  opacity: 1;
+  transition: opacity .2s var(--ease-in) .4s;
+}
+
+#ds .ds-detail-name {
+  font-size: 1.3vw;
+  font-weight: bold;
+  color: var(--c);
+  text-shadow: 0 0 10px var(--c);
+}
+#ds .ds-detail-flavor { font-size: .8vw; color: #9cc4aa; margin-bottom: .8vh; }
+#ds .ds-detail-stat { font-size: .9vw; color: #9cc4aa; }
+#ds .ds-detail-cur { font-size: 1.1vw; color: #eaf5ee; margin: 0 .4vw; }
+#ds .ds-detail-arw { color: #6b8f78; font-style: normal; margin: 0 .3vw; }
+#ds .ds-detail-nxt { font-size: 1.1vw; color: var(--c); text-shadow: 0 0 8px var(--c); }
+#ds .ds-detail-level { font-size: .9vw; color: #eaf5ee; margin-top: .6vh; }
+#ds .ds-detail-pips { display: inline-flex; gap: .22vw; margin-left: .6vw; }
+#ds .ds-detail-pips i {
+  width: .5vw; height: .5vw; border-radius: 50%;
+  background: #1c3a2a;
+}
+#ds .ds-detail-pips i.on { background: var(--c); box-shadow: 0 0 5px var(--c); }
+#ds .ds-detail-cost { font-size: .85vw; color: #9cc4aa; margin-top: .8vh; }
+#ds .ds-detail-cost b { color: #e8c9a8; margin: 0 .8vw 0 .3vw; }
+/* ヤニ不足は静かに赤みを帯びる */
+#ds .ds-detail.poor .ds-detail-need { color: #ff6b5e; }
+/* MAX では「→ 次の値」と必要ヤニを出さない */
+#ds .ds-detail.maxed .ds-detail-arw,
+#ds .ds-detail.maxed .ds-detail-nxt,
+#ds .ds-detail.maxed .ds-detail-need-wrap { display: none; }
+#ds .ds-detail.maxed .ds-detail-level::after {
+  content: 'MAX';
+  margin-left: .8vw;
+  color: var(--c);
+  text-shadow: 0 0 8px var(--c);
+}
+
+/* --- キーヒント --- */
+
+#ds .ds-hint {
+  position: absolute;
+  left: 4%;
+  bottom: 4%;
+  display: flex;
+  gap: 2vw;
+  font-size: .85vw;
+  color: #7fe0a8;
+  opacity: .7;
+}
+/* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
+   Animation 発生源の値として永久に残り、上の #ds .ds-hint { opacity: .7 } に
+   勝ち続けてヒントが全開のまま描かれる。ds-icon-in・ds-figure-in・
+   ds-in-up on .ds-descend と同じ理由・同じ修正で、この機構の 4 件目。
+   backwards なら delay 中の from 側だけを保持し、終了後は基底の .7 に委ねる
+   （基底に opacity 宣言があることを確認済み ― 無い要素で backwards にすると
+   初期値 1 まで戻る。.ds-title / .ds-sub がそれで、あちらは opacity を明示して
+   both にしてある） */
+#ds.entering .ds-hint { animation: ds-in-up .5s var(--ease-in) 1.4s backwards; }
+
+/* --- Level 3 記録確認パネル --- */
+
+#ds .ds-record {
+  position: absolute;
+  left: 0;
+  top: 18%;
+  width: 28vw;
+  padding: 2vh 2vw;
+  box-sizing: border-box;
+  border-right: 2px solid #2e6b4f;
+  background: linear-gradient(90deg, rgba(4, 12, 8, .96), rgba(4, 12, 8, .82));
+  overflow: hidden;
+  transform: translateX(-100%);
+  transition: transform .3s var(--ease-out);
+}
+#ds.panel-record .ds-record { transform: none; transition: transform .34s var(--ease-in) .1s; }
+
+/* 古い端末が起動するときの走査線。1 往復だけ */
+#ds .ds-record-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2.5vh;
+  background: linear-gradient(180deg, transparent, rgba(127, 224, 168, .22), transparent);
+  opacity: 0;
+}
+#ds.panel-record .ds-record-scan { animation: ds-scan .8s linear .2s; }
+
+#ds .ds-record-title {
+  color: #7fe0a8; font-weight: bold; font-size: 1.1vw;
+  letter-spacing: .1em; margin-bottom: 1vh;
+}
+#ds .ds-record-row {
+  display: flex; align-items: center; gap: .5vw;
+  font-size: 1vw; padding: .5vh 0;
+  border-bottom: 1px solid rgba(46, 107, 79, .4);
+  opacity: 0;
+  transform: translateX(-.8vw);
+  /* 開くときは行ごとの階梯、閉じるときは一斉に。animation + forwards で
+     組むと、閉じる方向の transition が発火せず行だけが瞬時に消えて、
+     見出しと [Esc] だけが入った空の箱が 0.3 秒滑り出る（.ds-wire /
+     .ds-gear-wire と同じ理由・同じ形。両方向に transition を張る）。
+     .2s はパネル本体の退場（transform .3s）より速く、行が消えてから
+     箱が出ていく順になる */
+  transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
+}
+#ds.panel-record .ds-record-row {
+  opacity: 1;
+  transform: none;
+  transition: opacity .3s var(--ease-in) calc(.35s + var(--i) * 70ms),
+    transform .3s var(--ease-in) calc(.35s + var(--i) * 70ms);
+}
+#ds .ds-record-row.last { border-bottom: none; }
+#ds .ds-record-row img { width: 1.2vw; height: 1.2vw; }
+#ds .ds-record-row b { margin-left: auto; font-size: 1.15vw; color: #eaf5ee; }
+/* バッジは点滅させない。演出はバナー側が持つ */
+#ds .ds-record-row.record b { color: #ffd24a; text-shadow: 0 0 8px rgba(255, 210, 74, .8); }
+#ds .ds-record-prev { margin-left: .5vw; font-size: .8vw; font-weight: normal; color: #7fe0a8; }
+#ds .ds-record-new {
+  margin-left: .5vw; padding: 0 .35vw;
+  border: 1px solid #ffd24a; border-radius: .2vw;
+  font-size: .7vw; color: #ffd24a;
+}
+#ds .ds-record-close { margin-top: 1.5vh; font-size: .8vw; color: #7fe0a8; opacity: .7; }
+
+/* --- Level 3 装備確認パネル --- */
+
+#ds .ds-gear-wire {
+  stroke: #7fe0a8;
+  stroke-width: 1;
+  /* --l は線の実長。理由は #ds .ds-wire を参照 */
+  stroke-dasharray: var(--l);
+  stroke-dashoffset: var(--l);
+  opacity: 0;
+  /* #ds .ds-wire（上記）と同じ理由で animation ではなく transition にする。
+     計画書が指す ds-wire-draw という keyframe は Task 6 の修正で既に削除
+     済みで、animation + forwards のまま実装すると閉じる方向の transition が
+     発火せず線が瞬時に消える（R21）。opacity/stroke-dashoffset を基底側にも
+     実値として持たせ、両方の class にそれぞれ transition を張ることで
+     開閉どちらも滑らかにする */
+  transition: opacity .3s var(--ease-out), stroke-dashoffset .3s var(--ease-out);
+}
+#ds.panel-gear .ds-gear-wire {
+  opacity: .55;
+  stroke-dashoffset: 0;
+  transition: opacity .3s var(--ease-in) .1s, stroke-dashoffset .3s var(--ease-in) .1s;
+}
+
+/* カードは縦に積まず、1 枚ずつ接続線の終端の高さに置く（top は fill_gear が
+   書き、body-figure.ts の gear_cards が唯一の出どころ）。帯の幅と右余白は
+   body-figure.ts の gear_panel_left_vw と対で、線の終端 x をここから導いている */
+#ds .ds-gearpanel {
+  position: absolute;
+  right: 4%;
+  top: 0;
+  bottom: 0;
+  width: 24vw;
+  pointer-events: none;
+}
+#ds .ds-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  padding: 1vh 1vw;
+  border-left: 2px solid var(--c, #5d7a68);
+  background: linear-gradient(90deg, rgba(6, 14, 10, .92), rgba(6, 14, 10, .5));
+  opacity: 0;
+  /* translateY(-50%) が top を「カードの中心」にする ― 線はカードの左端の
+     中心へ着く。閉じると模型側（左）へ吸い込まれる（模型は 45.5〜74.5vw、
+     カード帯は 72〜96vw なので、模型はカードの左にある） */
+  transform: translate(-6vw, -50%) scale(.9);
+  transition: opacity .2s var(--ease-out), transform .2s var(--ease-out);
+}
+#ds.panel-gear .ds-card {
+  opacity: 1;
+  transform: translateY(-50%);
+  transition: opacity .3s var(--ease-in) calc(.2s + var(--i) * 90ms),
+    transform .3s var(--ease-in) calc(.2s + var(--i) * 90ms);
+}
+#ds .ds-card img { width: 3vw; height: 3vw; }
+#ds .ds-card-empty { width: 3vw; height: 3vw; border: 1px dashed #2e6b4f; box-sizing: border-box; }
+#ds .ds-card-slot { font-size: .8vw; color: #9cc4aa; }
+#ds .ds-card-name { font-size: 1.1vw; font-weight: bold; color: var(--c, #5d7a68); }
+#ds .ds-card.none .ds-card-name { color: #5d7a68; font-weight: normal; }
+
+/* --- NEW RECORD バナー。#ds の内側で問題ない（innerHTML を組み直さないため） --- */
+
+#ds .ds-nr {
+  position: absolute;
+  left: 4%;
+  top: 24%;
+  width: 40vw;
+  display: none;
+  pointer-events: none;
+  text-align: center;
+  transition: opacity .35s var(--ease-in);
+}
+/* 記録パネル・歯車パネルが開いている間はバナーを隠す。バナーは入場時だけの
+   一過性の演出で役目を終えており、隠さないと記録パネルの「最高深度」の行の
+   ← NEW 表示と同じ場所で 2 つの祝福演出が重なって互いを読めなくする
+   （Task 8 レビュー Finding 1）。.ds-figure（:173）と同じ形にする */
+#ds.panel-record .ds-nr, #ds.panel-gear .ds-nr { opacity: 0; }
+/* イージングは段階開示の 2 種（--ease-in / --ease-out）だけを使う。ここには
+   制御点が 1 を超える cubic-bezier(.2, 1.6, .35, 1) があったが、これは
+   行き過ぎて戻るバウンスで、仕様「バウンスと粒子のキラキラは使わない」に
+   正面から反する（明滅そのものは ds-nr-glow が担う） */
+#ds.entering .ds-nr .ds-nr-title {
+  animation: ds-nr-in .35s var(--ease-in) 1.6s both,
+    ds-nr-glow 2s ease-in-out 2.3s infinite;
+}
+#ds .ds-nr-title {
+  font-size: 3.6vw; line-height: 1.05; font-weight: bold;
+  letter-spacing: .08em; color: #ffd24a;
+}
+#ds .ds-nr-sub { font-size: 1.2vw; font-weight: bold; color: #ffaa2b; text-shadow: 0 0 10px #f70; }
+#ds.entering .ds-nr .ds-nr-sub {
+  animation: ds-nr-in .35s var(--ease-in) 1.8s both;
+}
+
+/* --- 強化演出 --- */
+
+/* 器官はフォーカス中だけ薄く光り、購入の瞬間に強く光る。既定の不可視と
+   フェードの transition は基底の #ds .ds-organ 側にある（上を参照）。
+   フォーカスした部位の器官を薄く光らせる（段階開示 ②「器官 0.08s」）。
+   下の up-<id> と詳細度が (1,3,0) で並ぶため、このプロパティの勝敗は
+   源順序で決まる。up-<id> より手前に置かないと、購入の瞬間もこの .5 が
+   opacity: 1 を上書きしたまま止まってしまう */
+#ds.mode-upgrade .ds-organ.active { opacity: .5; transition-delay: .08s; }
+/* JS が付ける up-<id> と、フォーカス中の部位に対応する器官を出す */
+#ds.up-lung .ds-organ[data-part="lung"],
+#ds.up-tolerance .ds-organ[data-part="tolerance"],
+#ds.up-sniff .ds-organ[data-part="sniff"],
+#ds.up-power .ds-organ[data-part="power"],
+#ds.up-spare .ds-organ[data-part="spare"],
+#ds.up-leg .ds-organ[data-part="leg"] { opacity: 1; }
+
+/* 肺活量: 膨らむ → 気管へ光が流れる → 数値 → 戻りながら口元から煙が 3 粒
+   昇って消える。仕様 §④の順序（肺の膨張 → 気管の光 → 数値ロール → 肺が戻る
+   → 煙 3 粒）を実時間で重ならないように並べたもので、
+   膨張 0〜.35s（頂点 scale 1.28 は仕様どおり 0.35s）→ 気管 .35〜.62s →
+   数値 .62〜.78s → 戻り .78〜1.0s ／ 煙 .78s から --step（80ms）刻みで 3 粒、
+   3 粒目が消えるのが 1.19s。
+   5 段を完全に直列にすると §④の busy ロック窓（0.9〜1.2s）に収まらないので、
+   最後の 2 段だけを重ねる ― 息を吐くのは肺がしぼむあいだであり、この 2 つは
+   同時に起きる出来事として読める。気管の 0.4s だけは仕様より短い（.27s）:
+   膨張の頂点 0.35s とロック窓 1.2s は他の段の置き場所を決める制約で、
+   どちらかを削るならこちらが最も影響が小さい */
+#ds.up-lung .ds-o-lung {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ds-lung-swell 1s var(--ease-in);
+}
+#ds.up-lung .ds-o-trachea {
+  stroke-dasharray: 60;
+  animation: ds-flow .27s linear .35s;
+}
+/* 煙は待機中も opacity: 0 に固定し、フォーカスだけ（.ds-organ が .5 で
+   見えている状態）でうっすら輪だけ浮かないようにする。表示はもっぱら
+   下の up-lung 側の animation が 0 から作る */
+#ds .ds-o-puff { opacity: 0; }
+#ds.up-lung .ds-o-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ds-puff .25s var(--ease-in) .78s;
+}
+#ds.up-lung .ds-o-puff:nth-of-type(2) { animation-delay: calc(.78s + var(--step)); }
+#ds.up-lung .ds-o-puff:nth-of-type(3) { animation-delay: calc(.78s + var(--step) * 2); }
+
+/* ニコチン耐性: 脳が点灯し、神経ラインへパルスが降りる */
+#ds.up-tolerance .ds-o-brain { animation: ds-pulse .5s ease-out 2; }
+#ds.up-tolerance .ds-o-nerve {
+  stroke-dasharray: 220;
+  animation: ds-flow .5s linear;
+}
+#ds.up-tolerance .ds-o-nerve:nth-of-type(2) { animation-delay: .06s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(3) { animation-delay: .12s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(4) { animation-delay: .18s; }
+#ds.up-tolerance .ds-o-nerve:nth-of-type(5) { animation-delay: .24s; }
+
+/* 嗅覚: 外周から煙の粒子が鼻へ吸い込まれる */
+#ds.up-sniff .ds-o-smoke {
+  stroke-dasharray: 90;
+  animation: ds-suck .55s var(--ease-in);
+}
+#ds.up-sniff .ds-o-nose { animation: ds-pulse .5s ease-out 2; }
+
+/* 火力: 腕へラインが接続 → 手先で閃光 → 模型が反動で後退 */
+#ds.up-power .ds-o-arm { stroke-dasharray: 140; animation: ds-flow .3s linear; }
+#ds.up-power .ds-o-hand { animation: ds-flash .18s ease-out .3s 2; }
+/* 反動と揺れ（脚力）は .ds-figure ではなく .ds-svg へ掛ける。.ds-figure に
+   置くと #ds.entering .ds-figure（ds-figure-in、delay 0.45s）と animation
+   プロパティを取り合い、詳細度が同じで後方のこちらが勝つため ds-figure-in が
+   キャンセルされる。upgrade_duration（1.2s）後に up-power / up-leg を外すと
+   ds-figure-in が新しい animation として delay からやり直し、模型が 0.45 秒
+   消えてから入場演出を再生し直してしまう。
+   .ds-svg は模型の中身（下地・器官・接続線・アイコン）を全部持つので、
+   見た目は .ds-figure に掛けたときと変わらない。土台の translate(-50%,-50%)
+   は .ds-figure 側に残るため、キーフレームは素の transform で書く */
+#ds.up-power .ds-svg { animation: ds-recoil .18s ease-out .3s 2; }
+
+/* 予備の一本: 煙草が弧を描いてポケットへ落ちる */
+#ds.up-spare .ds-o-cig { animation: ds-drop .5s var(--ease-in); }
+#ds.up-spare .ds-o-pocket { animation: ds-pulse .4s ease-out .45s; }
+
+/* 脚力: 骨盤から足へエネルギーが降り、足元へ衝撃 */
+#ds.up-leg .ds-o-leg { stroke-dasharray: 260; animation: ds-flow .45s linear; }
+#ds.up-leg .ds-o-ground { animation: ds-shock .4s var(--ease-out) .4s; }
+/* .ds-svg へ掛ける理由は上の #ds.up-power .ds-svg を参照 */
+#ds.up-leg .ds-svg { animation: ds-shake .12s linear .4s 2; }
+
+/* 数値の差し替えを目立たせる。ロールアップではなく 1 度の点滅にする —
+   桁が動くだけの演出は、重い機械という狙いから外れる */
+#ds.upgrading .ds-detail-cur { animation: ds-value-in .45s var(--ease-in) .4s; }
+/* 肺だけは器官の演出が 5 段あり、数値の置き場所が「気管の光が終わってから
+   肺が戻り始めるまで」の 0.16s に限られる（#ds.up-lung .ds-o-lung 参照）。
+   詳細度は上の #ds.upgrading と同じ (1,2,0) なので、勝敗は源順序で決まる ―
+   この規則は必ず上の規則より後に置く */
+#ds.up-lung .ds-detail-cur { animation: ds-value-in .16s var(--ease-in) .62s; }
+
+/* 背景の闇サイト端末が明滅し、右上のヤニ残高へ線が走る */
+#ds .ds-terminal-glow {
+  position: absolute;
+  right: 8%;
+  top: 62%;
+  width: 22vw;
+  height: 18vh;
+  background: radial-gradient(closest-side, rgba(255, 60, 40, .45), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+#ds.yani-spend .ds-terminal-glow { animation: ds-terminal-blink .6s ease-out; }
+#ds .ds-yani-beam {
+  position: absolute;
+  right: 9%;
+  top: 10%;
+  width: 2px;
+  height: 52vh;
+  background: linear-gradient(180deg, rgba(255, 170, 43, .9), transparent);
+  transform-origin: top;
+  transform: scaleY(0);
+  opacity: 0;
+  pointer-events: none;
+}
+#ds.yani-spend .ds-yani-beam { animation: ds-beam .5s var(--ease-in) .1s; }
+#ds.yani-spend .ds-yani-value { animation: ds-pulse .4s ease-out .4s; }
+
+/* ヤニ不足の拒否。赤く巨大に警告せず、1 回だけ震える。
+   残高側の震えは .ds-yani ではなく内側のラッパへ掛ける ― .ds-yani へ
+   animation を置くと #ds.entering .ds-yani（ds-in-up、delay 1.1s）と
+   animation プロパティを取り合い、詳細度が同じで後方のこちらが勝つため
+   ds-in-up がキャンセルされる。次のキー入力で apply() が .reject を外すと
+   ds-in-up が新しい animation として delay からやり直し、ヤニ残高が 1.1 秒
+   まるごと消える（買えない部位に Enter → 別の部位を見に行く、という最も
+   起きやすい流れで必ず踏む）。要素を分ければ両方が自分の animation を持てる。
+   .ds-detail 側は .swap と取り合うが、どちらも delay を持たない 0.3s の
+   一撃なので、再起動しても同じ演出が 1 度余分に走るだけで欠落にならない */
+#ds .ds-detail.reject, #ds .ds-yani.reject .ds-yani-inner { animation: ds-reject .3s linear; }
+#ds .ds-detail.reject .ds-detail-need, #ds .ds-yani.reject .ds-yani-value { color: #ff6b5e; }
+
+/* --- 地下へ戻る --- */
+
+#ds .ds-descend {
+  position: absolute;
+  right: 3%;
+  top: 74%;
+  display: flex;
+  align-items: center;
+  gap: .8vw;
+  border: 1px solid rgba(255, 170, 43, .5);
+  background: linear-gradient(180deg, rgba(60, 34, 4, .5), rgba(24, 13, 2, .7));
+  color: #ffaa2b;
+  font: inherit;
+  font-size: 1.3vw;
+  font-weight: bold;
+  padding: 1vh 1.2vw;
+  cursor: pointer;
+  transition: opacity .25s var(--ease-in), box-shadow .25s var(--ease-in),
+    border-color .25s var(--ease-in);
+}
+#ds .ds-descend img { height: 3vw; opacity: .85; }
+#ds .ds-descend-depth {
+  display: block; font-size: .8vw; font-weight: normal; color: #e8c9a8;
+}
+#ds .ds-descend.active {
+  border-color: #ffaa2b;
+  box-shadow: 0 0 22px rgba(255, 170, 43, .45);
+}
+/* フォーカス中は扉の光の筋がゆっくり明滅する */
+#ds .ds-descend.active img { animation: ds-door-glow 2.2s ease-in-out infinite; }
+/* both は使わない: entering class は退場時以外ずっと居座るため、to{opacity:1} が
+   Animation 発生源の値として永久に残り、下の .ds-descend.active/.dim/.inactive
+   （強調階層）を上書きし続けてしまう。ds-figure-in（#ds .ds-figure 付近）・
+   ds-icon-in（#ds .ds-part 付近）と同じ理由・同じ修正。backwards なら delay 中の
+   from 側だけを保持し、終了後は cascade（active/dim/inactive）に委ねられる */
+#ds.entering .ds-descend { animation: ds-in-up .5s var(--ease-in) 1.25s backwards; }
+
+/* --- 降下演出。画面そのものが開く扉になる --- */
+
+/* 裂け目の向こう側の光。2 枚の <i> が閉じた扉で、開くとこれが現れる */
+#ds .ds-split {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(60% 100% at 50% 50%, #3af08a 0%, #0a2a18 55%, #050805 100%);
+}
+#ds .ds-split i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: #050805;
+}
+#ds .ds-split i:first-child {
+  left: 0;
+  box-shadow: 6px 0 40px rgba(58, 240, 138, .8);
+}
+#ds .ds-split i:last-child {
+  right: 0;
+  box-shadow: -6px 0 40px rgba(58, 240, 138, .8);
+}
+/* 0.35s まで出さない。先に出すと UI が吸い込まれる様子を覆い隠してしまう */
+#ds.exiting .ds-split { animation: ds-split-show .01s linear .35s forwards; }
+#ds.exiting .ds-split i:first-child { animation: ds-split-l .5s var(--ease-in) .5s forwards; }
+#ds.exiting .ds-split i:last-child { animation: ds-split-r .5s var(--ease-in) .5s forwards; }
+/* 照明が落ちる。.35s まで待つのは隣の .ds-split と同じ理由 ―
+   先に落とすと UI が吸い込まれる様子をこの暗幕が覆い隠してしまう */
+#ds.exiting .ds-dim { opacity: .92; transition-duration: .3s; transition-delay: .35s; }
+/* 全 UI が模型へ吸い込まれる。入場の開示順（title .15→sub .3→yani 1.1→
+   menu/descend 1.25→hint 1.4→NEW RECORD 1.6/1.8）の逆順の階梯で消える
+   （spec ⑦「逆順の階梯」、spec §14）。--i/--n を使わないのは、それが
+   .ds-part・.ds-wire のような繰り返し要素の書式だからで、ここは単発要素
+   8 個なので入場側と同じ流儀（要素ごとに実値の delay を書く）に揃える。
+   NEW RECORD バナーは表示されていれば入場で最後に出る演出なので最初に消し、
+   .ds-detail は強化モードでしか出ない（降下は idle でしか起きないため
+   このタイミングでは常に非表示）が、順序上は同じく早めに置く */
+#ds.exiting .ds-nr { animation: ds-suck-in .3s var(--ease-out) forwards; }
+#ds.exiting .ds-detail { animation: ds-suck-in .3s var(--ease-out) .08s forwards; }
+#ds.exiting .ds-hint { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
+#ds.exiting .ds-menu, #ds.exiting .ds-descend {
+  animation: ds-suck-in .3s var(--ease-out) .24s forwards;
+}
+#ds.exiting .ds-yani { animation: ds-suck-in .3s var(--ease-out) .32s forwards; }
+/* .ds-title/.ds-sub だけ opacity と fill が他と違う。#ds.entering .ds-title の
+   ds-fade-back（3s 以降 .4 を forwards で保持）と #ds.exiting .ds-title は
+   同じ animation プロパティ・同じ詳細度 (1,2,0) で後者が後方なので、後者は
+   前者の値をマージせず丸ごと置き換える。つまり .exiting が付いた瞬間
+   ds-fade-back の保持が失われ、ds-suck-in は to だけの keyframe で forwards
+   （backwards を持たない）だから delay 中は何も効かず、他に opacity の
+   基底宣言も無いので初期値 1 まで戻ってしまう ―― ds-fade-back が .4 を
+   保持し切る 4.2 秒（delay 3s + duration 1.2s）を過ぎてから降下すると、
+   暗くなっていた文字が一瞬全開まで明るく戻ってから消える「ポップ」になる。
+   ここで opacity: .4 を明示すると、ds-suck-in の合成される 0% の基準値
+   （このアニメーションが無かったとしたときの値 = このルールの opacity: .4）が
+   .4 になる。fill を both にして delay 中も backwards 側を効かせることで、
+   delay の間は常に .4 を保持し、そこから .3s かけて 0 へ落ちる。
+   4.2 秒より前に降下した場合も 1 → .4 → 0 と単調に暗くなるだけで、
+   明るくなる瞬間は無い */
+#ds.exiting .ds-sub { opacity: .4; animation: ds-suck-in .3s var(--ease-out) .4s both; }
+#ds.exiting .ds-title { opacity: .4; animation: ds-suck-in .3s var(--ease-out) .48s both; }
+/* .ds-part はもう transform ショートハンドを持たない（上の #ds .ds-part の
+   コメント参照）。ここで transform: translate(...) と書くと個別プロパティの
+   translate と合成され、収納オフセットが二重に掛かって本来の倍の距離まで
+   飛んでしまう。個別プロパティの translate で上書きする */
+#ds.exiting .ds-part { translate: calc(var(--sx) * 1px) calc(var(--sy) * 1px); }
+#ds.exiting .ds-figure { animation: ds-figure-out .45s var(--ease-out) .35s forwards; }
+
+/* --- キーフレーム --- */
+
+@keyframes ds-bg-in { to { opacity: 1; } }
+@keyframes ds-in-left {
+  from { opacity: 0; transform: translateX(-1.5vw); }
   to { opacity: 1; transform: none; }
 }
-/* 色収差と水平ずれ。steps(1) で瞬間的に切り替える。transform を ds-nr-in と
-   奪い合うので、animation 一覧では必ず ds-nr-in より後に置く。
-   fill-mode が forwards なのは both だと遅延前にも 0% の値が当たり
-   （backwards fill）、後方にいるぶん 0〜0.35s のスライドインと拡大を
-   丸ごと打ち消してしまうため。終了後に transform: none を保つ役目は
-   forwards だけで足りる */
-@keyframes ds-nr-glitch {
-  0%   { transform: translateX(-0.5vw); text-shadow: 0.35vw 0 0 #f0f, -0.35vw 0 0 #0ff; }
-  25%  { transform: translateX(0.6vw); text-shadow: -0.4vw 0 0 #f0f, 0.4vw 0 0 #0ff; }
-  50%  { transform: translateX(-0.3vw); text-shadow: 0.25vw 0 0 #0ff, -0.25vw 0 0 #f0f; }
-  75%  { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
-  100% { transform: none; text-shadow: 0 0 1.2vw #ffb400; }
+@keyframes ds-in-up {
+  from { opacity: 0; transform: translateY(1vh); }
+  to { opacity: 1; transform: none; }
 }
+@keyframes ds-figure-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* from-only（forwards/both を使わない理由は #ds.entering .ds-part を参照） */
+@keyframes ds-icon-in { from { opacity: 0; } }
+@keyframes ds-fade-back { to { opacity: .4; } }
+@keyframes ds-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* 33% ≈ 0.10s / 0.3s。トラフの深さは「0.12s で 0 まで沈む速さのまま
+   0.10s まで進んだ位置」の近似値（#ds .ds-detail.swap 参照） */
+@keyframes ds-detail-swap {
+  0%, 100% { opacity: 1; transform: none; }
+  33% { opacity: .2; transform: translateX(.4vw); }
+}
+/* 35% = 0.35s で頂点、78% = 0.78s まで保ってから戻る（1s のアニメーション）。
+   頂点を保つあいだに気管の光と数値の段が入る（#ds.up-lung .ds-o-lung 参照） */
+@keyframes ds-lung-swell {
+  0% { transform: scale(1); }
+  35%, 78% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+@keyframes ds-flow { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+@keyframes ds-puff {
+  0% { transform: translateY(0) scale(.7); opacity: 0; }
+  35% { opacity: .85; }
+  100% { transform: translateY(-16px) scale(1.5); opacity: 0; }
+}
+@keyframes ds-suck { from { stroke-dashoffset: -90; opacity: 0; } 40% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes ds-pulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px var(--c)) brightness(1.6); } }
+@keyframes ds-flash { 0%, 100% { opacity: .6; } 50% { opacity: 1; filter: drop-shadow(0 0 12px var(--c)); } }
+@keyframes ds-recoil { 0%, 100% { transform: none; } 50% { transform: translateX(3px); } }
+/* 「弧を描いて」（仕様 §④）。2 点だけだと直線で落ちる。x を等速・y を加速で
+   刻めば、落下距離 120×180 単位（描画で約 8.4vw × 22vh）の放物線になる */
+@keyframes ds-drop {
+  0% { transform: translate(120px, -180px); opacity: 0; }
+  50% { transform: translate(60px, -135px); }
+  60% { opacity: 1; }
+  75% { transform: translate(30px, -79px); }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes ds-shock { from { transform: scale(.2); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes ds-shake { 0%, 100% { transform: none; } 50% { transform: translateY(2px); } }
+@keyframes ds-value-in { from { opacity: 0; transform: translateY(-.4vh); } to { opacity: 1; transform: none; } }
+@keyframes ds-terminal-blink { 0%, 100% { opacity: 0; } 20%, 60% { opacity: 1; } }
+@keyframes ds-beam { 0% { transform: scaleY(0); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+@keyframes ds-reject { 0%, 100% { transform: none; } 25% { transform: translateX(-.3vw); } 75% { transform: translateX(.3vw); } }
+@keyframes ds-scan { from { opacity: 1; top: 0; } to { opacity: 0; top: 100%; } }
+@keyframes ds-nr-in { from { opacity: 0; transform: translateX(-4vw) scale(1.3); } to { opacity: 1; transform: none; } }
 @keyframes ds-nr-glow {
-  0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, 0.7); }
-  50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, 0.95); }
+  0%, 100% { text-shadow: 0 0 1vw #ffb400, 0 0 2.2vw rgba(255, 140, 0, .7); }
+  50% { text-shadow: 0 0 1.8vw #ffd24a, 0 0 4vw rgba(255, 170, 43, .95); }
 }
-@keyframes ds-nr-sweep {
-  0% { transform: translateX(-120%); }
-  55%, 100% { transform: translateX(120%); }
+@keyframes ds-door-glow { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 10px #3af08a) brightness(1.25); } }
+@keyframes ds-suck-in { to { opacity: 0; transform: translate(2vw, 1vh) scale(.94); } }
+@keyframes ds-figure-out { to { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+@keyframes ds-split-show { to { opacity: 1; } }
+@keyframes ds-split-l { to { transform: translateX(-100%); } }
+@keyframes ds-split-r { to { transform: translateX(100%); } }
+
+/* 段階アニメーションをすべて 0 秒にして最終状態へ置く。death-screen.ts の
+   状態タイマーと残高カウントも同じ設定を読み、見た目の完了後に busy を残さない。
+   反復回数も 1 に落とす ― このファイルには無限ループが 3 本あり
+   （ds-breathe / ds-nr-glow / ds-door-glow）、尺だけを詰めると周期 1ms で
+   回り続けて 60Hz のサンプリングでは毎フレーム位相が飛ぶ。動きを減らすはずの
+   指定が、reduce を選んだ環境にだけストロボを作ってしまう */
+@media (prefers-reduced-motion: reduce) {
+  #ds *, #ds *::before, #ds *::after {
+    animation-duration: .001s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001s !important;
+    transition-delay: 0s !important;
+  }
 }

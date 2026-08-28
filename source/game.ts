@@ -120,7 +120,6 @@ export function run_end(): void {
     smoke_count: state.smoke_count,
     dummy_count: state.dummy_count,
     death_cause: state.death_cause,
-    nicotine_ratio: state.nicotine / state.nicotine_max,
     best_depth_before,
   }, run_start)
 }
