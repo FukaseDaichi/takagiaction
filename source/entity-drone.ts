@@ -13,9 +13,25 @@ import { terminal_show_notice } from './terminal'
 // なので、専用のゲージ消費コードは持たない。追うか見逃すかの判断だけを作る。
 const drone_sight = 40 // この距離でプレイヤーに気づいて逃走に入る
 const drone_release = 64 // ここまで離れると逃走をやめる（ヒステリシス）
-const drone_flee_accel = 150 // 終端速度 30px/s。自機の通常歩行（25.6）より速く、
-// 走っても追いつけない。倒すには射撃か壁際への追い込みが要る
-const drone_wander_accel = 80
+
+// 逃走は「逃げ切る手段」ではなく「距離をリセットする瞬発力」である。終端速度 60px/s は
+// 自機の絶対上限（脚力 Lv10 の 200 ＋ ソール Lv10 の +25 = 225 → 45px/s）を上回るので
+// 誰も走って追い越せないが、64px 離れれば解除されて巡回速度へ落ちる。つまり追跡が
+// 成立するかを決めるのは巡回速度のほうで、逃走はその距離を突き放す 1 回に閉じる。
+// 上限はプラズマの弾速 96px/s。これを超えると弾が永久に追いつかず撃破不能になる
+const drone_flee_accel = 300
+// 終端速度 30px/s。素の足（25.6）と脚力 Lv3（29.92）では追いつけず、脚力 Lv4（31.36）
+// とソール Lv9（30.1）で追いつく。docs/meta-progression.md と docs/equipment.md が
+// 設計するドローン狩りの解禁しきい値は、この巡回速度の側で成立する。離脱症状帯は
+// 脚力全振りでも 96 × 1.5625 = 150 でちょうど同速になり、ペナルティが残る
+const drone_wander_accel = 150
+// 巡回先を選ぶ半径と、その目的地を保持する秒数。30px/s × 2 秒 = 1 脚 60 単位で、
+// カメラの画角（自機周囲およそ ±50 単位）を越えて移動する。半径は 1 脚で到達しない
+// 128 にする。60 より手前を選ぶと到着のたびに引き直され、コミットが切れて方角が
+// 振り直される。経路探索は持たないので壁の向こうを選ぶこともあるが、_update() の
+// 詰まり判定が引き直すため止まらない
+const drone_wander_radius = 128
+const drone_wander_hold = 2
 
 // 撃破報酬。ヤニ 30 個をばら撒き、1 個の価値は深度そのものなので合計は深度 × 30。
 // 1/4 のフロアに 1 体しか湧かない一点物なので、床の散在（1〜3）や敵ドロップ
@@ -66,7 +82,7 @@ export class entity_drone_t extends entity_t {
         t._select_target_counter < 0 ||
         (Math.abs(t._target_x - t.x) < 2 && Math.abs(t._target_z - t.z) < 2)
       ) {
-        t._select_target_counter = 0.7
+        t._select_target_counter = drone_wander_hold
         t._select_target()
       }
       const txd = t._target_x - t.x
@@ -75,7 +91,16 @@ export class entity_drone_t extends entity_t {
       t.az = Math.abs(tzd) > 2 ? (tzd > 0 ? drone_wander_accel : -drone_wander_accel) : 0
     }
 
+    const last_x = t.x
+    const last_z = t.z
     super._update()
+    // 壁に沿って滑れている間は目的地を保ち、両軸とも塞がれて 1 フレーム進めなかった
+    // ときだけ引き直す。基底の _update() は軸ごとに衝突を見るので、斜めに進んで
+    // 片軸だけ当たったときはもう片方で滑り続けられている。接触のたびに引き直すと
+    // 廊下では方角が毎フレーム振り直され、経路長だけ伸びて正味の移動が生まれない
+    if (t.x === last_x && t.z === last_z && (t.ax !== 0 || t.az !== 0)) {
+      t._select_target_counter = 0
+    }
     this._animation_time += state.time_elapsed * (t._fleeing ? 2 : 1)
     this.s = 39 + (((this._animation_time * 5) | 0) % 3)
   }
@@ -96,14 +121,9 @@ export class entity_drone_t extends entity_t {
       this._target_x = best.x
       this._target_z = best.z
     } else {
-      this._target_x = this.x + (Math.random() - 0.5) * 64
-      this._target_z = this.z + (Math.random() - 0.5) * 64
+      this._target_x = this.x + (Math.random() - 0.5) * 2 * drone_wander_radius
+      this._target_z = this.z + (Math.random() - 0.5) * 2 * drone_wander_radius
     }
-  }
-
-  protected override _did_collide(): void {
-    // 壁に当たったまま押し続けないよう、次の更新で目的地を引き直す
-    this._select_target_counter = 0
   }
 
   override _receive_damage(from: entity_t, amount: number): void {
