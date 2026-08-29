@@ -32,6 +32,8 @@ npm run typecheck
 npm test
 ```
 
+テストに **jsdom は追加しない**。DOM に依存するモジュールは 2 通りで書く。要素だけ差し替えれば足りるものは `vi.mock('./dom', ...)`、全画面 UI のように `document` そのものが要るものは `vi.hoisted()` で最小の `document` を `globalThis` に置く。葉ロジックは素の Vitest で書く。
+
 ## Agent Skill の管理
 
 スキルの正本は `.agents/skills/<name>/SKILL.md` の 1 箇所だけである。`.claude/skills/<name>/SKILL.md` は正本を読ませるための参照スタブ（生成物）で、直接編集しない。
@@ -53,6 +55,8 @@ npm test
 ### docs/superpowers/ — 作業用ドキュメント
 
 進行中の設計提案（`specs/`）・実装計画（`plans/`）・レビュー（`specs/*-review.md`）。日付プレフィックス付き。**作業が完了したら、設計の結論を docs/ 直下に蒸留して反映し、元ファイルは削除する**。実装手順・チェックボックス・移行前の状況説明は反映しない（完了した時点で不要になるため）。
+
+コード中の `設計書 §N` 形式のコメントは、参照先の作業用ドキュメントを削除した後もそのまま残す。
 
 docs/ と docs/superpowers/ が矛盾する場合、docs/ とコードが正。
 
