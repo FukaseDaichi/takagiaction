@@ -126,7 +126,7 @@ describe('OP のタイムライン', () => {
     advance_to(0)
     expect(on_cut()).toEqual([0])
     expect(subs().children.length).toBe(1)
-    expect(subs().children[0].textContent).toBe('西暦2718年。やつらは違法となった。')
+    expect(subs().children[0].textContent).toBe('西暦2718年。"それ"は、違法となった。')
 
     // カット 2: ドローンが半音上がる。前の 1 本を止めてから鳴らし直すので
     // 和音にならない（設計書のカット 2「ドローンが半音上がる」）
