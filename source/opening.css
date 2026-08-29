@@ -87,8 +87,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   /* カットは静止画の即時切替のみ。動画を再生しない側は opening.ts が畳む。
-     セレクタは有効化側 (.kb:not(.op-video)) と同じ詳細度にする ― #op .op-cut.on
-     のままだと詳細度で負けて静止画カットの Ken Burns を消せない */
+     打ち消し側のセレクタは有効化側と同じ形（.kb:not(.op-video)）に揃える ―
+     有効化側だけ詳細度を上げると、ここが負けて静止画カットの Ken Burns が
+     消せなくなる。有効化側を変えたら必ずここも同じ形にすること */
   #op .op-cut { transition: none; }
   #op .op-cut.kb:not(.op-video) { animation: none; }
   #op .op-line { animation: none; }

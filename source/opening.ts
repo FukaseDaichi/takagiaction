@@ -32,7 +32,8 @@ const op_assets: Array<{ poster: string; video?: string }> = [
   { poster: op3_url },
   { poster: op4_url },
   { poster: op5_poster_url, video: op5_video_url },
-  // title.webp はタイトル動画の最終フレームそのもの。show_cut(5) から
+  // title.webp はタイトル動画の最終フレームとほぼ同じ構図（実測フレーム差 11。
+  // 終端は pause で保持するので差は露出しない）。show_cut(5) から
   // play() が解決するまでの間、背景は既に着地後のロゴになっている
   //（reduced-motion では t=0 から常時それ）。1.5s 後のスティングは
   // 静止画の上に音だけが乗る形になるが、これは仕様の許容フォールバックで
@@ -259,8 +260,9 @@ export function opening_show(on_done: () => void): void {
 function on_key(ev: KeyboardEvent): void {
   if (ev.keyCode === 77) { return } // M は音声トグル（input.ts）に譲る
   // Shift/Ctrl/Alt/Meta 単独は、ブラウザのショートカット操作より押し間違いの
-  // ほうが濃厚なので無視する（左右の Meta を含む）
-  if ([16, 17, 18, 91, 92].includes(ev.keyCode)) { return }
+  // ほうが濃厚なので無視する。Meta のコードは環境で割れる ― 左 91 / 右は
+  // Windows が 92、macOS Chrome が 93、Firefox は左右とも 224
+  if ([16, 17, 18, 91, 92, 93, 224].includes(ev.keyCode)) { return }
   opening_finish()
 }
 
