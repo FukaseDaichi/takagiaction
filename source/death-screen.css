@@ -473,7 +473,11 @@
    ds-in-up / ds-suck-in は自身も transform を持つ keyframe アニメーションで、
    entering/exiting 中はその transform が要素の transform を丸ごと上書きする
    ため、アニメーション中だけ横にずれる。固定幅の左右 inset + justify-content
-   で中央寄せし、transform に頼らない */
+   で中央寄せし、transform に頼らない。
+   left/right の 30% は当てずっぽうではない ― 左は記録パネル（.ds-record、
+   幅 28vw）の右端を、右は地下へ戻るボタン（.ds-descend、right 3% + 幅
+   26vw = 左端 71vw）をそれぞれ数 vw の余裕を持って避ける値。どちらかの幅を
+   変えるときはこの 30% も見直す */
 #ds .ds-controls {
   position: absolute;
   left: 30%;

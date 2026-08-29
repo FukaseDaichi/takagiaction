@@ -25,7 +25,11 @@
 /* Ken Burns は静止画カット限定。動画カット（.op-video）は自分自身が動くうえ、
    タイトルはスティングに合わせて静止するのが仕様なので、拡大を足すと
    「静止」が崩れる（設計書 素材計画） */
-#op .op-cut.on:not(.op-video) {
+/* on ではなく kb（show_cut が付けるだけで外さないクラス）にキーする。on は
+   次のカットへのクロスフェードで外れるので、on にキーると animation-name が
+   none に戻り forwards が効かなくなって、フェードの 0.8s の途中・不透明度が
+   まだ 1 のうちに transform が瞬時に巻き戻ってしまう */
+#op .op-cut.kb:not(.op-video) {
   animation: op-kb 6s ease-out forwards;
 }
 @keyframes op-kb { to { transform: scale(1.05); } }
@@ -83,9 +87,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   /* カットは静止画の即時切替のみ。動画を再生しない側は opening.ts が畳む。
-     セレクタは有効化側 (.on:not(.op-video)) と同じ詳細度にする ― #op .op-cut.on
+     セレクタは有効化側 (.kb:not(.op-video)) と同じ詳細度にする ― #op .op-cut.on
      のままだと詳細度で負けて静止画カットの Ken Burns を消せない */
   #op .op-cut { transition: none; }
-  #op .op-cut.on:not(.op-video) { animation: none; }
+  #op .op-cut.kb:not(.op-video) { animation: none; }
   #op .op-line { animation: none; }
 }

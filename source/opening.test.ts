@@ -69,13 +69,16 @@ const harness = vi.hoisted(() => {
 })
 
 const audio = vi.hoisted(() => {
-  const plays: Array<{ rate: number; loop: boolean; stopped: boolean }> = []
+  const plays: Array<{ at: number; rate: number; gain: number; loop: boolean; stopped: boolean }> = []
   return { plays }
 })
 
 vi.mock('./audio', () => ({
-  audio_play_op: (_b: unknown, rate: number, _gain?: number, loop = false) => {
-    const rec = { rate, loop, stopped: false }
+  // at は Date.now()（beforeEach で系の時刻を 0 に固定するので、OP 開始からの
+  // 経過ミリ秒として読める）。gain も記録しないと、五月雨のブーム・パルス・
+  // スティングが無音や誤ったタイミングへ退行しても緑のまま通ってしまう
+  audio_play_op: (_b: unknown, rate: number, gain = 1, loop = false) => {
+    const rec = { at: Date.now(), rate, gain, loop, stopped: false }
     audio.plays.push(rec)
     return () => { rec.stopped = true }
   },
@@ -87,7 +90,7 @@ vi.mock('./audio', () => ({
 }))
 
 import { opening_preload, opening_show } from './opening'
-import { op_black_lead, op_cut_at, op_total } from './opening-model'
+import { op_black_lead, op_cut_at, op_sting_delay, op_total } from './opening-model'
 
 const cuts = (): typeof harness.created =>
   harness.created.filter((el) => el.className === 'op-cut')
@@ -101,6 +104,10 @@ const on_cut = (): number[] =>
 describe('OP のタイムライン', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    // audio_play_op モックが記す at（Date.now()）を OP 開始からの経過ミリ秒と
+    // 一致させるための基準時刻。他のテストは壁時計に依存しない（advance_to /
+    // vi.advanceTimersByTime による相対経過だけで進む）ことを確認済み
+    vi.setSystemTime(0)
     harness.play_calls.length = 0
     audio.plays.length = 0
   })
@@ -157,6 +164,40 @@ describe('OP のタイムライン', () => {
     expect(done).toBe(1)
   })
 
+  it('音の予定表: 鼓動・三連呼のブーム・スティングが仕様どおりに鳴る', () => {
+    opening_show(() => {})
+    vi.advanceTimersByTime(op_total())
+
+    // カット 3: 鼓動のようなパルスが 5 回、900ms 間隔で鳴る（rate 0.5 / gain
+    // 0.5 は他の音と重ならない組み合わせなので、これだけで絞り込める）
+    const pulses = audio.plays.filter((p) => p.rate === 0.5 && p.gain === 0.5)
+    expect(pulses.map((p) => p.at)).toEqual(
+      [0, 1, 2, 3, 4].map((n) => op_cut_at(2) + n * 900))
+
+    // カット 4: 三連呼の頭ごとにブームが強く・低くなる。カット 4 は
+    // op_cut_at(3) で始まり、op_cut_at(4) - op_black_lead（黒 1 拍の頭 =
+    // 全音停止の瞬間）で閉じる
+    const cut4_end = op_cut_at(4) - op_black_lead
+    const booms4 = audio.plays
+      .filter((p) => p.at >= op_cut_at(3) && p.at < cut4_end)
+      .sort((a, b) => a.at - b.at)
+    expect(booms4.length).toBe(3)
+    for (let i = 1; i < booms4.length; i++) {
+      expect(booms4[i].gain).toBeGreaterThan(booms4[i - 1].gain)
+      expect(booms4[i].rate).toBeLessThan(booms4[i - 1].rate)
+    }
+
+    // カット 6: スティング（ブーム + ライター）はカット開始のちょうど 1.5 秒
+    // 後に、2 音同時に着地する
+    const sting_at = op_cut_at(5) + op_sting_delay
+    expect(audio.plays.filter((p) => p.at === sting_at).length).toBe(2)
+    // スティングの音（rate 0.22 のブーム、gain 0.8 の rate 1 のライター）は
+    // それより前には 1 つも鳴らない
+    expect(audio.plays.filter((p) =>
+      p.at < sting_at && (p.rate === 0.22 || (p.rate === 1 && p.gain === 0.8))
+    )).toEqual([])
+  })
+
   it('動画カット（5・6）にだけ op-video が付き Ken Burns の対象から外れる', () => {
     // op-video は opening_preload（DOM 構築時）に 1 度だけ付く。opening_show を
     // 呼ぶとタイマー・リスナーが張られたまま残り後続テストを汚すので、
@@ -196,12 +237,16 @@ describe('OP のタイムライン', () => {
 
   it('reduced-motion では動画を再生しない（ポスターのまま進む）', () => {
     harness.motion.reduced = true
-    let done = 0
-    opening_show(() => { done++ })
-    vi.advanceTimersByTime(op_total())
-    expect(harness.play_calls).toEqual([])
-    expect(done).toBe(1)
-    harness.motion.reduced = false
+    try {
+      let done = 0
+      opening_show(() => { done++ })
+      vi.advanceTimersByTime(op_total())
+      expect(harness.play_calls).toEqual([])
+      expect(done).toBe(1)
+    } finally {
+      // 途中のアサーション失敗で reduced = true が後続のテストへ漏れないように
+      harness.motion.reduced = false
+    }
   })
 
   it('finish 後の再表示は前回の表示状態を持ち越さない', () => {
@@ -222,5 +267,11 @@ describe('OP のタイムライン', () => {
       expect(video.currentTime).toBe(0)
       expect(video.classes.has('playing')).toBe(false)
     }
+
+    // このテストは検証のために 2 回目の opening_show を再入させており、
+    // 畳まないと running / 生きたタイマー / 両リスナーが後続のテストへ
+    // 持ち越されてファイルの順序に依存してしまう（このテストが最後だから
+    // 今まで気付かず通っていた）
+    for (const fn of [...harness.listeners.click]) { fn({}) }
   })
 })

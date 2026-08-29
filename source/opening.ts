@@ -24,11 +24,24 @@ import title_video_url from '../m/title.mp4'
 // タイマーと再生中の音は必ずここのリストを通す ― 直接 setTimeout /
 // audio_play_op を呼ぶと、スキップで止まらない演出が残る
 
-const posters = [op1_url, op2_url, op3_url, op4_url, op5_poster_url, title_poster_url]
-const video_urls: Record<number, string> = { 4: op5_video_url, 5: title_video_url }
+// カットごとの素材。posters と video_urls を別々の index-parallel な構造で
+// 持つと本数の対応が崩れうるので、1 カット 1 エントリの配列にまとめる
+const op_assets: Array<{ poster: string; video?: string }> = [
+  { poster: op1_url },
+  { poster: op2_url },
+  { poster: op3_url },
+  { poster: op4_url },
+  { poster: op5_poster_url, video: op5_video_url },
+  // title.webp はタイトル動画の最終フレームそのもの。show_cut(5) から
+  // play() が解決するまでの間、背景は既に着地後のロゴになっている
+  //（reduced-motion では t=0 から常時それ）。1.5s 後のスティングは
+  // 静止画の上に音だけが乗る形になるが、これは仕様の許容フォールバックで
+  // バグではない
+  { poster: title_poster_url, video: title_video_url },
+]
 
 let root: HTMLDivElement | null = null
-let cut_els: HTMLElement[] = []
+const cut_els: HTMLElement[] = []
 let sub_el: HTMLElement | null = null
 const video_els: Record<number, HTMLVideoElement> = {}
 let timers: Array<ReturnType<typeof setTimeout>> = []
@@ -50,10 +63,11 @@ export function opening_preload(): void {
   for (let i = 0; i < op_cuts.length; i++) {
     const cut = document.createElement('div')
     cut.className = 'op-cut'
+    const asset = op_assets[i]
     // background-image は静止画カットの絵そのもの兼、動画カットのポスター
     //（reduced-motion と再生失敗のフォールバック）
-    cut.style.backgroundImage = 'url(' + posters[i] + ')'
-    if (i in video_urls) {
+    cut.style.backgroundImage = 'url(' + asset.poster + ')'
+    if (asset.video) {
       // Ken Burns（op-kb）の対象から外す。動画は自分自身が動くうえ、
       // タイトルはスティングに合わせて静止するのが仕様なので、拡大を足すと
       // 「静止」が「動き続ける」に変わってしまう（設計書 素材計画）。
@@ -64,8 +78,10 @@ export function opening_preload(): void {
       // muted は属性でなくプロパティで立てる（自動再生判定に効く）
       video.muted = true
       video.playsInline = true
-      video.preload = 'auto'
-      video.src = video_urls[i]
+      // reduced-motion では絶対に再生しない（show_cut のガード）ので、
+      // 再生されない ~2.6MB の動画を無駄に落とさない
+      video.preload = reduced_motion() ? 'none' : 'auto'
+      video.src = asset.video
       cut.appendChild(video)
       video_els[i] = video
     }
@@ -74,17 +90,18 @@ export function opening_preload(): void {
   }
   // 画像の先読み。#op は display:none なので background-image は取得されない
   //（表示されない部分木はフェッチされない）。クリック待ちのあいだに落として
-  // おかないと、クリック直後のカット 1 が黒から明ける（設計書「技術制約」）
-  for (const url of posters) {
+  // おかないと、クリック直後のカット 1 が黒から明ける（設計書「技術制約」）。
+  // reduced-motion でも 6 枚とも表示に使うので、ここは無条件で先読みする
+  for (const asset of op_assets) {
     const img = new Image()
-    img.src = url
+    img.src = asset.poster
   }
   sub_el = document.createElement('div')
   sub_el.className = 'op-sub'
   root.appendChild(sub_el)
   const skip = document.createElement('div')
   skip.className = 'op-skip'
-  skip.textContent = 'クリックでスキップ'
+  skip.textContent = 'クリック / キーでスキップ'
   root.appendChild(skip)
   document.body.appendChild(root)
 }
@@ -101,6 +118,11 @@ function show_cut(index: number): void {
   for (let i = 0; i < cut_els.length; i++) {
     cut_els[i].classList.toggle('on', i === index)
   }
+  // kb（Ken Burns）は on と別クラスにして show_cut では足すだけにする。on に
+  // アニメーションをキーすると、次のカットへ切り替わって on が外れた瞬間
+  // animation-name が none に戻り forwards が効かなくなって、フェード中の
+  // transform が不透明度 1 のまま瞬時に巻き戻る（opening.css のコメント参照）
+  if (index >= 0) { cut_els[index].classList.add('kb') }
   const video = video_els[index]
   if (video && !reduced_motion()) {
     // 再生できなければ .playing が付かず、ポスター（レイヤーの背景画像）の
@@ -180,7 +202,10 @@ function stop_sounds(): void {
 // テストは同一モジュールインスタンスを共有して複数回 show する）
 function reset_view(): void {
   root!.classList.remove('op-black')
-  for (const cut of cut_els) { cut.classList.remove('on') }
+  for (const cut of cut_els) {
+    cut.classList.remove('on')
+    cut.classList.remove('kb') // 前回表示の Ken Burns が完了状態のまま持ち越されないように
+  }
   sub_el!.innerHTML = ''
   for (const index in video_els) {
     const video = video_els[index]
@@ -200,7 +225,7 @@ export function opening_show(on_done: () => void): void {
   // ノードへ addEventListener した listener はその event では呼ばれない（DOM の
   // 仕様でリスナー一覧は dispatch 開始時に複製される）ので、開始クリック自身が
   // スキップに化けることはない
-  document.addEventListener('click', opening_skip)
+  document.addEventListener('click', opening_finish)
   document.addEventListener('keydown', on_key)
 
   for (let i = 0; i < op_cuts.length; i++) {
@@ -233,17 +258,16 @@ export function opening_show(on_done: () => void): void {
 
 function on_key(ev: KeyboardEvent): void {
   if (ev.keyCode === 77) { return } // M は音声トグル（input.ts）に譲る
-  opening_finish()
-}
-
-function opening_skip(): void {
+  // Shift/Ctrl/Alt/Meta 単独は、ブラウザのショートカット操作より押し間違いの
+  // ほうが濃厚なので無視する（左右の Meta を含む）
+  if ([16, 17, 18, 91, 92].includes(ev.keyCode)) { return }
   opening_finish()
 }
 
 function opening_finish(): void {
   if (!running) { return }
   running = false
-  document.removeEventListener('click', opening_skip)
+  document.removeEventListener('click', opening_finish)
   document.removeEventListener('keydown', on_key)
   for (const timer of timers) { clearTimeout(timer) }
   timers = []

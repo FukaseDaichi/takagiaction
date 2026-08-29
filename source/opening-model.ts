@@ -4,17 +4,17 @@ export type op_cut_t = {
   dur: number     // カットの表示時間（ミリ秒）
   lines: string[] // 字幕。複数行は dur を行数で等分した刻みで 1 行ずつ出す
   takagi?: boolean // true なら高木の声（語りと別スタイル）
-  video?: boolean  // true なら絵は動画。1 回再生して終端で pause（ループ禁止:
-                   // 継ぎ目のフレーム差が隣接フレームの約 10 倍あり目視できる）
 }
 
+// どのカットが動画かは opening.ts の素材配列（op_assets）が持つ。ここでは
+// 進行表としての尺・字幕・声だけを持ち、動画かどうかには関与しない
 export const op_cuts: op_cut_t[] = [
   { dur: 4000, lines: ['西暦2718年。やつらは違法となった。'] },
   { dur: 4000, lines: ['地上から、すべてのやつらが消えた。'] },
   { dur: 5000, lines: ['しかし一人の男が、地下にまだやつらが眠っているという噂を聞いた。'] },
   { dur: 5000, lines: ['失われた人類の遺産。', '禁じられた聖域。', '最後の安息の地。'] },
-  { dur: 4000, lines: ['喫煙所だ。'], takagi: true, video: true },
-  { dur: 4000, lines: [], video: true },
+  { dur: 4000, lines: ['喫煙所だ。'], takagi: true },
+  { dur: 4000, lines: [] },
 ]
 
 // カット 5 の直前に置く黒 1 拍（全音停止）。ミリ秒

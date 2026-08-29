@@ -5,7 +5,7 @@
    hud-model.ts の条件で現れて消える。ラベルを一切持たないのは、
    「表示されていること自体が警告」だから（docs/gameplay.md）。
 
-   #hud は全画面の透明な土台。pointer-events: none を外すと、イントロの
+   #hud は全画面の透明な土台。pointer-events: none を外すと、起動画面の
    クリック待ち（main.ts の document.onclick）と死亡画面のボタンが拾えなくなる。 */
 #hud {
   /* タバコの材質。世界側の照明は #e90 なので、火種はより赤く熱い側に置いて

@@ -13,11 +13,9 @@ describe('OP の進行表', () => {
       ['喫煙所だ。'],
       [],
     ])
-    // 「喫煙所だ。」だけが高木の声。動画はカット 5・6（0 始まりで 4・5）
+    // 「喫煙所だ。」だけが高木の声（動画かどうかは opening.ts の素材配列が持つ）
     expect(op_cuts.map((cut) => !!cut.takagi)).toEqual(
       [false, false, false, false, true, false])
-    expect(op_cuts.map((cut) => !!cut.video)).toEqual(
-      [false, false, false, false, true, true])
   })
 
   it('カットの開始時刻はカット 5 の黒 1 拍を含んで累積する', () => {
