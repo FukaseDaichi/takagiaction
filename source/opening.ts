@@ -1,6 +1,6 @@
 import {
   audio_play_op, audio_sfx_beep, audio_sfx_exhale, audio_sfx_explode, audio_sfx_hit,
-  audio_sfx_lighter,
+  audio_sfx_lighter, audio_sfx_swing,
 } from './audio'
 import {
   op_black_lead, op_cut_at, op_cuts, op_line_at, op_sting_delay, op_total,
@@ -174,13 +174,19 @@ function op_sounds(): op_sound_t[] {
   for (let p = 0; p < 5; p++) {
     list.push({ at: op_cut_at(2) + p * 900, sfx: () => audio_sfx_hit, rate: 0.5, gain: 0.5 })
   }
-  // カット 4: 三連呼の頭ごとにブームを強くする
+  // カット 4: 三連呼の頭ごとに、ブームと中高域のアタックを重ねて強くする。
+  // ブームだけでは小型スピーカーで聞こえない ― rate 0.34 の explode は再生時の
+  // エネルギーが 30〜250Hz にほぼ全振りで、500Hz 以上がほぼ空になる。かといって
+  // gain でも稼げない: カット 4 のミックス（3 発のブーム + カット 3 の鼓動の尾 +
+  // ドローン）は実測ピーク 0.954 で、1.0 のクリップまで +0.4dB しかない。
+  // そこで 3.2kHz のバンドパスノイズである swing を同じ時刻に重ね、聞こえる帯域に
+  // 輪郭を作る。swing のピークはブームのピークと別の位置に立つので、重ねても
+  // ミックスのピークはほぼ動かない
   const cut4 = op_cuts[3]
   for (let line = 0; line < cut4.lines.length; line++) {
-    list.push({
-      at: op_cut_at(3) + op_line_at(cut4, line),
-      sfx: boom, rate: 0.34 - line * 0.02, gain: 0.8 + line * 0.1,
-    })
+    const at = op_cut_at(3) + op_line_at(cut4, line)
+    list.push({ at, sfx: boom, rate: 0.34 - line * 0.02, gain: 0.9 + line * 0.05 })
+    list.push({ at, sfx: () => audio_sfx_swing, rate: 0.8, gain: 0.5 + line * 0.1 })
   }
   // カット 5: 静寂のなかの安っぽい点灯音
   list.push({ at: op_cut_at(4), sfx: () => audio_sfx_beep, rate: 0.7, gain: 0.6 })

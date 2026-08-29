@@ -87,6 +87,7 @@ vi.mock('./audio', () => ({
   audio_sfx_explode: {},
   audio_sfx_hit: {},
   audio_sfx_lighter: {},
+  audio_sfx_swing: {},
 }))
 
 import { opening_preload, opening_show } from './opening'
@@ -174,18 +175,29 @@ describe('OP のタイムライン', () => {
     expect(pulses.map((p) => p.at)).toEqual(
       [0, 1, 2, 3, 4].map((n) => op_cut_at(2) + n * 900))
 
-    // カット 4: 三連呼の頭ごとにブームが強く・低くなる。カット 4 は
-    // op_cut_at(3) で始まり、op_cut_at(4) - op_black_lead（黒 1 拍の頭 =
-    // 全音停止の瞬間）で閉じる
+    // カット 4: 三連呼の頭ごとに、ブーム（強く・低く）と中高域のアタックが
+    // 同時に鳴り、どちらも呼ぶたびに強くなる。カット 4 は op_cut_at(3) で始まり、
+    // op_cut_at(4) - op_black_lead（黒 1 拍の頭 = 全音停止の瞬間）で閉じる
     const cut4_end = op_cut_at(4) - op_black_lead
-    const booms4 = audio.plays
+    const cut4 = audio.plays
       .filter((p) => p.at >= op_cut_at(3) && p.at < cut4_end)
       .sort((a, b) => a.at - b.at)
+    expect(cut4.length).toBe(6)
+    const booms4 = cut4.filter((p) => p.rate < 0.5)
+    const layers4 = cut4.filter((p) => p.rate === 0.8)
     expect(booms4.length).toBe(3)
-    for (let i = 1; i < booms4.length; i++) {
+    expect(layers4.length).toBe(3)
+    for (let i = 0; i < 3; i++) {
+      // 重ねる音はブームと同時刻に立つ（ずれると 2 発に聞こえる）
+      expect(layers4[i].at).toBe(booms4[i].at)
+      if (i === 0) { continue }
       expect(booms4[i].gain).toBeGreaterThan(booms4[i - 1].gain)
       expect(booms4[i].rate).toBeLessThan(booms4[i - 1].rate)
+      expect(layers4[i].gain).toBeGreaterThan(layers4[i - 1].gain)
     }
+    // ブームの上限は 1.0。カット 4 のミックスは実測ピーク 0.954 で、ここを
+    // 上げるとクリップする。聞こえやすさは中高域のレイヤーで稼ぐこと
+    expect(Math.max(...booms4.map((p) => p.gain))).toBe(1)
 
     // カット 6: スティング（ブーム + ライター）はカット開始のちょうど 1.5 秒
     // 後に、2 音同時に着地する
