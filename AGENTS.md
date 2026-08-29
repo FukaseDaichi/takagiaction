@@ -34,6 +34,8 @@ npm test
 
 テストに **jsdom は追加しない**。DOM に依存するモジュールは 2 通りで書く。要素だけ差し替えれば足りるものは `vi.mock('./dom', ...)`、全画面 UI のように `document` そのものが要るものは `vi.hoisted()` で最小の `document` を `globalThis` に置く。葉ロジックは素の Vitest で書く。
 
+**テストが緑であることを、それ自体では守れている証拠にしない。** 期待値を検証対象の定数から再計算していないか（`toBe(18000 + op_black_lead)` は定数を固定しない）、モックの既定実装が失敗を再現できるか（防御対象の例外はそのテストの中だけ実際に投げさせる）、そして守りたい分岐を実装から外すと本当に赤くなるかを確かめる。変異候補には、機能を成立させる最も外側の呼び出しまで含める。
+
 ## Agent Skill の管理
 
 スキルの正本は `.agents/skills/<name>/SKILL.md` の 1 箇所だけである。`.claude/skills/<name>/SKILL.md` は正本を読ませるための参照スタブ（生成物）で、直接編集しない。
@@ -85,6 +87,7 @@ docs/ と docs/superpowers/ が矛盾する場合、docs/ とコードが正。
 - ワンライナー・標準モジュール: `uv run python -m <module>`
 - パッケージが必要な場合: `uv run --with <package> python ...`
 - 日本語を含むファイルを読み書きする場合: `uv run python -X utf8 ...`（Windows の既定エンコーディングは CP932 で、UTF-8 のファイルはデコードエラーになる）
+- 破壊的な書き込みは read を済ませてから開く。`io.open(p,'w').write(expr)` は open が先に評価されるため、`expr` が例外を投げるとファイルが空のまま残る
 
 ## LEARNINGS.md ループ
 
