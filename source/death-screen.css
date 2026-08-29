@@ -488,7 +488,6 @@
   white-space: nowrap;
 }
 #ds.entering .ds-controls { animation: ds-in-up .5s var(--ease-in) 1.4s backwards; }
-#ds.exiting .ds-controls { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
 
 /* --- Level 3 記録確認パネル --- */
 
@@ -1063,16 +1062,19 @@
    先に落とすと UI が吸い込まれる様子をこの暗幕が覆い隠してしまう */
 #ds.exiting .ds-dim { opacity: .92; transition-duration: .3s; transition-delay: .35s; }
 /* 全 UI が模型へ吸い込まれる。入場の開示順（title .15→sub .3→yani 1.1→
-   menu/descend 1.25→hint 1.4→NEW RECORD 1.6/1.8）の逆順の階梯で消える
+   menu/descend 1.25→hint/controls 1.4→NEW RECORD 1.6/1.8）の逆順の階梯で消える
    （spec ⑦「逆順の階梯」、spec §14）。--i/--n を使わないのは、それが
    .ds-part・.ds-wire のような繰り返し要素の書式だからで、ここは単発要素
-   8 個なので入場側と同じ流儀（要素ごとに実値の delay を書く）に揃える。
+   9 個なので入場側と同じ流儀（要素ごとに実値の delay を書く）に揃える。
    NEW RECORD バナーは表示されていれば入場で最後に出る演出なので最初に消し、
    .ds-detail は強化モードでしか出ない（降下は idle でしか起きないため
-   このタイミングでは常に非表示）が、順序上は同じく早めに置く */
+   このタイミングでは常に非表示）が、順序上は同じく早めに置く。.ds-controls
+   （地下での操作の常設表示）は入場で .ds-hint と同じ 1.4s delay なので、
+   退場でも同じ .16s に揃えて隣に置く */
 #ds.exiting .ds-nr { animation: ds-suck-in .3s var(--ease-out) forwards; }
 #ds.exiting .ds-detail { animation: ds-suck-in .3s var(--ease-out) .08s forwards; }
 #ds.exiting .ds-hint { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
+#ds.exiting .ds-controls { animation: ds-suck-in .3s var(--ease-out) .16s forwards; }
 #ds.exiting .ds-menu, #ds.exiting .ds-descend {
   animation: ds-suck-in .3s var(--ease-out) .24s forwards;
 }
